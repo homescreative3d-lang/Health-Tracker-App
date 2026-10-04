@@ -1,1 +1,204 @@
-using System.Text.Json;using HealthTracker.Api.Contracts;using HealthTracker.Api.Data;using HealthTracker.Api.Models;using Microsoft.EntityFrameworkCore;namespace HealthTracker.Api.Services;public interface IDoseService{Task<List<DoseResponse>> Get(Guid userId,DateOnly date,Guid? patientId);Task<DoseResponse> Take(Guid userId,Guid id);Task<DoseResponse> Skip(Guid userId,Guid id,string reason);Task<DoseResponse> Reschedule(Guid userId,Guid id,DateOnly date);Task<DoseResponse> Undo(Guid userId,Guid id);}public class DoseService(AppDbContext db):IDoseService{public async Task<List<DoseResponse>> Get(Guid uid,DateOnly date,Guid? patientId){var ids=await db.FamilyMembers.Where(x=>x.UserId==uid&&x.Status=="approved").Join(db.FamilyMembers,a=>a.FamilyId,b=>b.FamilyId,(a,b)=>b.UserId).Distinct().ToListAsync();if(!ids.Contains(uid))ids.Add(uid);if(patientId.HasValue){var requested=await db.Patients.FindAsync(patientId.Value);if(requested is null||!ids.Contains(requested.UserId))throw new UnauthorizedAccessException("You do not have access to this patient.");}var p=await db.Patients.SingleAsync(x=>x.Id==(patientId??Guid.Empty)||x.UserId==uid);if(patientId.HasValue&&!ids.Contains(p.UserId))throw new UnauthorizedAccessException("You do not have access to this patient.");var meds=await db.Medicines.Where(x=>x.PatientId==p.Id).ToListAsync();var result=new List<DoseResponse>();foreach(var m in meds)if(Occurs(m,date))foreach(var time in JsonSerializer.Deserialize<List<string>>(m.TimesJson)??[]){var e=await db.DoseEvents.SingleOrDefaultAsync(x=>x.PatientId==p.Id&&x.MedicineId==m.Id&&x.Date==date&&x.Time==time);if(e==null){e=new DoseEvent{PatientId=p.Id,MedicineId=m.Id,Date=date,Time=time};db.DoseEvents.Add(e);await db.SaveChangesAsync();}result.Add(Map(e,m));}return result.OrderBy(x=>x.Time).ToList();}static bool Occurs(Medicine m,DateOnly d){if(d<m.StartDate)return false;var diff=d.DayNumber-m.StartDate.DayNumber;if(m.DurationType!="ongoing"){var n=m.DurationUnit=="weeks"?m.DurationValue*7:m.DurationUnit=="months"?m.DurationValue*30:m.DurationValue;if(diff>=n)return false;}return m.FrequencyPattern switch{"daily"=>true,"everyOtherDay"=>diff%2==0,"specificDays"=>(JsonSerializer.Deserialize<List<string>>(m.SpecificDaysJson)??[]).Contains(d.DayOfWeek.ToString()[..3]),"recurringCycle"=>m.CycleUnit=="weeks"?diff%(m.CycleEvery*7)==0:m.CycleUnit=="months"?d.Day==m.StartDate.Day:diff%m.CycleEvery==0,_=>false};}static DoseResponse Map(DoseEvent e,Medicine m)=>new(e.Id,m.Id,m.Name,m.Strength,m.Form,m.Condition,e.Time,m.Liquid,m.WithFood,e.Status,e.TakenAt,e.SkipReason,e.RescheduleTo?.ToString("yyyy-MM-dd"));async Task<(DoseEvent e,Medicine m)> Event(Guid uid,Guid id){var e=await db.DoseEvents.SingleAsync(x=>x.Id==id);var p=await db.Patients.SingleAsync(x=>x.Id==e.PatientId);var ids=await db.FamilyMembers.Where(x=>x.UserId==uid&&x.Status=="approved").Join(db.FamilyMembers,a=>a.FamilyId,b=>b.FamilyId,(a,b)=>b.UserId).Distinct().ToListAsync();if(!ids.Contains(uid))ids.Add(uid);if(!ids.Contains(p.UserId))throw new UnauthorizedAccessException("You do not have access to this patient.");var m=await db.Medicines.SingleAsync(x=>x.Id==e.MedicineId);return(e,m);}public async Task<DoseResponse> Take(Guid u,Guid id){var x=await Event(u,id);x.e.Status="taken";x.e.TakenAt=DateTimeOffset.UtcNow;await db.SaveChangesAsync();return Map(x.e,x.m);}public async Task<DoseResponse> Skip(Guid u,Guid id,string reason){var x=await Event(u,id);x.e.Status="skipped";x.e.SkipReason=reason;await db.SaveChangesAsync();return Map(x.e,x.m);}public async Task<DoseResponse> Reschedule(Guid u,Guid id,DateOnly d){var x=await Event(u,id);x.e.Status="rescheduled";x.e.RescheduleTo=d;await db.SaveChangesAsync();return Map(x.e,x.m);}public async Task<DoseResponse> Undo(Guid u,Guid id){var x=await Event(u,id);x.e.Status="pending";x.e.TakenAt=null;x.e.SkipReason=null;x.e.RescheduleTo=null;await db.SaveChangesAsync();return Map(x.e,x.m);}}
+using System.Text.Json;
+using HealthTracker.Api.Contracts;
+using HealthTracker.Api.Data;
+using HealthTracker.Api.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace HealthTracker.Api.Services;
+
+public interface IDoseService
+{
+    Task<List<DoseResponse>> Get(Guid userId, DateOnly date, Guid? patientId);
+    Task<DoseResponse> Take(Guid userId, Guid id);
+    Task<DoseResponse> Skip(Guid userId, Guid id, string reason);
+    Task<DoseResponse> Reschedule(Guid userId, Guid id, DateOnly date);
+    Task<DoseResponse> Undo(Guid userId, Guid id);
+}
+
+public class DoseService(AppDbContext db) : IDoseService
+{
+    public async Task<List<DoseResponse>> Get(Guid userId, DateOnly date, Guid? patientId)
+    {
+        var accessibleUsers = await AccessibleUserIds(userId);
+        Patient patient;
+        if (patientId.HasValue)
+        {
+            patient = await db.Patients.SingleOrDefaultAsync(x => x.Id == patientId.Value)
+                ?? throw new KeyNotFoundException("Patient not found.");
+            if (!accessibleUsers.Contains(patient.UserId))
+                throw new UnauthorizedAccessException("You do not have access to this patient.");
+        }
+        else
+        {
+            patient = await db.Patients.SingleOrDefaultAsync(x => x.UserId == userId)
+                ?? throw new KeyNotFoundException("Patient not found.");
+        }
+
+        var medicines = await db.Medicines.Where(x => x.PatientId == patient.Id).ToListAsync();
+        var result = new List<DoseResponse>();
+
+        foreach (var medicine in medicines)
+        {
+            if (!Occurs(medicine, date))
+                continue;
+
+            var times = JsonSerializer.Deserialize<List<string>>(medicine.TimesJson) ?? [];
+            foreach (var time in times.Distinct(StringComparer.Ordinal))
+            {
+                var dose = await db.DoseEvents.SingleOrDefaultAsync(x =>
+                    x.PatientId == patient.Id &&
+                    x.MedicineId == medicine.Id &&
+                    x.Date == date &&
+                    x.Time == time);
+
+                if (dose is null)
+                {
+                    dose = new DoseEvent
+                    {
+                        PatientId = patient.Id,
+                        MedicineId = medicine.Id,
+                        Date = date,
+                        Time = time
+                    };
+                    db.DoseEvents.Add(dose);
+                    await db.SaveChangesAsync();
+                }
+
+                result.Add(Map(dose, medicine, patient));
+            }
+        }
+
+        return result.OrderBy(x => x.Time).ToList();
+    }
+
+    public async Task<DoseResponse> Take(Guid userId, Guid id)
+    {
+        var pair = await GetAuthorizedEvent(userId, id);
+        pair.Event.Status = "taken";
+        pair.Event.TakenAt = DateTimeOffset.UtcNow;
+        pair.Event.ActionedByUserId = userId;
+        await db.SaveChangesAsync();
+        return Map(pair.Event, pair.Medicine, pair.Patient);
+    }
+
+    public async Task<DoseResponse> Skip(Guid userId, Guid id, string reason)
+    {
+        var pair = await GetAuthorizedEvent(userId, id);
+        pair.Event.Status = "skipped";
+        pair.Event.SkipReason = reason;
+        pair.Event.ActionedByUserId = userId;
+        await db.SaveChangesAsync();
+        return Map(pair.Event, pair.Medicine, pair.Patient);
+    }
+
+    public async Task<DoseResponse> Reschedule(Guid userId, Guid id, DateOnly date)
+    {
+        var pair = await GetAuthorizedEvent(userId, id);
+        pair.Event.Status = "rescheduled";
+        pair.Event.RescheduleTo = date;
+        pair.Event.ActionedByUserId = userId;
+        await db.SaveChangesAsync();
+        return Map(pair.Event, pair.Medicine, pair.Patient);
+    }
+
+    public async Task<DoseResponse> Undo(Guid userId, Guid id)
+    {
+        var pair = await GetAuthorizedEvent(userId, id);
+        pair.Event.Status = "pending";
+        pair.Event.TakenAt = null;
+        pair.Event.SkipReason = null;
+        pair.Event.RescheduleTo = null;
+        pair.Event.ActionedByUserId = userId;
+        await db.SaveChangesAsync();
+        return Map(pair.Event, pair.Medicine, pair.Patient);
+    }
+
+    private async Task<HashSet<Guid>> AccessibleUserIds(Guid userId)
+    {
+        var ids = await db.FamilyMembers
+            .Where(x => x.UserId == userId && x.Status == "approved")
+            .Join(db.FamilyMembers,
+                member => member.FamilyId,
+                familyMember => familyMember.FamilyId,
+                (_, familyMember) => familyMember.UserId)
+            .Distinct()
+            .ToListAsync();
+
+        ids.Add(userId);
+        return ids.ToHashSet();
+    }
+
+    private async Task<(DoseEvent Event, Medicine Medicine, Patient Patient)> GetAuthorizedEvent(Guid userId, Guid id)
+    {
+        var dose = await db.DoseEvents.SingleOrDefaultAsync(x => x.Id == id)
+            ?? throw new KeyNotFoundException("Dose not found.");
+
+        var patient = await db.Patients.SingleOrDefaultAsync(x => x.Id == dose.PatientId)
+            ?? throw new KeyNotFoundException("Patient not found.");
+
+        var accessibleUsers = await AccessibleUserIds(userId);
+        if (!accessibleUsers.Contains(patient.UserId))
+            throw new UnauthorizedAccessException("You do not have access to this dose.");
+
+        var medicine = await db.Medicines.SingleOrDefaultAsync(x =>
+            x.Id == dose.MedicineId && x.PatientId == patient.Id)
+            ?? throw new KeyNotFoundException("Medicine not found.");
+
+        return (dose, medicine, patient);
+    }
+
+    private static DoseResponse Map(DoseEvent dose, Medicine medicine, Patient patient) =>
+        new(
+            dose.Id,
+            medicine.Id,
+            patient.Id.ToString(),
+            patient.Name,
+            medicine.Name,
+            medicine.Strength,
+            medicine.Form,
+            medicine.Condition,
+            dose.Time,
+            medicine.Liquid,
+            medicine.WithFood,
+            dose.Status,
+            dose.TakenAt,
+            dose.SkipReason,
+            dose.RescheduleTo?.ToString("yyyy-MM-dd"),
+            dose.ActionedByUserId);
+
+    private static bool Occurs(Medicine medicine, DateOnly date)
+    {
+        if (date < medicine.StartDate)
+            return false;
+
+        var diff = date.DayNumber - medicine.StartDate.DayNumber;
+
+        if (!string.Equals(medicine.DurationType, "ongoing", StringComparison.OrdinalIgnoreCase))
+        {
+            var durationDays = medicine.DurationUnit switch
+            {
+                "weeks" => medicine.DurationValue * 7,
+                "months" => medicine.DurationValue * 30,
+                _ => medicine.DurationValue
+            };
+
+            if (diff >= durationDays)
+                return false;
+        }
+
+        return medicine.FrequencyPattern switch
+        {
+            "daily" => true,
+            "everyOtherDay" => diff % 2 == 0,
+            "specificDays" => (JsonSerializer.Deserialize<List<string>>(medicine.SpecificDaysJson) ?? [])
+                .Contains(date.DayOfWeek.ToString()[..3], StringComparer.OrdinalIgnoreCase),
+            "recurringCycle" => medicine.CycleUnit switch
+            {
+                "weeks" => diff % Math.Max(1, medicine.CycleEvery * 7) == 0,
+                "months" => date.Day == medicine.StartDate.Day,
+                _ => diff % Math.Max(1, medicine.CycleEvery) == 0
+            },
+            _ => false
+        };
+    }
+}
