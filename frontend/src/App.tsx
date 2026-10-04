@@ -74,3 +74,5 @@ function RoleCard({icon,title,text,accent,onClick}:{icon:ReactNode;title:string;
 function SideTab({icon,label,active,onClick}:{icon:ReactNode;label:string;active:boolean;onClick:()=>void}){return <button className={active?"side-tab active":"side-tab"} onClick={onClick}>{icon}<span>{label}</span></button>}
 function Tab({icon,label,active,onClick}:{icon:ReactNode;label:string;active:boolean;onClick:()=>void}){return <button className={active?"tab active":"tab"} onClick={onClick}>{icon}<span>{label}</span></button>}
 function Row({label,value}:{label:string;value:string}){return <div className="detail-row"><span className="muted">{label}</span><b>{value}</b></div>}
+
+function err(e:unknown){return e instanceof Error?e.message:"Something went wrong. Please try again.";}
