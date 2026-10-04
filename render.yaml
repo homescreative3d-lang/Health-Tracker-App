@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: healthtracker-api
+    runtime: docker
+    dockerfilePath: ./backend/HealthTracker.Api/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /api/health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: Jwt__Issuer
+        value: HealthTracker
+      - key: Jwt__Audience
+        value: HealthTrackerWeb
+      - key: Jwt__Key
+        generateValue: true
