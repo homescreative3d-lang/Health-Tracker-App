@@ -7,6 +7,7 @@ import { isPausedOn } from "../../constants/options";
 import { DoseGroup } from "../../components/DoseGroup";
 import { DoseRow, type DoseAction } from "../../components/DoseRow";
 import { PageHeader } from "../../components/PageHeader";
+import { EmptyArt } from "../../components/art/EmptyArt";
 
 type CalendarProps = {
   selectedDate: string;
@@ -141,7 +142,7 @@ export function Calendar({
       )}
       {total === 0 && (
         <div className="card empty-card compact">
-          <CalendarDays aria-hidden="true" />
+          <EmptyArt kind="calendar" size={112} />
           <b>No doses planned for this day</b>
           <span className="muted">
             Pick another date, or add a medicine from the Medicines tab.

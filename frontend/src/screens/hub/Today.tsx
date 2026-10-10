@@ -1,5 +1,5 @@
-import React from "react";
-import { AlertCircle, HeartPulse, Info, Pill, Plus, UserPlus } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { AlertCircle, HeartPulse, Info, Plus } from "lucide-react";
 import type { Dose, Medicine, Patient } from "../../api";
 import type { DayPart } from "../../lib/dates";
 import { plural } from "../../lib/text";
@@ -7,7 +7,9 @@ import { isPausedOn } from "../../constants/options";
 import { Avatar } from "../../components/Avatar";
 import { DoseGroup } from "../../components/DoseGroup";
 import { DoseRow, type DoseAction } from "../../components/DoseRow";
-import { PageHeader } from "../../components/PageHeader";
+import { SkyScene } from "../../components/art/SkyScene";
+import { EmptyArt } from "../../components/art/EmptyArt";
+import { Celebration } from "../../components/art/Celebration";
 import { SkeletonList } from "../../components/Skeleton";
 
 type TodayProps = {
@@ -61,30 +63,44 @@ export function Today({
     (m) => m.isRecurring && m.supplyCount <= m.refillThreshold && !isPausedOn(m),
   );
   const firstName = patient.name.split(" ")[0];
+  const allTaken = total > 0 && taken === total;
+  // Celebrate once when the last dose of the day is taken during this visit.
+  const [celebrate, setCelebrate] = useState(false);
+  const prevTaken = useRef(taken);
+  useEffect(() => {
+    if (allTaken && prevTaken.current < taken) {
+      setCelebrate(true);
+      const t = window.setTimeout(() => setCelebrate(false), 1600);
+      prevTaken.current = taken;
+      return () => window.clearTimeout(t);
+    }
+    prevTaken.current = taken;
+  }, [allTaken, taken]);
 
   return (
     <div className="page-scroll">
-      <PageHeader
-        kicker={greeting()}
-        title={patient.name ? `${firstName}'s doses today` : "Welcome to Tended"}
-        description={
-          patient.name
-            ? new Date().toLocaleDateString(undefined, {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
-              })
-            : "Add the person you care for (or yourself) to start a medicine plan."
-        }
-        actions={
-          patient.id ? (
-            <button className="btn soft" onClick={onPatientInfo}>
-              <Info size={17} aria-hidden="true" />
+      <section className="today-hero">
+        <div className="today-hero-copy">
+          <span className="eyebrow">{greeting()}</span>
+          <h1>{patient.name ? `${firstName}'s doses today` : "Welcome to Tended"}</h1>
+          <p>
+            {patient.name
+              ? new Date().toLocaleDateString(undefined, {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                })
+              : "Add the person you care for (or yourself) to start a medicine plan."}
+          </p>
+          {patient.id && (
+            <button className="btn soft sm" onClick={onPatientInfo}>
+              <Info size={16} aria-hidden="true" />
               Patient info
             </button>
-          ) : undefined
-        }
-      />
+          )}
+        </div>
+        <SkyScene />
+      </section>
 
       {patients.length > 1 && (
         <div className="patient-switcher" role="tablist" aria-label="Choose patient">
@@ -106,9 +122,27 @@ export function Today({
       {loading && <SkeletonList rows={3} label="Loading schedule" />}
 
       {!loading && total > 0 && (
-        <div className="progress-card card">
+        <div className={allTaken ? "progress-card card is-complete" : "progress-card card"}>
+          {celebrate && <Celebration />}
+          <div
+            className="progress-ring"
+            role="img"
+            aria-label={`${adherence}% of actioned doses taken`}
+            style={{ "--progress": adherence } as React.CSSProperties}
+          >
+            <span>
+              <b>{adherence}%</b>
+              <small>adherence</small>
+            </span>
+          </div>
           <div className="progress-copy">
-            <span className="muted">Today's adherence</span>
+            <b className="progress-headline">
+              {allTaken
+                ? "Every dose taken today. Lovely work."
+                : remaining > 0
+                  ? `${remaining} dose${remaining === 1 ? "" : "s"} still to go`
+                  : "Today's doses are all recorded"}
+            </b>
             <div className="progress-stats">
               <span className="stat taken">
                 <b>{taken}</b> taken
@@ -120,15 +154,12 @@ export function Today({
                 <b>{remaining}</b> to go
               </span>
             </div>
+            <div className="progress-bar" aria-hidden="true">
+              <span className="seg taken" style={{ flexGrow: taken }} />
+              <span className="seg missed" style={{ flexGrow: missed }} />
+              <span className="seg remaining" style={{ flexGrow: remaining }} />
+            </div>
             <small className="muted">Skipped doses count as missed.</small>
-          </div>
-          <div
-            className="progress-ring"
-            role="img"
-            aria-label={`${adherence}% of actioned doses taken`}
-            style={{ "--progress": adherence } as React.CSSProperties}
-          >
-            <span>{adherence}%</span>
           </div>
         </div>
       )}
@@ -171,9 +202,7 @@ export function Today({
 
       {!loading && total === 0 && (
         <div className="card empty-card">
-          <div className="empty-icon">
-            {patient.id ? <Pill aria-hidden="true" /> : <UserPlus aria-hidden="true" />}
-          </div>
+          <EmptyArt kind={patient.id ? (meds.length ? "calendar" : "pills") : "patient"} />
           <b>
             {!patient.id
               ? "No patient added yet"
