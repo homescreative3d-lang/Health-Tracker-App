@@ -1,43 +1,14 @@
 import type { ReactNode } from "react";
 import { ChevronRight, User, Users } from "lucide-react";
 
-export function RoleScreen({
-  onPick,
-  onSkip,
-}: {
-  onPick: (r: string) => void;
+type RoleScreenProps = {
+  /** Called with who the plan is for. */
+  onPick: (r: "self" | "caregiver") => void;
+  /** Skips onboarding and goes straight to the hub. */
   onSkip: () => void;
-}) {
-  return (
-    <section className="setup-card">
-      <span className="eyebrow">WELCOME TO HEALTH COMPANION</span>
-      <h2>Who are you setting this up for?</h2>
-      <p className="muted lead">
-        Choose the setup that fits. You can manage the plan from one place.
-      </p>
-      <div className="role-grid">
-        <RoleCard
-          icon={<Users />}
-          title="I'm a caregiver"
-          text="Manage medicines for a parent, patient or someone you look after."
-          accent="orange"
-          onClick={() => onPick("caregiver")}
-        />
-        <RoleCard
-          icon={<User />}
-          title="For myself"
-          text="Track your own medicines, reminders and daily doses."
-          accent="mint"
-          onClick={() => onPick("self")}
-        />
-      </div>
-      <button className="btn soft full" onClick={onSkip}>
-        Skip for now — I’ll add a patient later
-      </button>
-    </section>
-  );
-}
+};
 
+/** Large tappable choice card. */
 function RoleCard({
   icon,
   title,
@@ -54,11 +25,41 @@ function RoleCard({
   return (
     <button className="role-card" onClick={onClick}>
       <span className={"role-icon " + accent}>{icon}</span>
-      <span>
+      <span className="role-copy">
         <b>{title}</b>
         <small>{text}</small>
       </span>
-      <ChevronRight />
+      <ChevronRight aria-hidden="true" />
     </button>
+  );
+}
+
+/** First step for new accounts: is this plan for the user or for someone they care for? */
+export function RoleScreen({ onPick, onSkip }: RoleScreenProps) {
+  return (
+    <section className="setup-card card">
+      <span className="eyebrow">Step 1 of 2</span>
+      <h2>Who are you setting this up for?</h2>
+      <p className="muted lead">You can add more people later from your profile.</p>
+      <div className="role-grid">
+        <RoleCard
+          icon={<Users aria-hidden="true" />}
+          title="Someone I care for"
+          text="A parent, partner, child or patient whose medicines you manage."
+          accent="care"
+          onClick={() => onPick("caregiver")}
+        />
+        <RoleCard
+          icon={<User aria-hidden="true" />}
+          title="Myself"
+          text="Track your own medicines, reminders and daily doses."
+          accent="self"
+          onClick={() => onPick("self")}
+        />
+      </div>
+      <button className="btn ghost full" onClick={onSkip}>
+        Skip for now
+      </button>
+    </section>
   );
 }
