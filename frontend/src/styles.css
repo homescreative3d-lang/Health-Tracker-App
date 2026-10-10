@@ -139,3 +139,40 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
  .account-edit-card,.patient-details-page{padding:18px}
  .patient-open-label{font-size:11px}
 }
+
+
+/* Profile menu and personal health sections */
+.account-dropdown{position:fixed;right:18px;top:66px;z-index:120;width:190px;padding:7px;background:#fff;border:1px solid var(--border);border-radius:15px;box-shadow:0 18px 44px rgba(20,55,50,.18);animation:fadeUp .16s ease both}
+.account-dropdown button{display:flex;align-items:center;gap:10px;width:100%;padding:12px;border-radius:10px;text-align:left;font-weight:700;color:var(--ink)}
+.account-dropdown button:hover{background:var(--surface2)}
+.account-dropdown-signout{color:var(--danger)!important}
+.profile-page{gap:0}
+.profile-section{margin-bottom:22px}
+.profile-section>.section-heading{margin-bottom:16px}
+.profile-section>.section-heading .muted{font-size:13px;line-height:1.45;margin-top:5px}
+.profile-section>.section-heading>svg{color:var(--primary);flex-shrink:0}
+.profile-section .profile-head{margin-bottom:18px}
+.profile-section .profile-actions-grid{margin-top:6px}
+.own-health-card{display:flex;align-items:flex-start;gap:13px;width:100%;padding:17px;text-align:left;margin-bottom:10px;border:1px solid var(--border);border-radius:16px;background:#fff}
+.own-health-card:hover{border-color:#9ccdc4;box-shadow:var(--shadow)}
+.own-health-avatar{width:46px;height:46px;display:grid;place-items:center;border-radius:14px;background:var(--mint);color:var(--primary);overflow:hidden;flex-shrink:0}
+.own-health-avatar img{width:100%;height:100%;object-fit:cover}
+.own-health-copy{display:flex;flex-direction:column;gap:5px;flex:1;min-width:0}
+.own-health-copy>b{font-size:15px}
+.own-health-copy>small{color:var(--muted);font-size:13px;line-height:1.45;overflow-wrap:anywhere}
+.doctor-photo-thumb{display:block;width:92px;height:70px;margin-top:5px;overflow:hidden;border:1px solid var(--border);border-radius:10px}
+.doctor-photo-thumb img{width:100%;height:100%;object-fit:cover}
+.doctor-photo-upload{display:flex;flex-direction:column;gap:10px}
+.doctor-photo-preview{width:auto;max-width:220px;max-height:180px;object-fit:contain;align-self:flex-start;border:1px solid var(--border);border-radius:12px;background:var(--surface2);padding:4px}
+.doctor-photo-upload .photo-actions{flex-wrap:wrap;margin-bottom:0}
+.doctor-photo-upload .photo-actions .btn{display:inline-flex;align-items:center;gap:7px}
+.doctor-photo-detail{display:flex;flex-direction:column;gap:10px;margin-top:20px;padding-top:18px;border-top:1px solid var(--border)}
+.doctor-photo-detail img{max-width:100%;width:auto;max-height:300px;object-fit:contain;align-self:flex-start;border:1px solid var(--border);border-radius:12px;padding:5px;background:var(--surface2)}
+.delete-account-section{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:21px;border-color:#f0d6d3;background:#fffafa;margin-bottom:22px}
+.delete-account-copy{display:flex;align-items:flex-start;gap:12px;min-width:0}
+.delete-account-icon{width:40px;height:40px;display:grid;place-items:center;flex-shrink:0;border-radius:12px;background:#fff0ee;color:var(--danger)}
+.delete-account-copy h3{margin:0 0 6px}
+.delete-account-copy p{max-width:620px;font-size:13px;line-height:1.5}
+.btn.danger{display:inline-flex;align-items:center;justify-content:center;gap:8px;flex-shrink:0;color:#fff;background:var(--danger);border:1px solid var(--danger)}
+.btn.danger:hover{filter:brightness(.95)}
+@media(max-width:700px){.account-dropdown{right:12px;top:59px}.delete-account-section{flex-direction:column;padding:16px;gap:16px}.delete-account-section>.btn{width:100%}.own-health-card{flex-wrap:wrap}.own-health-card>.patient-open-label{margin-left:auto}.doctor-photo-upload .photo-actions{display:flex;flex-direction:column;align-items:stretch}.doctor-photo-upload .photo-actions .btn{justify-content:center;width:100%}}
