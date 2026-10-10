@@ -16,7 +16,7 @@ import type { Patient, User as ApiUser } from "../../api";
 import type { HubTab } from "../../components/navigation/navItems";
 import { Avatar } from "../../components/Avatar";
 import { Modal } from "../../components/Modal";
-import { PageHeader } from "../../components/PageHeader";
+import { EmptyArt } from "../../components/art/EmptyArt";
 
 type ProfileProps = {
   user: ApiUser;
@@ -36,14 +36,17 @@ function ProfileAction({
   title,
   text,
   onClick,
+  tone = "teal",
 }: {
   icon: ReactNode;
   title: string;
   text: string;
   onClick: () => void;
+  /** Accent color of the icon tile. */
+  tone?: "teal" | "morning" | "evening" | "night";
 }) {
   return (
-    <button className="profile-action" onClick={onClick}>
+    <button className={`profile-action tone-${tone}`} onClick={onClick}>
       <span className="profile-action-icon">{icon}</span>
       <span className="profile-action-copy">
         <b>{title}</b>
@@ -105,24 +108,36 @@ export function Profile({
 
   return (
     <div className="page-scroll profile-page">
-      <PageHeader
-        kicker="Account"
-        title="Profile"
-        description="Your details, the people you care for, and settings."
-      />
-
-      <section className="card profile-section">
-        <div className="profile-head">
-          <Avatar name={user.displayName} src={user.profileImageUrl} size="lg" />
-          <div>
-            <b>{user.displayName}</b>
-            <span className="muted">{user.email}</span>
-          </div>
-          <button className="btn soft" onClick={() => setTab("profileDetails")}>
-            <User size={16} aria-hidden="true" />
-            Edit details
-          </button>
+      <section className="profile-banner">
+        <div className="profile-banner-art" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+          <i />
         </div>
+        <Avatar
+          name={user.displayName}
+          src={user.profileImageUrl}
+          size="xl"
+          className="profile-banner-avatar"
+        />
+        <div className="profile-banner-copy">
+          <span className="eyebrow">Your account</span>
+          <h1>{user.displayName}</h1>
+          <p>{user.email}</p>
+          <div className="profile-banner-stats">
+            <span>
+              <b>{caredFor.length}</b> {caredFor.length === 1 ? "person" : "people"} cared for
+            </span>
+            <span>
+              <b>{ownPlans.length ? "Yes" : "No"}</b> personal profile
+            </span>
+          </div>
+        </div>
+        <button className="btn light" onClick={() => setTab("profileDetails")}>
+          <User size={16} aria-hidden="true" />
+          Edit details
+        </button>
       </section>
 
       <section className="profile-section">
@@ -149,7 +164,7 @@ export function Profile({
           </div>
         ) : (
           <div className="card empty-card compact">
-            <Users size={24} aria-hidden="true" />
+            <EmptyArt kind="people" size={112} />
             <b>No one added yet</b>
             <span className="muted">Add a patient to manage their medicines and history.</span>
           </div>
@@ -194,18 +209,21 @@ export function Profile({
       <section className="card profile-section profile-tools">
         <ProfileAction
           icon={<Users size={20} />}
+          tone="evening"
           title="Family"
           text="Members, invitations and consent"
           onClick={() => setTab("family")}
         />
         <ProfileAction
           icon={<Bell size={20} />}
+          tone="night"
           title="Notifications"
           text="Reminder timing and device alerts"
           onClick={() => setTab("notifications")}
         />
         <ProfileAction
           icon={<BookOpen size={20} />}
+          tone="morning"
           title="How to use Tended"
           text="A two-minute guide"
           onClick={onGuide}

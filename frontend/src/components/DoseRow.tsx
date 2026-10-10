@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Clock3, Lock, RotateCcw, X } from "lucide-react";
 import type { Dose } from "../api";
 import { fmtTime } from "../lib/dates";
 import { doseWindow } from "../lib/doseWindow";
-import { MedicineFormIcon } from "./MedicineFormIcon";
+import { MedicineArt } from "./art/MedicineArt";
 
 /** Actions a user can perform on a dose. */
 export type DoseAction = "taken" | "skip" | "undo";
@@ -42,9 +42,21 @@ function statusOf(d: Dose, window: ReturnType<typeof doseWindow>) {
  */
 export function DoseRow({ d, date, onDose }: DoseRowProps) {
   const [busy, setBusy] = useState<DoseAction | null>(null);
-  const window = doseWindow(date, d);
-  const status = statusOf(d, window);
+  const actionWindow = doseWindow(date, d);
+  const status = statusOf(d, actionWindow);
   const acted = d.status === "taken" || d.status === "skipped";
+  // Play the "pill lifts out of its compartment" animation when a dose becomes taken.
+  const [justTaken, setJustTaken] = useState(false);
+  const prevStatus = useRef(d.status);
+  useEffect(() => {
+    if (prevStatus.current !== "taken" && d.status === "taken") {
+      setJustTaken(true);
+      const t = window.setTimeout(() => setJustTaken(false), 900);
+      prevStatus.current = d.status;
+      return () => window.clearTimeout(t);
+    }
+    prevStatus.current = d.status;
+  }, [d.status]);
 
   /** Runs an action with a per-row busy flag. */
   const run = async (action: DoseAction) => {
@@ -58,9 +70,17 @@ export function DoseRow({ d, date, onDose }: DoseRowProps) {
   };
 
   return (
-    <div className={`dose-row is-${d.status}`} data-window={window}>
+    <div
+      className={`dose-row is-${d.status}${justTaken ? " just-taken" : ""}`}
+      data-window={actionWindow}
+    >
       <div className={`dose-icon ${status.tone}`}>
-        <MedicineFormIcon form={d.form} size={21} />
+        <MedicineArt form={d.form} size={44} />
+        {d.status === "taken" && (
+          <span className="dose-icon-check" aria-hidden="true">
+            <Check size={12} strokeWidth={3} />
+          </span>
+        )}
       </div>
       <div className="dose-main">
         <div className="dose-top">
@@ -84,7 +104,7 @@ export function DoseRow({ d, date, onDose }: DoseRowProps) {
             {status.label}
             {d.actionedByName && acted ? ` by ${d.actionedByName}` : ""}
           </span>
-          {window === "open" && !acted && (
+          {actionWindow === "open" && !acted && (
             <div className="dose-actions">
               <button className="btn ghost sm" disabled={!!busy} onClick={() => run("skip")}>
                 <X size={15} aria-hidden="true" />
@@ -100,19 +120,19 @@ export function DoseRow({ d, date, onDose }: DoseRowProps) {
               </button>
             </div>
           )}
-          {window === "open" && acted && (
+          {actionWindow === "open" && acted && (
             <button className="btn ghost sm" disabled={!!busy} onClick={() => run("undo")}>
               <RotateCcw size={15} aria-hidden="true" />
               {busy === "undo" ? "Undoing…" : "Undo"}
             </button>
           )}
-          {window === "upcoming" && !acted && (
+          {actionWindow === "upcoming" && !acted && (
             <span className="dose-hint">
               <Clock3 size={14} aria-hidden="true" />
               Available at {fmtTime(d.time)}
             </span>
           )}
-          {window === "locked" && !acted && (
+          {actionWindow === "locked" && !acted && (
             <span className="dose-hint">
               <Lock size={14} aria-hidden="true" />
               Locked after 1 hour
