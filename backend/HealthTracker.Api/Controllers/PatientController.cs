@@ -44,8 +44,9 @@ public class PatientController(AppDbContext db,INeonObjectStorage storage):Contr
 
     async Task<IActionResult>UpdateOwned(Guid? id,PatientRequest r)
     {
-        var p=await db.Patients.SingleOrDefaultAsync(x=>x.Id==(id??Guid.Empty)&&x.UserId==U);
-        if(id is null)p=await db.Patients.SingleOrDefaultAsync(x=>x.UserId==U);
+        var accessible=await AccessibleUsers();
+        var p=await db.Patients.SingleOrDefaultAsync(x=>x.Id==(id??Guid.Empty)&&accessible.Contains(x.UserId));
+        if(id is null)p=await db.Patients.SingleOrDefaultAsync(x=>accessible.Contains(x.UserId));
         if(p is null)return NotFound();
         var old=p.ProfileImageUrl;
         p.Name=r.Name.Trim();p.Dob=string.IsNullOrWhiteSpace(r.Dob)?null:DateOnly.Parse(r.Dob);p.ConditionsJson=JsonSerializer.Serialize(r.Conditions??[]);
