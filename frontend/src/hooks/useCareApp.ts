@@ -13,7 +13,7 @@ import {
   type PatientInput,
   type User,
 } from "../api";
-import { DAY_PARTS, part, today } from "../lib/dates";
+import { DAY_PARTS, dateLabel, fmtTime, part, today } from "../lib/dates";
 import { err } from "../lib/errors";
 import { HUB_TABS, type HubTab } from "../components/navigation/navItems";
 import type { DoseAction } from "../components/DoseRow";
@@ -56,6 +56,8 @@ export function useCareApp() {
   );
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [planLoading, setPlanLoading] = useState(false);
+  /** Id of the medicine just added or rescheduled, so its card can animate in. */
+  const [justChangedMedicine, setJustChangedMedicine] = useState<string | null>(null);
   const [tab, setTab] = useHashRoute<HubTab>("today", HUB_TABS);
   const [user, setUser] = useState<User | null>(null);
   const [patient, setPatient] = useState<Patient | null>(null);
@@ -220,6 +222,9 @@ export function useCareApp() {
     };
   }, [user?.id]);
 
+  /** Medicines that are current (records replaced by a reschedule are hidden but kept for history). */
+  const activeMeds = useMemo(() => meds.filter((m) => !m.endedOn || m.endedOn > today()), [meds]);
+
   /** Doses grouped into daypart compartments. */
   const grouped = useMemo(
     () => DAY_PARTS.map((name) => ({ name, items: doses.filter((d) => part(d.time) === name) })),
@@ -340,8 +345,10 @@ export function useCareApp() {
    */
   const saveMedicine = async (m: MedicineInput) => {
     try {
-      if (editing) await api.updateMedicine(editing.id, m, patient!.id);
-      else await api.createMedicine(m, patient!.id);
+      const saved = editing
+        ? await api.updateMedicine(editing.id, m, patient!.id)
+        : await api.createMedicine(m, patient!.id);
+      setJustChangedMedicine(saved.id);
       flash(editing ? `${m.name} updated` : `${m.name} added to the plan`);
       setWizard(false);
       setEditing(null);
@@ -363,6 +370,52 @@ export function useCareApp() {
       await reloadPlan();
     } catch (e) {
       fail(e);
+    }
+  };
+
+  /**
+   * Moves one dose to another date/time. The original shows "Moved to …" and the new dose carries
+   * a Rescheduled badge; the care team is notified by the API.
+   * @param d - Dose to move.
+   * @param date - Target date (`YYYY-MM-DD`).
+   * @param time - Target time (`HH:mm`).
+   * @returns True on success (the dialog closes).
+   */
+  const rescheduleDose = async (d: Dose, date: string, time: string): Promise<boolean> => {
+    try {
+      await api.rescheduleDose(d.id, date, time);
+      flash(`${d.medName} moved to ${dateLabel(date)} at ${fmtTime(time)}`);
+      await refreshDoses();
+      setNotifications(await api.getNotifications());
+      return true;
+    } catch (e) {
+      fail(e);
+      return false;
+    }
+  };
+
+  /**
+   * Changes a medicine's dose times from a date onwards (earlier history stays on the old record).
+   * @param m - Medicine to reschedule.
+   * @param effectiveDate - First date of the new schedule.
+   * @param times - New dose times.
+   * @returns True on success.
+   */
+  const rescheduleMedicine = async (
+    m: Medicine,
+    effectiveDate: string,
+    times: string[],
+  ): Promise<boolean> => {
+    try {
+      const updated = await api.rescheduleMedicine(m.id, effectiveDate, times);
+      setJustChangedMedicine(updated.id);
+      flash(`${m.name} rescheduled from ${dateLabel(effectiveDate)}`);
+      await reloadPlan();
+      setNotifications(await api.getNotifications());
+      return true;
+    } catch (e) {
+      fail(e);
+      return false;
     }
   };
 
@@ -520,7 +573,8 @@ export function useCareApp() {
     setUser,
     patient,
     patients,
-    meds,
+    meds: activeMeds,
+    allMeds: meds,
     doses,
     grouped,
     family,
@@ -550,6 +604,9 @@ export function useCareApp() {
     removeMedicine,
     pauseMedicine,
     resumeMedicine,
+    rescheduleDose,
+    rescheduleMedicine,
+    justChangedMedicine,
     selectPatient,
     startAddPatient,
     cancelPatientForm,

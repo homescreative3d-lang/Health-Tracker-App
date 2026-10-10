@@ -1,6 +1,6 @@
-import { PauseCircle, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import { CalendarClock, PauseCircle, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import type { Medicine } from "../../api";
-import { fmtTime } from "../../lib/dates";
+import { dateLabel, fmtTime } from "../../lib/dates";
 import { plural } from "../../lib/text";
 import { frequencyLabel, isPausedOn } from "../../constants/options";
 import { MedicineArt } from "../../components/art/MedicineArt";
@@ -20,6 +20,10 @@ type MedicinesProps = {
   onResume: (m: Medicine) => Promise<void>;
   /** True while the plan reloads. */
   loading?: boolean;
+  /** Opens the reschedule dialog (whole schedule) for a medicine. */
+  onReschedule: (m: Medicine) => void;
+  /** Medicine just added or rescheduled: its card pops in and glows briefly. */
+  highlightId?: string | null;
 };
 
 /**
@@ -60,6 +64,8 @@ export function Medicines({
   onDelete,
   onResume,
   loading = false,
+  onReschedule,
+  highlightId,
 }: MedicinesProps) {
   const active = meds.filter((m) => !isPausedOn(m)).length;
   return (
@@ -98,7 +104,16 @@ export function Medicines({
           {meds.map((m) => {
             const paused = isPausedOn(m);
             return (
-              <article className={paused ? "card med-card is-paused" : "card med-card"} key={m.id}>
+              <article
+                className={[
+                  "card",
+                  "med-card",
+                  paused ? "is-paused" : "",
+                  m.rescheduledFromId ? "is-rescheduled" : "",
+                  highlightId === m.id ? "is-new" : "",
+                ].join(" ")}
+                key={m.id}
+              >
                 <div className="med-top">
                   <MedicineArt form={m.form} size={56} />
                   <div className="med-info">
@@ -109,6 +124,20 @@ export function Medicines({
                     {m.condition && <span className="muted">For {m.condition}</span>}
                   </div>
                 </div>
+                {m.rescheduledFromId && (
+                  <div className="resched-note">
+                    <span className="resched-badge">
+                      <CalendarClock size={12} aria-hidden="true" />
+                      Rescheduled
+                    </span>
+                    <small>
+                      Since {dateLabel(m.startDate)}
+                      {m.previousTimes?.length
+                        ? ` · was ${m.previousTimes.map(fmtTime).join(", ")}`
+                        : ""}
+                    </small>
+                  </div>
+                )}
                 <div className="med-meta">
                   {paused && (
                     <span className="status-chip status-info">
@@ -131,18 +160,24 @@ export function Medicines({
                       Resume
                     </button>
                   ) : (
-                    <button className="btn soft" onClick={() => onEdit(m)}>
-                      <Pencil size={15} aria-hidden="true" />
-                      Edit
-                    </button>
+                    <>
+                      <button className="btn soft" onClick={() => onEdit(m)}>
+                        <Pencil size={15} aria-hidden="true" />
+                        Edit
+                      </button>
+                      <button className="btn soft" onClick={() => onReschedule(m)}>
+                        <CalendarClock size={15} aria-hidden="true" />
+                        Reschedule
+                      </button>
+                    </>
                   )}
                   <button
-                    className="btn danger-ghost"
+                    className="btn danger-ghost icon-only"
                     onClick={() => onDelete(m)}
                     aria-label={`Delete ${m.name}`}
+                    title="Delete"
                   >
-                    <Trash2 size={15} aria-hidden="true" />
-                    Delete
+                    <Trash2 size={16} aria-hidden="true" />
                   </button>
                 </div>
               </article>
