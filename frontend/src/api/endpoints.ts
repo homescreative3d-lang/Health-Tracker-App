@@ -75,6 +75,9 @@ export const api = {
       `/medicine-actions/${id}/pause`,
       send("POST", { startDate, endDate: endDate || null }),
     ),
+  /** Changes a medicine's dose times from a date onwards (history is kept); returns the new record. */
+  rescheduleMedicine: (id: string, effectiveDate: string, times: string[]) =>
+    request<Medicine>(`/medicine-actions/${id}/reschedule`, send("POST", { effectiveDate, times })),
   /** Ends an active pause as of today. */
   resumeMedicine: (id: string) => request<unknown>(`/medicine-actions/${id}/resume`, send("POST")),
 
@@ -87,7 +90,10 @@ export const api = {
   /** Marks a dose skipped with a reason (same window as take). */
   skip: (id: string, reason: string) =>
     request<Dose>(`/doses/${id}/skip`, send("POST", { reason })),
-  /** Reverts a taken/skipped dose back to pending (within the 1-hour window). */
+  /** Moves one dose to another date/time; returns the new (moved) dose. */
+  rescheduleDose: (id: string, date: string, time?: string) =>
+    request<Dose>(`/doses/${id}/reschedule`, send("POST", { date, time })),
+  /** Reverts a taken/skipped/rescheduled dose back to pending. */
   undo: (id: string) => request<Dose>(`/doses/${id}/undo`, send("POST")),
 
   // ---- History ----

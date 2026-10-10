@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BellRing, Send } from "lucide-react";
+import { BellRing, Check, Send } from "lucide-react";
 import { api, enablePush, type NotificationSettingsData } from "../../api";
 import { err } from "../../lib/errors";
 import { timeZones } from "../../constants/options";
@@ -100,6 +100,7 @@ export function NotificationSettings() {
   const [loaded, setLoaded] = useState(false);
   const [msg, setMsg] = useState<{ text: string; error?: boolean } | null>(null);
   const [busy, setBusy] = useState<"save" | "enable" | "test" | null>(null);
+  const [saved, setSaved] = useState(false);
   const zones = timeZones.some((z) => z.id === s.timeZoneId)
     ? timeZones
     : [{ id: s.timeZoneId, label: s.timeZoneId }, ...timeZones];
@@ -143,6 +144,8 @@ export function NotificationSettings() {
         throw new Error("Repeat interval must be 1–60 minutes.");
       const updated = await api.saveNotificationSettings(s);
       setS((v) => ({ ...v, ...updated }));
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 1800);
       return "Notification settings saved.";
     });
 
@@ -225,8 +228,20 @@ export function NotificationSettings() {
         final={s.finalNotificationEnabled}
       />
       <div className="settings-actions">
-        <button className="btn primary" disabled={!!busy || !loaded} onClick={save}>
-          {busy === "save" ? "Saving…" : "Save settings"}
+        <button
+          className={saved ? "btn primary is-saved" : "btn primary"}
+          disabled={!!busy || !loaded}
+          onClick={save}
+        >
+          {saved ? (
+            <>
+              <Check size={16} aria-hidden="true" /> Saved
+            </>
+          ) : busy === "save" ? (
+            "Saving…"
+          ) : (
+            "Save settings"
+          )}
         </button>
         <button className="btn soft" disabled={!!busy} onClick={enable}>
           <BellRing size={16} aria-hidden="true" />

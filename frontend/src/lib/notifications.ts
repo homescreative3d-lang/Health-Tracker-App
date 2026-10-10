@@ -22,4 +22,6 @@ export const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   dose_missed: "Missed dose",
   notification_failed: "Delivery issue",
   family_invite: "Family invitation",
+  dose_rescheduled: "Dose rescheduled",
+  schedule_changed: "Schedule changed",
 };

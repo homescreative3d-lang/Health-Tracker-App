@@ -16,6 +16,8 @@ type CalendarProps = {
   meds: Medicine[];
   onPause: (id: string, start: string) => Promise<void>;
   onDose: (d: Dose, a: DoseAction) => Promise<void>;
+  /** Opens the reschedule dialog for a dose. */
+  onReschedule: (d: Dose) => void;
 };
 
 /**
@@ -29,6 +31,7 @@ export function Calendar({
   meds,
   onPause,
   onDose,
+  onReschedule,
 }: CalendarProps) {
   const [pauseId, setPauseId] = useState("");
   const [pausing, setPausing] = useState(false);
@@ -135,7 +138,13 @@ export function Calendar({
           g.items.length > 0 && (
             <DoseGroup key={g.name} name={g.name} count={g.items.length}>
               {g.items.map((d) => (
-                <DoseRow d={d} key={d.id} date={selectedDate} onDose={onDose} />
+                <DoseRow
+                  d={d}
+                  key={d.id}
+                  date={selectedDate}
+                  onDose={onDose}
+                  onReschedule={onReschedule}
+                />
               ))}
             </DoseGroup>
           ),

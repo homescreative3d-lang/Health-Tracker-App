@@ -12,6 +12,22 @@ import { EmptyArt } from "../../components/art/EmptyArt";
 import { SkeletonList } from "../../components/Skeleton";
 
 /**
+ * Maps a dose status to its history style: taken, skipped and missed each have their own color.
+ * @param status - Dose status from the API.
+ */
+function statusClass(status: string): string {
+  return status === "taken"
+    ? "taken"
+    : status === "skipped"
+      ? "skipped"
+      : status === "missed"
+        ? "missed"
+        : status === "rescheduled"
+          ? "moved"
+          : "pending";
+}
+
+/**
  * Day-grouped timeline: each dose is a node colored by outcome on a rail colored by daypart.
  * @param rows - History rows (newest first).
  */
@@ -37,12 +53,12 @@ function HistoryTimeline({ rows }: { rows: HistoryRow[] }) {
                   <b>{r.medicineName}</b>
                   <small>
                     {r.patientName}
-                    {r.actionedByName ? ` · by ${r.actionedByName}` : ""}
+                    {r.actionedByName && r.actionedByName !== r.patientName
+                      ? ` · recorded by ${r.actionedByName}`
+                      : ""}
                   </small>
                 </div>
-                <span
-                  className={`history-status ${r.status === "taken" ? "taken" : r.status === "missed" || r.status === "skipped" ? "missed" : "pending"}`}
-                >
+                <span className={`history-status ${statusClass(r.status)}`}>
                   {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
                 </span>
               </li>
@@ -285,15 +301,7 @@ export function History({ patients, patient }: { patients: Patient[]; patient: P
                       <small>{fmtTime(r.time)}</small>
                     </td>
                     <td data-label="Status">
-                      <span
-                        className={
-                          r.status === "taken"
-                            ? "history-status taken"
-                            : r.status === "missed" || r.status === "skipped"
-                              ? "history-status missed"
-                              : "history-status pending"
-                        }
-                      >
+                      <span className={`history-status ${statusClass(r.status)}`}>
                         {r.status === "taken"
                           ? "Taken"
                           : r.status === "skipped"

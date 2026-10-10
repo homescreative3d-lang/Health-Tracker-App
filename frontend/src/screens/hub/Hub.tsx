@@ -1,4 +1,7 @@
+import { useState } from "react";
 import { ArrowLeft, BookOpen } from "lucide-react";
+import type { Dose, Medicine } from "../../api";
+import { RescheduleDialog } from "../modals/RescheduleDialog";
 import { useCare } from "../../hooks/CareAppContext";
 import { AppNav } from "../../components/navigation/AppNav";
 import { PageHeader } from "../../components/PageHeader";
@@ -24,6 +27,13 @@ const PATIENT_SCOPED = ["calendar", "medicines", "patientDetails", "patientDetai
  */
 export function Hub() {
   const app = useCare();
+  // Reschedule dialog target: a dose (dose or schedule mode) or a medicine (schedule mode).
+  const [resched, setResched] = useState<{ dose: Dose | null; medicine: Medicine | null } | null>(
+    null,
+  );
+  /** Opens the reschedule dialog for a dose, resolving its medicine record. */
+  const rescheduleFromDose = (d: Dose) =>
+    setResched({ dose: d, medicine: app.allMeds.find((m) => m.id === d.medicineId) || null });
   const { tab, setTab, user, patient, patients, meds } = app;
   if (!user || !patient) return null;
   const backToProfile = (
@@ -64,7 +74,7 @@ export function Hub() {
               onSelect={(p) => app.selectPatient(p)}
             />
           )}
-          <div className="view" key={tab}>
+          <div className="view" key={`${tab}:${patient.id}`}>
             {tab === "today" && (
               <Today
                 patient={patient}
@@ -74,6 +84,7 @@ export function Hub() {
                 meds={meds}
                 date={app.selectedDate}
                 onDose={app.doseAction}
+                onReschedule={rescheduleFromDose}
                 onAdd={() => app.openWizard()}
                 onAddPatient={() => app.startAddPatient()}
                 onPatientInfo={() => setTab("patientDetails")}
@@ -88,6 +99,7 @@ export function Hub() {
                 meds={meds}
                 onPause={app.pauseMedicine}
                 onDose={app.doseAction}
+                onReschedule={rescheduleFromDose}
               />
             )}
             {tab === "medicines" && (
@@ -99,6 +111,8 @@ export function Hub() {
                 onEdit={(m) => app.openWizard(m)}
                 onDelete={app.removeMedicine}
                 onResume={app.resumeMedicine}
+                onReschedule={(m) => setResched({ dose: null, medicine: m })}
+                highlightId={app.justChangedMedicine}
                 loading={app.planLoading}
               />
             )}
@@ -168,6 +182,15 @@ export function Hub() {
         </div>
       </div>
       <AppNav tab={tab} onNavigate={setTab} variant="bottom" />
+      {resched && (
+        <RescheduleDialog
+          dose={resched.dose}
+          medicine={resched.medicine}
+          onClose={() => setResched(null)}
+          onRescheduleDose={app.rescheduleDose}
+          onRescheduleMedicine={app.rescheduleMedicine}
+        />
+      )}
     </>
   );
 }
