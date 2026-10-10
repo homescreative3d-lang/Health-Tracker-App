@@ -9,13 +9,25 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 namespace HealthTracker.Api.Services;
+/// <summary>
+/// Issues signed JWT access tokens.
+/// </summary>
 public interface ITokenService
 {
+    /// <summary>
+    /// Creates an 8-hour JWT carrying the user's id, email and name.
+    /// </summary>
+    /// <param name="user">The authenticated user.</param>
     string Create(AppUser user);
 }
 
+/// <summary>
+/// HMAC-SHA256 JWT issuer configured by <c>Jwt:Key</c>, <c>Jwt:Issuer</c> and <c>Jwt:Audience</c>.
+/// </summary>
+/// <param name="c">Application configuration.</param>
 public class TokenService(IConfiguration c) : ITokenService
 {
+    /// <inheritdoc />
     public string Create(AppUser u)
     {
         var key = c["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key is missing");
@@ -31,14 +43,32 @@ public class TokenService(IConfiguration c) : ITokenService
     }
 }
 
+/// <summary>
+/// Account registration and credential verification.
+/// </summary>
 public interface IAuthService
 {
+    /// <summary>
+    /// Creates a user (and an empty patient record for onboarding) and returns a session.
+    /// </summary>
+    /// <param name="r">Registration details.</param>
+    /// <exception cref="InvalidOperationException">Email taken or input invalid.</exception>
     Task<AuthResponse> Register(RegisterRequest r);
+
+    /// <summary>
+    /// Verifies credentials and returns a session.
+    /// </summary>
+    /// <param name="r">Credentials.</param>
+    /// <exception cref="UnauthorizedAccessException">Email or password is wrong.</exception>
     Task<AuthResponse> Login(LoginRequest r);
 }
 
+/// <summary>
+/// EF Core implementation of <see cref="IAuthService"/> using ASP.NET Core Identity password hashing.
+/// </summary>
 public class AuthService(AppDbContext db, IPasswordHasher<AppUser> h, ITokenService t, INeonObjectStorage storage) : IAuthService
 {
+    /// <inheritdoc />
     public async Task<AuthResponse> Register(RegisterRequest r)
     {
         var email = r.Email.Trim().ToLowerInvariant();
@@ -60,6 +90,7 @@ public class AuthService(AppDbContext db, IPasswordHasher<AppUser> h, ITokenServ
         return new(new(u.Id, u.Email, u.DisplayName, u.TimeZoneId, string.IsNullOrWhiteSpace(u.ProfileImageUrl) ? null : storage.GetReadUrl("users", u.ProfileImageUrl)), t.Create(u));
     }
 
+    /// <inheritdoc />
     public async Task<AuthResponse> Login(LoginRequest r)
     {
         var email = r.Email.Trim().ToLowerInvariant();

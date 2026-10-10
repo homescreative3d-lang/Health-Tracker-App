@@ -1,31 +1,55 @@
-using System.Text.Json;
 using HealthTracker.Api.Contracts;
 using HealthTracker.Api.Data;
+using HealthTracker.Api.Domain;
 using HealthTracker.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace HealthTracker.Api.Services;
+/// <summary>
+/// Reads a patient's daily doses and records actions on them.
+/// </summary>
 public interface IDoseService
 {
+    /// <summary>
+    /// Returns the doses scheduled on a date, materializing missing dose records.
+    /// </summary>
+    /// <param name="userId">Signed-in user.</param>
+    /// <param name="date">Calendar date in the owner's time zone.</param>
+    /// <param name="patientId">Patient, or null for the user's own first patient.</param>
+    /// <exception cref="KeyNotFoundException">Patient not found.</exception>
+    /// <exception cref="UnauthorizedAccessException">No access to the patient.</exception>
     Task<List<DoseResponse>> Get(Guid userId, DateOnly date, Guid? patientId);
+
+    /// <summary>Marks a dose taken and decrements supply (within the action window).</summary>
+    /// <exception cref="InvalidOperationException">Outside the window or no supply left.</exception>
     Task<DoseResponse> Take(Guid userId, Guid id);
+
+    /// <summary>Marks a dose skipped with a reason (within the action window).</summary>
+    /// <exception cref="InvalidOperationException">Outside the window.</exception>
     Task<DoseResponse> Skip(Guid userId, Guid id, string reason);
+
+    /// <summary>Marks a dose rescheduled to another date.</summary>
     Task<DoseResponse> Reschedule(Guid userId, Guid id, DateOnly date);
+
+    /// <summary>Reverts a dose to pending, restoring supply when it had been taken.</summary>
+    /// <exception cref="InvalidOperationException">The window has closed.</exception>
     Task<DoseResponse> Undo(Guid userId, Guid id);
 }
 
-public class DoseService(AppDbContext db) : IDoseService
+/// <summary>
+/// EF Core implementation of <see cref="IDoseService"/>. Scheduling rules live in
+/// <see cref="DoseSchedule"/>; access checks in <see cref="IPatientAccessService"/>.
+/// </summary>
+/// <param name="db">Pooled database context.</param>
+/// <param name="access">Patient access rules.</param>
+public class DoseService(AppDbContext db, IPatientAccessService access) : IDoseService
 {
+    /// <inheritdoc />
     public async Task<List<DoseResponse>> Get(Guid uid, DateOnly date, Guid? patientId)
     {
-        var ids = await AccessibleUserIds(uid);
-        var p = patientId.HasValue ? await db.Patients.SingleOrDefaultAsync(x => x.Id == patientId.Value) : await db.Patients.SingleOrDefaultAsync(x => x.UserId == uid);
-        if (p is null)
-            throw new KeyNotFoundException("Patient not found.");
-        if (!ids.Contains(p.UserId))
-            throw new UnauthorizedAccessException("You do not have access to this patient.");
+        var p = await access.GetAccessiblePatientAsync(uid, patientId);
         var owner = await db.Users.FindAsync(p.UserId);
-        var tz = Zone(owner?.TimeZoneId ?? "Asia/Kolkata");
+        var tz = Zone(owner?.TimeZoneId);
         var meds = await db.Medicines.Where(x => x.PatientId == p.Id).ToListAsync();
         var medIds = meds.Select(x => x.Id).ToList();
         var events = await db.DoseEvents.Where(x => x.PatientId == p.Id && x.Date == date && medIds.Contains(x.MedicineId)).ToListAsync();
@@ -34,9 +58,9 @@ public class DoseService(AppDbContext db) : IDoseService
         var result = new List<DoseResponse>();
         foreach (var m in meds)
         {
-            if (!Occurs(m, date))
+            if (!DoseSchedule.Occurs(m, date))
                 continue;
-            foreach (var time in (JsonSerializer.Deserialize<List<string>>(m.TimesJson) ?? []).Distinct())
+            foreach (var time in DoseSchedule.Times(m))
             {
                 if (!byKey.TryGetValue($"{m.Id}:{time}", out var d))
                 {
@@ -51,7 +75,7 @@ public class DoseService(AppDbContext db) : IDoseService
                     byKey[$"{m.Id}:{time}"] = d;
                 }
 
-                if (date == DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, tz).DateTime))
+                if (date == DoseSchedule.LocalToday(tz))
                     ApplyCurrentState(d, tz);
                 result.Add(Map(d, m, p));
             }
@@ -69,9 +93,18 @@ public class DoseService(AppDbContext db) : IDoseService
         if (missing.Count > 0)
             db.DoseEvents.AddRange(missing);
         await db.SaveChangesAsync();
-        return result.OrderBy(x => x.Time).ToList();
+        // Name who took/skipped each dose so shared caregivers can see it (was always null).
+        var actorIds = result.Where(x => x.ActionedByUserId.HasValue).Select(x => x.ActionedByUserId!.Value).Distinct().ToList();
+        var actorNames = actorIds.Count == 0
+            ? new Dictionary<Guid, string>()
+            : await db.Users.Where(u => actorIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.DisplayName);
+        return result
+            .Select(x => x.ActionedByUserId is Guid actor && actorNames.TryGetValue(actor, out var name) ? x with { ActionedByName = name } : x)
+            .OrderBy(x => x.Time)
+            .ToList();
     }
 
+    /// <inheritdoc />
     public async Task<DoseResponse> Take(Guid uid, Guid id)
     {
         var x = await Event(uid, id);
@@ -93,6 +126,7 @@ public class DoseService(AppDbContext db) : IDoseService
         return Map(x.Dose, x.Medicine, x.Patient);
     }
 
+    /// <inheritdoc />
     public async Task<DoseResponse> Skip(Guid uid, Guid id, string reason)
     {
         var x = await Event(uid, id);
@@ -109,6 +143,7 @@ public class DoseService(AppDbContext db) : IDoseService
         return Map(x.Dose, x.Medicine, x.Patient);
     }
 
+    /// <inheritdoc />
     public async Task<DoseResponse> Reschedule(Guid uid, Guid id, DateOnly date)
     {
         var x = await Event(uid, id);
@@ -119,6 +154,7 @@ public class DoseService(AppDbContext db) : IDoseService
         return Map(x.Dose, x.Medicine, x.Patient);
     }
 
+    /// <inheritdoc />
     public async Task<DoseResponse> Undo(Guid uid, Guid id)
     {
         var x = await Event(uid, id);
@@ -126,6 +162,10 @@ public class DoseService(AppDbContext db) : IDoseService
         var scheduled = ScheduledAt(x.Dose, Zone(x.OwnerTimeZone));
         if (now > scheduled.AddHours(1))
             throw new InvalidOperationException("This dose is locked after 1 hour.");
+        // Take decrements supply; undoing a taken dose must give it back (previously it didn't,
+        // so supply counts and refill reminders drifted after every undo).
+        if (x.Dose.Status == "taken")
+            x.Medicine.SupplyCount++;
         x.Dose.Status = "pending";
         x.Dose.TakenAt = null;
         x.Dose.SkipReason = null;
@@ -136,6 +176,7 @@ public class DoseService(AppDbContext db) : IDoseService
         return Map(x.Dose, x.Medicine, x.Patient);
     }
 
+    /// <summary>Marks a pending dose as missed once its scheduled time has passed.</summary>
     void ApplyCurrentState(DoseEvent d, TimeZoneInfo tz)
     {
         if (d.Status == "pending" && DateTimeOffset.UtcNow > ScheduledAt(d, tz))
@@ -145,16 +186,20 @@ public class DoseService(AppDbContext db) : IDoseService
         }
     }
 
+    /// <summary>
+    /// Loads a dose with its medicine and patient after checking access, refreshing missed state.
+    /// </summary>
+    /// <param name="uid">Signed-in user.</param>
+    /// <param name="id">Dose id.</param>
     async Task<(DoseEvent Dose, Medicine Medicine, Patient Patient, string OwnerTimeZone)> Event(Guid uid, Guid id)
     {
         var d = await db.DoseEvents.SingleOrDefaultAsync(x => x.Id == id) ?? throw new KeyNotFoundException("Dose not found.");
         var p = await db.Patients.SingleOrDefaultAsync(x => x.Id == d.PatientId) ?? throw new KeyNotFoundException("Patient not found.");
-        var ids = await AccessibleUserIds(uid);
-        if (!ids.Contains(p.UserId))
+        if (!(await access.GetAccessibleOwnerIdsAsync(uid)).Contains(p.UserId))
             throw new UnauthorizedAccessException("You do not have access to this dose.");
         var m = await db.Medicines.SingleOrDefaultAsync(x => x.Id == d.MedicineId && x.PatientId == p.Id) ?? throw new KeyNotFoundException("Medicine not found.");
         var owner = await db.Users.FindAsync(p.UserId);
-        var tz = owner?.TimeZoneId ?? "Asia/Kolkata";
+        var tz = owner?.TimeZoneId ?? DoseSchedule.DefaultTimeZoneId;
         if (d.Status == "pending" && DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, Zone(tz)).DateTime) == d.Date && DateTimeOffset.UtcNow > ScheduledAt(d, Zone(tz)))
         {
             d.Status = "missed";
@@ -164,53 +209,12 @@ public class DoseService(AppDbContext db) : IDoseService
         return (d, m, p, tz);
     }
 
-    static DateTimeOffset ScheduledAt(DoseEvent d, TimeZoneInfo tz)
-    {
-        var local = d.Date.ToDateTime(TimeOnly.Parse(d.Time), DateTimeKind.Unspecified);
-        return new DateTimeOffset(local, tz.GetUtcOffset(local));
-    }
+    /// <summary>Absolute scheduled instant of a dose.</summary>
+    static DateTimeOffset ScheduledAt(DoseEvent d, TimeZoneInfo tz) => DoseSchedule.ScheduledAt(d.Date, d.Time, tz);
 
-    static TimeZoneInfo Zone(string id)
-    {
-        try
-        {
-            return TimeZoneInfo.FindSystemTimeZoneById(id);
-        }
-        catch
-        {
-            return TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
-        }
-    }
+    /// <summary>Resolves a time zone with the default fallback.</summary>
+    static TimeZoneInfo Zone(string? id) => DoseSchedule.ResolveTimeZone(id);
 
-    async Task<HashSet<Guid>> AccessibleUserIds(Guid uid)
-    {
-        var ids = await db.FamilyMembers.Where(x => x.UserId == uid && x.Status == "approved").Join(db.FamilyMembers, a => a.FamilyId, b => b.FamilyId, (a, b) => b.UserId).Distinct().ToListAsync();
-        ids.Add(uid);
-        return ids.ToHashSet();
-    }
-
+    /// <summary>Maps a dose record to its API response.</summary>
     static DoseResponse Map(DoseEvent d, Medicine m, Patient p) => new(d.Id, m.Id, p.Id.ToString(), p.Name, m.Name, m.Strength, m.Form, m.Condition, d.Time, m.Liquid, m.WithFood, d.Status, d.TakenAt, d.SkipReason, d.RescheduleTo?.ToString("yyyy-MM-dd"), d.ActionedByUserId, null);
-    static bool Occurs(Medicine m, DateOnly d)
-    {
-        if (d < m.StartDate || (m.PauseStartDate.HasValue && d >= m.PauseStartDate.Value && (!m.PauseEndDate.HasValue || d <= m.PauseEndDate.Value)))
-            return false;
-        var diff = d.DayNumber - m.StartDate.DayNumber;
-        if (!m.IsRecurring && diff != 0)
-            return false;
-        if (m.DurationType != "ongoing")
-        {
-            var days = m.DurationUnit == "weeks" ? m.DurationValue * 7 : m.DurationUnit == "months" ? m.DurationValue * 30 : m.DurationValue;
-            if (diff >= days)
-                return false;
-        }
-
-        return m.FrequencyPattern switch
-        {
-            "daily" => true,
-            "everyOtherDay" => diff % 2 == 0,
-            "specificDays" => (JsonSerializer.Deserialize<List<string>>(m.SpecificDaysJson) ?? []).Contains(d.DayOfWeek.ToString()[..3], StringComparer.OrdinalIgnoreCase),
-            "recurringCycle" => m.CycleUnit == "weeks" ? diff % (Math.Max(1, m.CycleEvery) * 7) == 0 : m.CycleUnit == "months" ? d.Day == m.StartDate.Day : diff % Math.Max(1, m.CycleEvery) == 0,
-            _ => false
-        };
-    }
 }

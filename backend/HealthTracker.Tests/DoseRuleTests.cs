@@ -5,8 +5,10 @@ using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace HealthTracker.Tests;
+/// <summary>Business rules for taking, skipping and undoing doses.</summary>
 public class DoseRuleTests
 {
+    /// <summary>Creates an in-memory database with one user, patient, medicine and dose.</summary>
     static (AppDbContext Db, DoseService Svc, Guid User, Guid DoseId) Setup(DateOnly date, string time, int supply = 5)
     {
         var o = new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
@@ -41,7 +43,7 @@ public class DoseRuleTests
         };
         db.AddRange(u, p, m, d);
         db.SaveChanges();
-        return (db, new DoseService(db), u.Id, d.Id);
+        return (db, new DoseService(db, new PatientAccessService(db)), u.Id, d.Id);
     }
 
     [Fact]
@@ -124,5 +126,29 @@ public class DoseRuleTests
         var time = TimeOnly.FromTimeSpan(now.TimeOfDay.Subtract(TimeSpan.FromMinutes(10))).ToString("HH:mm");
         var x = Setup(date, time, 0);
         await Assert.ThrowsAsync<InvalidOperationException>(() => x.Svc.Take(x.User, x.DoseId));
+    }
+
+    [Fact]
+    public async Task UndoAfterTakeRestoresSupply()
+    {
+        var now = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"));
+        var date = DateOnly.FromDateTime(now.DateTime);
+        var time = TimeOnly.FromTimeSpan(now.TimeOfDay.Subtract(TimeSpan.FromMinutes(10))).ToString("HH:mm");
+        var x = Setup(date, time, supply: 5);
+        await x.Svc.Take(x.User, x.DoseId);
+        var undone = await x.Svc.Undo(x.User, x.DoseId);
+        Assert.Equal("pending", undone.Status);
+        Assert.Equal(5, await x.Db.Medicines.Select(m => m.SupplyCount).SingleAsync());
+    }
+
+    [Fact]
+    public async Task GetWithoutPatientIdWorksForUsersWithSeveralPatients()
+    {
+        var x = Setup(DateOnly.FromDateTime(DateTime.UtcNow), "08:00");
+        x.Db.Patients.Add(new Patient { UserId = x.User, Name = "Second patient" });
+        await x.Db.SaveChangesAsync();
+        // Previously SingleOrDefault threw for users owning more than one patient.
+        var doses = await x.Svc.Get(x.User, DateOnly.FromDateTime(DateTime.UtcNow), null);
+        Assert.NotNull(doses);
     }
 }

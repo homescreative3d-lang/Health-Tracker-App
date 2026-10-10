@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using HealthTracker.Api.Contracts;
 using HealthTracker.Api.Data;
 using HealthTracker.Api.Services;
@@ -7,14 +6,27 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HealthTracker.Api.Controllers;
+/// <summary>
+/// The signed-in user's own account: profile updates and deletion.
+/// </summary>
 [Authorize]
-[ApiController]
 [Route("api/account")]
-public class AccountController(AppDbContext db, INeonObjectStorage storage) : ControllerBase
+public class AccountController(AppDbContext db, INeonObjectStorage storage) : ApiControllerBase
 {
-    Guid U => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+    Guid U => CurrentUserId;
 
+    /// <summary>
+    /// Updates display name and profile photo.
+    /// </summary>
+    /// <param name="r">
+    /// <c>ProfileImageUrl</c>: a <c>data:image/...</c> URL uploads a new photo (max 1 MB),
+    /// an empty value removes it, and an existing storage key keeps it.
+    /// </param>
+    /// <response code="200">The updated user.</response>
+    /// <response code="400">Invalid name or image.</response>
     [HttpPut("profile")]
+    [ProducesResponseType<UserResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Update(ProfileUpdateRequest r)
     {
         if (string.IsNullOrWhiteSpace(r.DisplayName) || r.DisplayName.Trim().Length > 80)
@@ -35,7 +47,19 @@ public class AccountController(AppDbContext db, INeonObjectStorage storage) : Co
         return Ok(new { u.Id, u.Email, u.DisplayName, u.TimeZoneId, ProfileImageUrl = string.IsNullOrWhiteSpace(u.ProfileImageUrl) ? null : storage.GetReadUrl("users", u.ProfileImageUrl) });
     }
 
+    /// <summary>
+    /// Permanently deletes the account.
+    /// </summary>
+    /// <remarks>
+    /// Patients are transferred to another approved family caregiver when one exists; otherwise
+    /// they and their medicines/doses are deleted. Refused while doses are pending for a patient
+    /// that would be deleted. Families owned by the user pass to another member or are removed.
+    /// </remarks>
+    /// <response code="200">Account deleted.</response>
+    /// <response code="409">Pending doses would be lost.</response>
     [HttpDelete]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> DeleteAccount()
     {
         var userId = U;
@@ -46,7 +70,7 @@ public class AccountController(AppDbContext db, INeonObjectStorage storage) : Co
         var replacementByPatient = new Dictionary<Guid, Guid>();
         foreach (var patient in owned)
         {
-            var replacement = await db.FamilyMembers.Where(m => familyIds.Contains(m.FamilyId) && m.UserId != userId && m.Status == "approved").OrderBy(m => m.CreatedAt).Select(m => (Guid? )m.UserId).FirstOrDefaultAsync();
+            var replacement = await db.FamilyMembers.Where(m => familyIds.Contains(m.FamilyId) && m.UserId != userId && m.Status == "approved").OrderBy(m => m.CreatedAt).Select(m => (Guid?)m.UserId).FirstOrDefaultAsync();
             if (replacement.HasValue)
                 replacementByPatient[patient.Id] = replacement.Value;
         }
@@ -73,7 +97,7 @@ public class AccountController(AppDbContext db, INeonObjectStorage storage) : Co
 
         foreach (var family in await db.Families.Where(f => f.OwnerUserId == userId).ToListAsync())
         {
-            var other = await db.FamilyMembers.Where(m => m.FamilyId == family.Id && m.UserId != userId && m.Status == "approved").Select(m => (Guid? )m.UserId).FirstOrDefaultAsync();
+            var other = await db.FamilyMembers.Where(m => m.FamilyId == family.Id && m.UserId != userId && m.Status == "approved").Select(m => (Guid?)m.UserId).FirstOrDefaultAsync();
             if (other.HasValue)
                 family.OwnerUserId = other.Value;
             else

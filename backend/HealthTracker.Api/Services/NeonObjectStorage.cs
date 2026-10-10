@@ -2,16 +2,43 @@ using Amazon.S3;
 using Amazon.S3.Model;
 
 namespace HealthTracker.Api.Services;
+/// <summary>
+/// S3-compatible object storage (Neon) for profile photos and patient attachments.
+/// </summary>
 public interface INeonObjectStorage
 {
+    /// <summary>True when endpoint and credentials are configured.</summary>
     bool IsConfigured { get; }
 
+    /// <summary>
+    /// Stores an image sent as a <c>data:image/...;base64</c> URL (JPEG, PNG, WebP, GIF, HEIC/HEIF; max 1 MB).
+    /// </summary>
+    /// <param name="bucket">Bucket name.</param>
+    /// <param name="key">Object key.</param>
+    /// <param name="dataUrl">Image data URL.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The stored object key.</returns>
+    /// <exception cref="ArgumentException">Unsupported type or too large.</exception>
     Task<string> PutDataUrlAsync(string bucket, string key, string dataUrl, CancellationToken ct = default);
+
+    /// <summary>
+    /// Stores an attachment (image, PDF or XLSX; max 10 MB) sent as a base64 data URL.
+    /// </summary>
+    /// <returns>Key, normalized MIME type and size in bytes.</returns>
+    /// <exception cref="ArgumentException">Unsupported type or too large.</exception>
     Task<(string Key, string MimeType, long Size)> PutFileDataUrlAsync(string bucket, string key, string mimeType, string dataUrl, CancellationToken ct = default);
+
+    /// <summary>Deletes an object; failures are logged, not thrown.</summary>
     Task DeleteAsync(string bucket, string key, CancellationToken ct = default);
+
+    /// <summary>Returns a pre-signed GET URL valid for one hour (empty when not configured).</summary>
     string GetReadUrl(string bucket, string key);
 }
 
+/// <summary>
+/// AWS SDK implementation of <see cref="INeonObjectStorage"/>; registered as a singleton because the S3 client is thread-safe.
+/// Configured by <c>AWS_ENDPOINT_URL_S3</c>, <c>AWS_ACCESS_KEY_ID</c>, <c>AWS_SECRET_ACCESS_KEY</c> and <c>AWS_REGION</c>.
+/// </summary>
 public sealed class NeonObjectStorage : INeonObjectStorage
 {
     private readonly IAmazonS3 _s3;
@@ -19,6 +46,7 @@ public sealed class NeonObjectStorage : INeonObjectStorage
     private readonly ILogger<NeonObjectStorage> _log;
     public bool IsConfigured { get; }
 
+    /// <summary>Creates the S3 client when storage is configured.</summary>
     public NeonObjectStorage(IConfiguration config, ILogger<NeonObjectStorage> log)
     {
         _config = config;
@@ -30,13 +58,14 @@ public sealed class NeonObjectStorage : INeonObjectStorage
         IsConfigured = !string.IsNullOrWhiteSpace(endpoint) && !string.IsNullOrWhiteSpace(key) && !string.IsNullOrWhiteSpace(secret);
         if (!IsConfigured)
         {
-            _s3 = null !;
+            _s3 = null!;
             return;
         }
 
         _s3 = new AmazonS3Client(key, secret, new AmazonS3Config { ServiceURL = endpoint, ForcePathStyle = true, AuthenticationRegion = region });
     }
 
+    /// <inheritdoc />
     public async Task<string> PutDataUrlAsync(string bucket, string key, string dataUrl, CancellationToken ct = default)
     {
         if (!IsConfigured)
@@ -67,6 +96,7 @@ public sealed class NeonObjectStorage : INeonObjectStorage
         return key;
     }
 
+    /// <inheritdoc />
     public async Task<(string Key, string MimeType, long Size)> PutFileDataUrlAsync(string bucket, string key, string mimeType, string dataUrl, CancellationToken ct = default)
     {
         if (!IsConfigured)
@@ -94,6 +124,7 @@ public sealed class NeonObjectStorage : INeonObjectStorage
         return (key, mime, bytes.LongLength);
     }
 
+    /// <inheritdoc />
     public async Task DeleteAsync(string bucket, string key, CancellationToken ct = default)
     {
         if (!IsConfigured || string.IsNullOrWhiteSpace(key) || key.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
@@ -108,6 +139,7 @@ public sealed class NeonObjectStorage : INeonObjectStorage
         }
     }
 
+    /// <inheritdoc />
     public string GetReadUrl(string bucket, string key)
     {
         if (!IsConfigured || string.IsNullOrWhiteSpace(key))
