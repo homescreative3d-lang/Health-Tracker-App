@@ -9,7 +9,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace HealthTracker.Api.Controllers;
-
 [Authorize]
 [ApiController]
 [Route("api/family")]
@@ -21,33 +20,19 @@ public class FamilyController(AppDbContext db, IPushNotificationService push) : 
     public async Task<IActionResult> Search([FromQuery] string q = "")
     {
         q = q.Trim();
-        if (q.Length < 2) return Ok(Array.Empty<object>());
-
-        return Ok(await db.Users
-            .Where(x => x.Id != U &&
-                (EF.Functions.ILike(x.Email, "%" + q + "%") ||
-                 EF.Functions.ILike(x.DisplayName, "%" + q + "%")))
-            .OrderBy(x => x.DisplayName)
-            .Take(20)
-            .Select(x => new { x.Id, x.Email, x.DisplayName, x.ProfileImageUrl })
-            .ToListAsync());
+        if (q.Length < 2)
+            return Ok(Array.Empty<object>());
+        return Ok(await db.Users.Where(x => x.Id != U && (EF.Functions.ILike(x.Email, "%" + q + "%") || EF.Functions.ILike(x.DisplayName, "%" + q + "%"))).OrderBy(x => x.DisplayName).Take(20).Select(x => new { x.Id, x.Email, x.DisplayName, x.ProfileImageUrl }).ToListAsync());
     }
 
     [HttpGet("notifications")]
-    public async Task<IActionResult> Notifications() =>
-        Ok(await db.Notifications
-            .Where(x => x.UserId == U)
-            .OrderByDescending(x => x.CreatedAt)
-            .Take(50)
-            .Select(x => new { x.Id, x.Type, x.Title, x.Message, x.DataJson, x.IsRead, x.CreatedAt })
-            .ToListAsync());
-
+    public async Task<IActionResult> Notifications() => Ok(await db.Notifications.Where(x => x.UserId == U).OrderByDescending(x => x.CreatedAt).Take(50).Select(x => new { x.Id, x.Type, x.Title, x.Message, x.DataJson, x.IsRead, x.CreatedAt }).ToListAsync());
     [HttpPost("notifications/{id:guid}/read")]
     public async Task<IActionResult> Read(Guid id)
     {
         var n = await db.Notifications.SingleOrDefaultAsync(x => x.Id == id && x.UserId == U);
-        if (n is null) return NotFound();
-
+        if (n is null)
+            return NotFound();
         n.IsRead = true;
         await db.SaveChangesAsync();
         return Ok(n);
@@ -58,15 +43,16 @@ public class FamilyController(AppDbContext db, IPushNotificationService push) : 
     {
         if (string.IsNullOrWhiteSpace(r.Name))
             return BadRequest(new { message = "Family name is required." });
-
         if (await db.FamilyMembers.AnyAsync(x => x.UserId == U && x.Status == "approved"))
             return Conflict(new { message = "You are already in a family." });
-
-        var f = new Family { Name = r.Name.Trim(), OwnerUserId = U };
+        var f = new Family
+        {
+            Name = r.Name.Trim(),
+            OwnerUserId = U
+        };
         db.Families.Add(f);
         db.FamilyMembers.Add(new FamilyMember { FamilyId = f.Id, UserId = U });
         await db.SaveChangesAsync();
-
         return Ok(new { f.Id, f.Name });
     }
 
@@ -76,78 +62,45 @@ public class FamilyController(AppDbContext db, IPushNotificationService push) : 
         var f = await db.Families.SingleOrDefaultAsync(x => x.OwnerUserId == U);
         if (f is null)
             return BadRequest(new { message = "Create a family first." });
-
         var target = await db.Users.FindAsync(r.UserId);
         if (target is null || target.Id == U)
             return NotFound(new { message = "User not found." });
-
-        if (await db.FamilyMembers.AnyAsync(x =>
-                x.FamilyId == f.Id && x.UserId == target.Id && x.Status == "approved"))
+        if (await db.FamilyMembers.AnyAsync(x => x.FamilyId == f.Id && x.UserId == target.Id && x.Status == "approved"))
             return Conflict(new { message = "User already belongs to this family." });
-
-        if (await db.FamilyInvites.AnyAsync(x =>
-                x.FamilyId == f.Id && x.InviteeUserId == target.Id && x.Status == "pending"))
+        if (await db.FamilyInvites.AnyAsync(x => x.FamilyId == f.Id && x.InviteeUserId == target.Id && x.Status == "pending"))
             return Conflict(new { message = "Invitation already pending." });
-
         var inv = new FamilyInvite
         {
             FamilyId = f.Id,
             InviterUserId = U,
             InviteeUserId = target.Id
         };
-
         db.FamilyInvites.Add(inv);
-
         var me = await db.Users.FindAsync(U);
         var title = "Family invitation";
         var message = $"{me?.DisplayName ?? "A user"} invited you to join {f.Name}.";
-        db.Notifications.Add(new AppNotification
-        {
-            UserId = target.Id,
-            Type = "family_invite",
-            Title = title,
-            Message = message,
-            DataJson = JsonSerializer.Serialize(new { inviteId = inv.Id, familyId = f.Id })
-        });
-
+        db.Notifications.Add(new AppNotification { UserId = target.Id, Type = "family_invite", Title = title, Message = message, DataJson = JsonSerializer.Serialize(new { inviteId = inv.Id, familyId = f.Id }) });
         await db.SaveChangesAsync();
-
         // The in-app notification is always persisted; Web Push is best-effort for devices
         // where the invitee has enabled browser notifications.
-        await push.SendToUsersAsync(
-            [target.Id],
-            title,
-            message,
-            "family_invite",
-            null);
-
-        return Ok(new
-        {
-            inv.Id,
-            Status = inv.Status,
-            Invitee = new { target.Id, target.Email, target.DisplayName, target.ProfileImageUrl }
-        });
+        await push.SendToUsersAsync([target.Id], title, message, "family_invite", null);
+        return Ok(new { inv.Id, Status = inv.Status, Invitee = new { target.Id, target.Email, target.DisplayName, target.ProfileImageUrl } });
     }
 
     [HttpPost("invites/{id:guid}/respond")]
     public async Task<IActionResult> Respond(Guid id, FamilyInviteResponse r)
     {
         var inv = await db.FamilyInvites.SingleOrDefaultAsync(x => x.Id == id && x.InviteeUserId == U);
-        if (inv is null) return NotFound();
+        if (inv is null)
+            return NotFound();
         if (inv.Status != "pending")
             return Conflict(new { message = "Invitation already handled." });
-
         inv.Status = r.Accept ? "approved" : "rejected";
-
         if (r.Accept)
             db.FamilyMembers.Add(new FamilyMember { FamilyId = inv.FamilyId, UserId = U });
-
-        var n = await db.Notifications
-            .Where(x => x.UserId == U && x.DataJson.Contains(id.ToString()))
-            .FirstOrDefaultAsync();
-
-        if (n is not null) n.IsRead = true;
-
+        var n = await db.Notifications.Where(x => x.UserId == U && x.DataJson.Contains(id.ToString())).FirstOrDefaultAsync();
+        if (n is not null)
+            n.IsRead = true;
         await db.SaveChangesAsync();
         return Ok(new { status = inv.Status });
     }
@@ -155,55 +108,36 @@ public class FamilyController(AppDbContext db, IPushNotificationService push) : 
     [HttpGet]
     public async Task<IActionResult> Get()
     {
-        var ids = await db.FamilyMembers
-            .Where(x => x.UserId == U && x.Status == "approved")
-            .Select(x => x.FamilyId)
-            .ToListAsync();
-
+        var ids = await db.FamilyMembers.Where(x => x.UserId == U && x.Status == "approved").Select(x => x.FamilyId).ToListAsync();
         var fams = await db.Families.Where(x => ids.Contains(x.Id)).ToListAsync();
-        var members = await db.FamilyMembers
-            .Where(x => ids.Contains(x.FamilyId) && x.Status == "approved")
-            .ToListAsync();
-
-        var users = await db.Users
-            .Where(x => members.Select(m => m.UserId).Contains(x.Id))
-            .ToListAsync();
-
-        var pending = await db.FamilyInvites
-            .Where(x => x.InviterUserId == U && x.Status == "pending")
-            .ToListAsync();
-
+        var members = await db.FamilyMembers.Where(x => ids.Contains(x.FamilyId) && x.Status == "approved").ToListAsync();
+        var users = await db.Users.Where(x => members.Select(m => m.UserId).Contains(x.Id)).ToListAsync();
+        var pending = await db.FamilyInvites.Where(x => x.InviterUserId == U && x.Status == "pending").ToListAsync();
         var pendingUserIds = pending.Select(x => x.InviteeUserId).Distinct().ToList();
-        var pendingUsers = await db.Users
-            .Where(x => pendingUserIds.Contains(x.Id))
-            .ToListAsync();
-
-        return Ok(fams.Select(f => new
+        var pendingUsers = await db.Users.Where(x => pendingUserIds.Contains(x.Id)).ToListAsync();
+        return Ok(fams.Select(f => new { f.Id, f.Name, Members = members.Where(m => m.FamilyId == f.Id).Select(m =>
         {
-            f.Id,
-            f.Name,
-            Members = members
-                .Where(m => m.FamilyId == f.Id)
-                .Select(m =>
-                {
-                    var u = users.First(z => z.Id == m.UserId);
-                    return new { m.Id, UserId = u.Id, u.Email, u.DisplayName, u.ProfileImageUrl };
-                }),
-            Pending = pending
-                .Where(i => i.FamilyId == f.Id)
-                .Select(i =>
-                {
-                    var u = pendingUsers.FirstOrDefault(z => z.Id == i.InviteeUserId);
-                    return new
-                    {
-                        i.Id,
-                        InviteeUserId = i.InviteeUserId,
-                        InviteeEmail = u?.Email,
-                        InviteeDisplayName = u?.DisplayName,
-                        InviteeProfileImageUrl = u?.ProfileImageUrl,
-                        i.Status
-                    };
-                })
-        }));
+            var u = users.First(z => z.Id == m.UserId);
+            return new
+            {
+                m.Id,
+                UserId = u.Id,
+                u.Email,
+                u.DisplayName,
+                u.ProfileImageUrl
+            };
+        }), Pending = pending.Where(i => i.FamilyId == f.Id).Select(i =>
+        {
+            var u = pendingUsers.FirstOrDefault(z => z.Id == i.InviteeUserId);
+            return new
+            {
+                i.Id,
+                InviteeUserId = i.InviteeUserId,
+                InviteeEmail = u?.Email,
+                InviteeDisplayName = u?.DisplayName,
+                InviteeProfileImageUrl = u?.ProfileImageUrl,
+                i.Status
+            };
+        }) }));
     }
 }
