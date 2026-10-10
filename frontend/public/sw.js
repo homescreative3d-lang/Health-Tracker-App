@@ -6,7 +6,7 @@ self.addEventListener("push",event=>{
     {action:"skip",title:"Skip"}
   ]:[];
   const form=(data.form||"pill").toLowerCase();
-  const icons={pill:"/medicine-pill.svg",injection:"/medicine-injection.svg",drops:"/medicine-drops.svg",syrup:"/medicine-drops.svg",inhaler:"/medicine-inhaler.svg",powder:"/medicine-powder.svg"};
+  const icons={pill:"/medicine-pill.svg",injection:"/medicine-injection.svg",drops:"/medicine-drops.svg",syrup:"/medicine-drops.svg",inhaler:"/medicine-inhaler.svg",powder:"/medicine-powder.svg",other:"/medicine-other.svg"};
   event.waitUntil(self.registration.showNotification(data.title||"TENDED",{
     body:data.body||"You have a medication update.",
     icon:icons[form]||"/medicine-pill.svg",
