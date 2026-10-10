@@ -1,6 +1,7 @@
 const BASE=(import.meta.env.VITE_API_URL||"https://health-tracker-app-3tzi.onrender.com/api").replace(/\/$/,"");
 export type User={id:string;email:string;displayName:string;timeZoneId?:string;profileImageUrl?:string|null};
-export type Patient={id:string;name:string;dob:string|null;conditions:string[];notes:string;relationship?:string;mobile?:string;doctor?:string;medicalHistory?:string;doctorPhotoUrl?:string;profileImageUrl?:string;userId?:string;ownerName?:string;ownerEmail?:string};
+export type PatientAttachment={name:string;mimeType:string;key?:string;size?:number;url?:string;dataUrl?:string};
+export type Patient={id:string;name:string;dob:string|null;conditions:string[];notes:string;relationship?:string;mobile?:string;doctor?:string;medicalHistory?:string;doctorPhotoUrl?:string;profileImageUrl?:string;attachments?:PatientAttachment[];userId?:string;ownerName?:string;ownerEmail?:string};
 export type FamilyUser={id:string;userId?:string;email:string;displayName:string;status?:string};
 export type Family={id:string;name:string;members:FamilyUser[];pending:{id:string;inviteeUserId:string;inviteeEmail?:string|null;inviteeDisplayName?:string|null;inviteeProfileImageUrl?:string|null;status:string}[]};
 export type Notification={id:string;type:string;title:string;message:string;dataJson:string;isRead:boolean;createdAt:string};
