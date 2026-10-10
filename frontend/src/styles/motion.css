@@ -1,0 +1,142 @@
+/*
+ * Motion. Animations answer a user action (tab change, dialog open, dose confirmed,
+ * message shown) rather than decorating idle content. The one orchestrated moment is
+ * the adherence ring filling on the Today screen. Everything is disabled for users who
+ * prefer reduced motion.
+ */
+@property --fill {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+.progress-ring {
+  transition: --fill 700ms var(--ease-out);
+}
+@keyframes ring-fill {
+  from {
+    --fill: 0;
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 16px);
+  }
+}
+@keyframes confirm-pop {
+  0% {
+    transform: scale(0.6);
+  }
+  60% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes heartbeat {
+  0%,
+  60%,
+  100% {
+    transform: scale(1);
+  }
+  15% {
+    transform: scale(1.08);
+  }
+  30% {
+    transform: scale(0.98);
+  }
+  45% {
+    transform: scale(1.05);
+  }
+}
+
+/* Tab change: a short fade so the content swap reads as navigation. */
+.view {
+  animation: fade-in var(--dur) var(--ease-out);
+}
+/* Dialogs */
+.modal-backdrop {
+  animation: fade-in var(--dur) ease-out;
+}
+.modal {
+  animation: dialog-in var(--dur) var(--ease-out);
+}
+@media (max-width: 639px) {
+  .modal {
+    animation: sheet-up 280ms var(--ease-out);
+  }
+}
+/* Menus and popovers grow from their trigger. */
+.account-dropdown {
+  transform-origin: top right;
+  animation: pop-in var(--dur-fast) var(--ease-out);
+}
+.notification-popover {
+  transform-origin: top right;
+  animation: pop-in var(--dur) var(--ease-out);
+}
+.suggestions {
+  animation: pop-in var(--dur-fast) var(--ease-out);
+}
+/* Wizard steps slide in as the user continues. */
+.step-panel {
+  animation: rise var(--dur) var(--ease-out);
+}
+/* Feedback */
+.toast {
+  animation: toast-in var(--dur) var(--ease-out);
+}
+.dose-icon.taken svg,
+.dose-row.is-taken .status-chip svg {
+  animation: confirm-pop 360ms var(--ease-out);
+}
+.inline-error,
+.settings-message,
+.family-message {
+  animation: rise var(--dur-fast) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
