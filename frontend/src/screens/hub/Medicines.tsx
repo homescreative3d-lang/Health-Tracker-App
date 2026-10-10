@@ -1,9 +1,10 @@
-import { PauseCircle, Pencil, Pill, Play, Plus, Trash2, UserPlus } from "lucide-react";
+import { PauseCircle, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import type { Medicine } from "../../api";
 import { fmtTime } from "../../lib/dates";
 import { plural } from "../../lib/text";
 import { frequencyLabel, isPausedOn } from "../../constants/options";
-import { MedicineFormIcon } from "../../components/MedicineFormIcon";
+import { MedicineArt } from "../../components/art/MedicineArt";
+import { EmptyArt } from "../../components/art/EmptyArt";
 import { PageHeader } from "../../components/PageHeader";
 import { SkeletonList } from "../../components/Skeleton";
 
@@ -20,6 +21,34 @@ type MedicinesProps = {
   /** True while the plan reloads. */
   loading?: boolean;
 };
+
+/**
+ * Supply level bar. The scale is relative to the refill threshold (full = 4× threshold,
+ * min 30 doses) because the original pack size isn't stored; a marker shows the threshold.
+ */
+function SupplyGauge({ supply, threshold }: { supply: number; threshold: number }) {
+  const scale = Math.max(30, threshold * 4, supply);
+  const pct = Math.max(2, Math.min(100, (supply / scale) * 100));
+  const low = threshold > 0 && supply <= threshold;
+  return (
+    <div className={low ? "supply-gauge low" : "supply-gauge"}>
+      <div className="supply-gauge-head">
+        <span>{plural(supply, "dose")} left</span>
+        {low ? <b>Refill soon</b> : threshold > 0 && <small>Refill at {threshold}</small>}
+      </div>
+      <div
+        className="supply-track"
+        role="img"
+        aria-label={`${supply} doses left${low ? ", refill soon" : ""}`}
+      >
+        <span className="supply-fill" style={{ width: `${pct}%` }} />
+        {threshold > 0 && (
+          <span className="supply-marker" style={{ left: `${(threshold / scale) * 100}%` }} />
+        )}
+      </div>
+    </div>
+  );
+}
 
 /** Medicine cabinet: every medicine with schedule, supply, pause state and actions. */
 export function Medicines({
@@ -52,9 +81,7 @@ export function Medicines({
         <SkeletonList rows={3} label="Loading medicines" />
       ) : !meds.length ? (
         <div className="card empty-card">
-          <div className="empty-icon">
-            {hasPatient ? <Pill aria-hidden="true" /> : <UserPlus aria-hidden="true" />}
-          </div>
+          <EmptyArt kind={hasPatient ? "pills" : "patient"} />
           <b>{hasPatient ? "No medicines yet" : "Add a patient first"}</b>
           <span className="muted">
             {hasPatient
@@ -70,13 +97,10 @@ export function Medicines({
         <div className="medicine-grid">
           {meds.map((m) => {
             const paused = isPausedOn(m);
-            const low = m.isRecurring && m.supplyCount <= m.refillThreshold;
             return (
               <article className={paused ? "card med-card is-paused" : "card med-card"} key={m.id}>
                 <div className="med-top">
-                  <div className="dose-icon">
-                    <MedicineFormIcon form={m.form} size={22} />
-                  </div>
+                  <MedicineArt form={m.form} size={56} />
                   <div className="med-info">
                     <b>{m.name}</b>
                     <span>
@@ -96,10 +120,10 @@ export function Medicines({
                   <span>{m.times.map(fmtTime).join(", ")}</span>
                   {m.withFood && <span>With food</span>}
                 </div>
-                <div className={low ? "supply low" : "supply"}>
-                  <span>{plural(m.supplyCount, "dose")} left</span>
-                  {low && <b>Refill soon</b>}
-                </div>
+                <SupplyGauge
+                  supply={m.supplyCount}
+                  threshold={m.isRecurring ? m.refillThreshold : 0}
+                />
                 <div className="med-actions">
                   {paused ? (
                     <button className="btn soft" onClick={() => onResume(m)}>

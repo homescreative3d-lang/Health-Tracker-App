@@ -26,6 +26,7 @@ import { InlineError } from "../../components/InlineError";
 import { MedicineFormIcon } from "../../components/MedicineFormIcon";
 import { PageHeader } from "../../components/PageHeader";
 import { Row } from "../../components/DetailRow";
+import { EmptyArt } from "../../components/art/EmptyArt";
 
 /**
  * Patient workspace with four sections (personal details, medical history, attachments,
@@ -166,6 +167,7 @@ export function PatientDetails({
       <div className="page-scroll">
         <PageHeader kicker="Patient information" title="No patient yet" />
         <div className="card empty-card">
+          <EmptyArt kind="patient" />
           <b>Add a patient to see their details here</b>
           <button className="btn primary" onClick={onAddPatient}>
             Add patient
@@ -199,6 +201,33 @@ export function PatientDetails({
           </>
         }
       />
+      <section className="patient-banner" aria-label="Patient summary">
+        <span className="patient-banner-photo">
+          {draft.profileImageUrl ? (
+            <img src={draft.profileImageUrl} alt="" />
+          ) : (
+            toInitials(draft.name)
+          )}
+        </span>
+        <div className="patient-banner-copy">
+          <b>{draft.name || "Unnamed patient"}</b>
+          <small>
+            {draft.relationship === "self" ? "My health profile" : draft.relationship || "Patient"}
+            {draft.dob ? ` · born ${draft.dob}` : ""}
+          </small>
+          {(draft.conditions || []).length > 0 && (
+            <div className="patient-banner-tags">
+              {(draft.conditions || []).slice(0, 4).map((c) => (
+                <span key={c}>{c}</span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="patient-banner-meds">
+          <b>{ongoingMeds.length}</b>
+          <small>ongoing medicine{ongoingMeds.length === 1 ? "" : "s"}</small>
+        </div>
+      </section>
       <div className="patient-info-workspace">
         <nav className="patient-info-nav" aria-label="Patient information sections">
           <span className="patient-info-nav-label">Sections</span>
