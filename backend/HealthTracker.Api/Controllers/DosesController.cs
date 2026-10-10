@@ -60,12 +60,18 @@ public class DosesController(IDoseService doses) : ApiControllerBase
     public Task<IActionResult> Skip(Guid id, ReasonRequest request) => Run(() => doses.Skip(CurrentUserId, id, request.Reason));
 
     /// <summary>
-    /// Marks a dose as rescheduled to another date.
+    /// Moves one dose to another date and time.
     /// </summary>
+    /// <remarks>
+    /// The original dose becomes <c>rescheduled</c> ("moved to …") and a new pending dose is created at
+    /// the target with <c>rescheduledFromId</c> set, so it shows a "Rescheduled" badge, gets reminders, and
+    /// can be taken normally. Everyone caring for the patient receives a <c>dose_rescheduled</c> notification.
+    /// Undo on the original removes the moved dose while it is still open.
+    /// </remarks>
     /// <param name="id">Dose id.</param>
-    /// <param name="request">Target date (<c>YYYY-MM-DD</c>).</param>
-    /// <response code="200">The updated dose.</response>
-    /// <response code="400">The date is invalid (previously this returned 500).</response>
+    /// <param name="request">Target date (<c>YYYY-MM-DD</c>) and optional time (<c>HH:mm</c>).</param>
+    /// <response code="200">The newly created (moved) dose.</response>
+    /// <response code="400">Invalid or past target, slot already used, or dose already recorded.</response>
     /// <response code="403">No access to the dose.</response>
     [HttpPost("{id:guid}/reschedule")]
     [ProducesResponseType<DoseResponse>(StatusCodes.Status200OK)]
@@ -73,7 +79,7 @@ public class DosesController(IDoseService doses) : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public Task<IActionResult> Reschedule(Guid id, RescheduleRequest request) =>
         DateOnly.TryParse(request.Date, out var date)
-            ? Run(() => doses.Reschedule(CurrentUserId, id, date))
+            ? Run(() => doses.Reschedule(CurrentUserId, id, date, request.Time))
             : Task.FromResult<IActionResult>(BadRequestMessage("Enter a valid date (YYYY-MM-DD)."));
 
     /// <summary>
