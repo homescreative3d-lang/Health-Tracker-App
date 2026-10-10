@@ -41,9 +41,9 @@ public class NotificationScheduler(
         var schedulerProvider = await db.Database
             .SqlQueryRaw<string>(
                 """
-                SELECT "Value" AS "Value"
+                SELECT "ActiveProvider" AS "Value"
                 FROM "NotificationRuntimeConfig"
-                WHERE "Key" = 'NotificationSchedulerProvider'
+                WHERE "Id" = 1 AND "Enabled" = TRUE
                 """)
             .FirstOrDefaultAsync(cancellationToken);
 
