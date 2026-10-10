@@ -2,7 +2,7 @@ using System.Text.Json;using HealthTracker.Api.Data;using HealthTracker.Api.Mode
 namespace HealthTracker.Api.Services;
 public class NotificationScheduler(IServiceScopeFactory scopes,ILogger<NotificationScheduler> log):BackgroundService
 {
- protected override async Task ExecuteAsync(CancellationToken stop){await Task.Delay(TimeSpan.FromSeconds(5),stop);while(!stop.IsCancellationRequested){try{using var scope=scopes.CreateScope();await Tick(scope.ServiceProvider,stop);}catch(Exception ex){log.LogError(ex,"Notification scheduler failed");}await Task.Delay(TimeSpan.FromSeconds(30),stop);}}
+ protected override async Task ExecuteAsync(CancellationToken stop){await Task.Delay(TimeSpan.FromSeconds(5),stop);while(!stop.IsCancellationRequested){try{using var scope=scopes.CreateScope();await Tick(scope.ServiceProvider,stop);}catch(Exception ex){log.LogError(ex,"Notification scheduler failed");}await Task.Delay(TimeSpan.FromSeconds(5),stop);}}
  static async Task Tick(IServiceProvider sp,CancellationToken ct)
  {
   var db=sp.GetRequiredService<AppDbContext>();var push=sp.GetRequiredService<IPushNotificationService>();var now=DateTimeOffset.UtcNow;var users=await db.Users.AsNoTracking().ToListAsync(ct);
@@ -32,16 +32,16 @@ public class NotificationScheduler(IServiceScopeFactory scopes,ILogger<Notificat
       if(until>0&&until<=Math.Max(0,user.NotificationLeadMinutes))
       {
        var occurrence=TruncateMinute(now);
-       if(await Reserve(db,user.Id,dose.Id,"reminder",occurrence,ct))await Deliver(db,user.Id,p,m,dose,"Medicine reminder",$"{m.Name} for {p.Name} is due at {tod}.","dose_reminder",occurrence,push,ct);
+       if(await Reserve(db,user.Id,dose.Id,"reminder",occurrence,ct))await Deliver(db,user.Id,p,m,dose,"Medicine reminder",$"{m.Name} ({m.Strength}) for {p.Name} is due at {tod}.","dose_reminder",occurrence,push,ct);
       }
       if(user.FinalNotificationEnabled&&Math.Abs(until)<=0.6)
       {
-       if(await Reserve(db,user.Id,dose.Id,"final",scheduled,ct))await Deliver(db,user.Id,p,m,dose,"Medicine due now",$"{m.Name} for {p.Name} is due now.","dose_final",scheduled,push,ct);
+       if(await Reserve(db,user.Id,dose.Id,"final",scheduled,ct))await Deliver(db,user.Id,p,m,dose,"Medicine due now",$"{m.Name} ({m.Strength}) for {p.Name} is due now.","dose_final",scheduled,push,ct);
       }
       if(until<=0&&dose.Status=="pending"){dose.Status="missed";dose.MissedAt=now;await db.SaveChangesAsync(ct);}
       if(until<=0&&dose.Status=="missed")
       {
-       if(await Reserve(db,user.Id,dose.Id,"missed",scheduled,ct))await Deliver(db,user.Id,p,m,dose,"Dose missed",$"{m.Name} for {p.Name} was not marked taken at {tod}.","dose_missed",scheduled,push,ct);
+       if(await Reserve(db,user.Id,dose.Id,"missed",scheduled,ct))await Deliver(db,user.Id,p,m,dose,"Dose missed",$"{m.Name} ({m.Strength}) for {p.Name} was not marked taken at {tod}.","dose_missed",scheduled,push,ct);
       }
      }
     }
