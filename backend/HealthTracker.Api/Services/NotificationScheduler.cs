@@ -293,14 +293,31 @@ public class NotificationScheduler(
             ? null
             : "No active browser push subscription or delivery failed.";
 
+        db.Notifications.Add(new AppNotification
+        {
+            UserId = userId,
+            Type = type,
+            Title = title,
+            Message = body,
+            DataJson = JsonSerializer.Serialize(new
+            {
+                doseId = dose.Id,
+                patientId = patient.Id,
+                medicineId = medicine.Id,
+                medicineForm = medicine.Form,
+                type,
+                deliveryStatus = sent ? "sent" : "failed"
+            })
+        });
+
         if (!sent)
         {
             db.Notifications.Add(new AppNotification
             {
                 UserId = userId,
                 Type = "notification_failed",
-                Title = "Notification not delivered",
-                Message = $"{title}: {medicine.Name} for {patient.Name}.",
+                Title = "Browser notification not delivered",
+                Message = $"{title}: {medicine.Name} for {patient.Name}. Enable browser notifications or check the push subscription.",
                 DataJson = JsonSerializer.Serialize(new
                 {
                     doseId = dose.Id,
