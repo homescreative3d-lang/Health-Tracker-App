@@ -242,11 +242,15 @@ public class NotificationScheduler(
             UserId = user.Id,
             Type = "refill_low",
             Title = "Refill reminder",
-            Message = $"{medicine.Name} has {medicine.SupplyCount} doses remaining.",
+            Message = $"{medicine.Name} for {patient.Name} has {medicine.SupplyCount} doses remaining. Refill threshold: {medicine.RefillThreshold} doses.",
             DataJson = JsonSerializer.Serialize(new
             {
                 medicineId = medicine.Id,
-                patientId = patient.Id
+                medicineName = medicine.Name,
+                patientId = patient.Id,
+                patientName = patient.Name,
+                dosesRemaining = medicine.SupplyCount,
+                refillThreshold = medicine.RefillThreshold
             })
         });
 
@@ -255,7 +259,7 @@ public class NotificationScheduler(
         await push.SendToUsersAsync(
             [user.Id],
             "Refill reminder",
-            $"{medicine.Name} for {patient.Name} has {medicine.SupplyCount} doses remaining.",
+            $"{medicine.Name} for {patient.Name} has {medicine.SupplyCount} doses remaining. Refill threshold: {medicine.RefillThreshold} doses.",
             "refill_low",
             null,
             cancellationToken,
