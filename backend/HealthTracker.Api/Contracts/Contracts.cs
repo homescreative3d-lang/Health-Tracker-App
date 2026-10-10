@@ -14,13 +14,16 @@ public record PatientRequest(string Name, string? Dob, List<string> Conditions, 
 /// <summary>Medicine create/update payload. Dates are <c>YYYY-MM-DD</c>; times are <c>HH:mm</c>.</summary>
 public record MedicineRequest(string Name, string Strength, string Form, string Condition, string FrequencyPattern, List<string> SpecificDays, int CycleEvery, string CycleUnit, List<string> Times, string Liquid, bool WithFood, string StartDate, string DurationType, int DurationValue, string DurationUnit, int SupplyCount, int RefillThreshold, bool IsRecurring = true);
 /// <summary>A medicine with its schedule, supply and pause range.</summary>
-public record MedicineResponse(Guid Id, string PatientId, string PatientName, string Name, string Strength, string Form, string Condition, string FrequencyPattern, List<string> SpecificDays, int CycleEvery, string CycleUnit, List<string> Times, string Liquid, bool WithFood, string StartDate, string DurationType, int DurationValue, string DurationUnit, int SupplyCount, int RefillThreshold, bool IsRecurring, string? PauseStartDate, string? PauseEndDate);
+public record MedicineResponse(Guid Id, string PatientId, string PatientName, string Name, string Strength, string Form, string Condition, string FrequencyPattern, List<string> SpecificDays, int CycleEvery, string CycleUnit, List<string> Times, string Liquid, bool WithFood, string StartDate, string DurationType, int DurationValue, string DurationUnit, int SupplyCount, int RefillThreshold, bool IsRecurring, string? PauseStartDate, string? PauseEndDate, string? EndedOn = null, Guid? RescheduledFromId = null, List<string>? PreviousTimes = null);
 /// <summary>One dose for a day, with status and who actioned it.</summary>
-public record DoseResponse(Guid Id, Guid MedicineId, string PatientId, string PatientName, string MedName, string Strength, string Form, string Condition, string Time, string Liquid, bool WithFood, string Status, DateTimeOffset? TakenAt, string? SkipReason, string? RescheduleTo, Guid? ActionedByUserId, string? ActionedByName);
+public record DoseResponse(Guid Id, Guid MedicineId, string PatientId, string PatientName, string MedName, string Strength, string Form, string Condition, string Time, string Liquid, bool WithFood, string Status, DateTimeOffset? TakenAt, string? SkipReason, string? RescheduleTo, Guid? ActionedByUserId, string? ActionedByName, string? RescheduleToTime = null, Guid? RescheduledFromId = null, string? RescheduledFromDate = null, string? RescheduledFromTime = null, string? Date = null);
 /// <summary>Reason for skipping a dose.</summary>
 public record ReasonRequest(string Reason);
-/// <summary>Target date (<c>YYYY-MM-DD</c>) for a rescheduled dose.</summary>
-public record RescheduleRequest(string Date);
+/// <summary>Where to move one dose: date (<c>YYYY-MM-DD</c>) and time (<c>HH:mm</c>, defaults to the original time).</summary>
+public record RescheduleRequest(string Date, string? Time = null, string? Reason = null);
+
+/// <summary>New dose times for a medicine, effective from a date (<c>YYYY-MM-DD</c>) onwards.</summary>
+public record RescheduleMedicineRequest(string EffectiveDate, List<string> Times);
 /// <summary>Name for a new family.</summary>
 public record FamilyCreateRequest(string Name);
 /// <summary>User to invite to the family.</summary>

@@ -151,4 +151,36 @@ public class DoseRuleTests
         var doses = await x.Svc.Get(x.User, DateOnly.FromDateTime(DateTime.UtcNow), null);
         Assert.NotNull(doses);
     }
+
+    [Fact]
+    public async Task RescheduleMovesDoseAndLinksIt()
+    {
+        var x = Setup(DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1), "08:00");
+        var target = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(2);
+        var moved = await x.Svc.Reschedule(x.User, x.DoseId, target, "15:30");
+        Assert.Equal("pending", moved.Status);
+        Assert.Equal("15:30", moved.Time);
+        Assert.Equal(x.DoseId, moved.RescheduledFromId);
+        Assert.Equal("rescheduled", await x.Db.DoseEvents.Where(d => d.Id == x.DoseId).Select(d => d.Status).SingleAsync());
+        // The moved dose appears on the target date even though 15:30 isn't on the regular schedule.
+        var onTarget = await x.Svc.Get(x.User, target, null);
+        Assert.Contains(onTarget, d => d.Id == moved.Id && d.RescheduledFromTime == "08:00");
+    }
+
+    [Fact]
+    public async Task UndoRescheduleRemovesMovedDose()
+    {
+        var x = Setup(DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1), "08:00");
+        var moved = await x.Svc.Reschedule(x.User, x.DoseId, DateOnly.FromDateTime(DateTime.UtcNow).AddDays(2), "09:00");
+        var original = await x.Svc.Undo(x.User, x.DoseId);
+        Assert.Equal("pending", original.Status);
+        Assert.False(await x.Db.DoseEvents.AnyAsync(d => d.Id == moved.Id));
+    }
+
+    [Fact]
+    public async Task CannotRescheduleIntoThePast()
+    {
+        var x = Setup(DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1), "08:00");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => x.Svc.Reschedule(x.User, x.DoseId, DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1), "08:00"));
+    }
 }
