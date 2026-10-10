@@ -29,10 +29,13 @@ public class NotificationScheduler(IServiceScopeFactory scopes,ILogger<Notificat
       if(dose is null){dose=new DoseEvent{PatientId=p.Id,MedicineId=m.Id,Date=date,Time=time};db.DoseEvents.Add(dose);await db.SaveChangesAsync(ct);}
       if(dose.Status is "taken" or "skipped" or "rescheduled")continue;
       var until=(scheduled-now).TotalMinutes;
-      if(until>0&&until<=Math.Max(0,user.NotificationLeadMinutes))
+      if(until>0&&user.NotificationLeadMinutes>0&&until<=user.NotificationLeadMinutes)
       {
-       var occurrence=TruncateMinute(now);
-       if(await Reserve(db,user.Id,dose.Id,"reminder",occurrence,ct))await Deliver(db,user.Id,p,m,dose,"Medicine reminder",$"{m.Name} ({m.Strength}) for {p.Name} is due at {tod}.","dose_reminder",occurrence,push,ct);
+       var repeat=Math.Max(1,user.NotificationRepeatMinutes);
+       var elapsed=user.NotificationLeadMinutes-until;
+       var slot=(int)Math.Floor(elapsed/repeat);
+       var occurrence=scheduled.AddMinutes(-user.NotificationLeadMinutes+slot*repeat);
+       if(occurrence<=now&&await Reserve(db,user.Id,dose.Id,"reminder",occurrence,ct))await Deliver(db,user.Id,p,m,dose,"Medicine reminder",$"{m.Name} ({m.Strength}) for {p.Name} is due at {tod}.","dose_reminder",occurrence,push,ct);
       }
       if(user.FinalNotificationEnabled&&until<=0&&until>=-1.0)
       {
