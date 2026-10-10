@@ -34,7 +34,7 @@ public class NotificationScheduler(IServiceScopeFactory scopes,ILogger<Notificat
        var occurrence=TruncateMinute(now);
        if(await Reserve(db,user.Id,dose.Id,"reminder",occurrence,ct))await Deliver(db,user.Id,p,m,dose,"Medicine reminder",$"{m.Name} ({m.Strength}) for {p.Name} is due at {tod}.","dose_reminder",occurrence,push,ct);
       }
-      if(user.FinalNotificationEnabled&&Math.Abs(until)<=0.6)
+      if(user.FinalNotificationEnabled&&until<=0&&until>=-1.0)
       {
        if(await Reserve(db,user.Id,dose.Id,"final",scheduled,ct))await Deliver(db,user.Id,p,m,dose,"Medicine due now",$"{m.Name} ({m.Strength}) for {p.Name} is due now.","dose_final",scheduled,push,ct);
       }
