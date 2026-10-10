@@ -143,7 +143,7 @@ public class NotificationsController(
             "TENDED test notification",
             "Browser notifications are connected to your medication reminders.",
             "test_notification",
-            cancellationToken: HttpContext.RequestAborted);
+            ct: HttpContext.RequestAborted);
 
         if (!sent)
         {
