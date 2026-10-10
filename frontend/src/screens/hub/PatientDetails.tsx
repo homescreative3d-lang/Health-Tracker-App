@@ -1,43 +1,52 @@
-import React from "react";
 import { useEffect, useState } from "react";
 import {
+  Activity,
   ArrowLeft,
+  CalendarClock,
+  Camera,
+  Download,
+  FileImage,
+  FileText,
+  Paperclip,
   Pencil,
   Pill,
   User,
   X,
-  Camera,
-  FileImage,
-  FileText,
-  Paperclip,
-  Download,
-  Activity,
-  CalendarClock,
 } from "lucide-react";
-import { type Medicine, type Patient, type PatientAttachment } from "../../api";
-import { today, addDays, fmtTime } from "../../lib/dates";
+import type { Medicine, Patient, PatientAttachment, PatientInput } from "../../api";
+import { addDays, fmtTime, today } from "../../lib/dates";
 import { err } from "../../lib/errors";
-import { conditions, relationships } from "../../constants/options";
-import { Field } from "../../components/Field";
-import { InlineError } from "../../components/InlineError";
-import { Row } from "../../components/DetailRow";
-import { MedicineFormIcon } from "../../components/MedicineFormIcon";
+import { readAttachmentFile } from "../../lib/files";
+import { formatSize, initials as toInitials } from "../../lib/text";
+import { relationships } from "../../constants/options";
 import { ConditionPicker } from "../../components/ConditionPicker";
-import { Medicines } from "./Medicines";
-import { Profile } from "./Profile";
+import { Field } from "../../components/Field";
+import { ImagePickerButtons } from "../../components/ImagePickerButtons";
+import { InlineError } from "../../components/InlineError";
+import { MedicineFormIcon } from "../../components/MedicineFormIcon";
+import { PageHeader } from "../../components/PageHeader";
+import { Row } from "../../components/DetailRow";
 
+/**
+ * Patient workspace with four sections (personal details, medical history, attachments,
+ * ongoing medicines). Opens read-only; "Edit patient" switches the sections to forms.
+ * Attachments and photos are uploaded when the patient is saved.
+ */
 export function PatientDetails({
   patient,
   meds,
   startEditing = false,
   onBack,
   onSave,
+  onAddPatient,
 }: {
   patient: Patient;
   meds: Medicine[];
   startEditing?: boolean;
   onBack: () => void;
-  onSave: (v: any) => Promise<boolean>;
+  onSave: (v: PatientInput) => Promise<boolean>;
+  /** Shown when no patient exists yet. */
+  onAddPatient: () => void;
 }) {
   const [activeSection, setActiveSection] = useState<
       "personal" | "history" | "attachments" | "medicines"
@@ -59,105 +68,27 @@ export function PatientDetails({
     setEditing(startEditing);
     setError("");
   }, [patient.id, patient.name, patient.attachments, startEditing]);
+  /** Updates one draft field. */
   const set = (key: keyof Patient, value: any) => setDraft((v) => ({ ...v, [key]: value }));
-  const initials = (draft.name || "?")
-    .split(" ")
-    .map((x) => x[0])
-    .slice(0, 2)
-    .join("");
-  const readFile = (file: File, callback: (dataUrl: string) => void, maxBytes: number) => {
-    if (file.size > maxBytes) {
-      setError(
-        maxBytes <= 1024 * 1024
-          ? "Profile photos must be 1 MB or smaller."
-          : "Each attachment must be 10 MB or smaller.",
-      );
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => callback(String(reader.result));
-    reader.onerror = () => setError("Unable to read this file. Please try another one.");
-    reader.readAsDataURL(file);
-  };
-  const imageFile = (file: File, field: "profileImageUrl" | "doctorPhotoUrl") => {
-    const ext = file.name.split(".").pop()?.toLowerCase() || "";
-    const mime =
-      file.type ||
-      (
-        {
-          jpg: "image/jpeg",
-          jpeg: "image/jpeg",
-          png: "image/png",
-          heic: "image/heic",
-          heif: "image/heif",
-        } as Record<string, string>
-      )[ext] ||
-      "";
-    if (!["image/jpeg", "image/png", "image/heic", "image/heif", "image/webp"].includes(mime)) {
-      setError("Choose a JPEG, PNG or iPhone HEIC/HEIF image.");
-      return;
-    }
-    readFile(
-      file,
-      (v) => set(field, v.startsWith("data:image/") ? v : v.replace(/^data:[^;,]*/, mime)),
-      1024 * 1024,
-    );
-  };
-  const addFiles = (files: FileList | null) => {
-    if (!files) return;
+  /**
+   * Validates and adds picked attachments to the draft (they upload when the patient is saved).
+   * @param files - Files from the attachment input.
+   */
+  const addFiles = async (files: FileList | null) => {
+    if (!files?.length) return;
     setError("");
     const accepted: PatientAttachment[] = [];
-    const picked = Array.from(files);
-    let remaining = picked.length;
-    picked.forEach((file) => {
-      const ext = file.name.split(".").pop()?.toLowerCase() || "";
-      const mime =
-        file.type ||
-        (
-          {
-            jpg: "image/jpeg",
-            jpeg: "image/jpeg",
-            png: "image/png",
-            heic: "image/heic",
-            heif: "image/heif",
-            pdf: "application/pdf",
-            xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          } as Record<string, string>
-        )[ext] ||
-        "";
-      const allowed = [
-        "image/jpeg",
-        "image/png",
-        "image/heic",
-        "image/heif",
-        "application/pdf",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      ];
-      if (!allowed.includes(mime)) {
-        setError(file.name + ": unsupported file type.");
-        remaining--;
-        return;
+    for (const file of Array.from(files)) {
+      try {
+        accepted.push(await readAttachmentFile(file));
+      } catch (e) {
+        setError(err(e));
       }
-      if (file.size > 10 * 1024 * 1024) {
-        setError(file.name + ": attachment must be 10 MB or smaller.");
-        remaining--;
-        return;
-      }
-      readFile(
-        file,
-        (dataUrl) => {
-          accepted.push({ name: file.name, mimeType: mime, dataUrl });
-          remaining--;
-          if (remaining === 0)
-            setDraft((v) => ({
-              ...v,
-              attachments: [...(v.attachments || []), ...accepted],
-            }));
-        },
-        10 * 1024 * 1024,
-      );
-    });
+    }
+    if (accepted.length)
+      setDraft((v) => ({ ...v, attachments: [...(v.attachments || []), ...accepted] }));
   };
+  /** Validates the draft and saves it through the controller. */
   const submit = async () => {
     setError("");
     if (!draft.name.trim() || draft.name.trim().length < 2) {
@@ -191,6 +122,7 @@ export function PatientDetails({
       setBusy(false);
     }
   };
+  /** Conditions plus history lines, de-duplicated, for the history timeline. */
   const historyNodes = [
     ...(draft.conditions || []),
     ...(draft.medicalHistory || "")
@@ -198,6 +130,7 @@ export function PatientDetails({
       .map((v) => v.trim())
       .filter(Boolean),
   ].filter((v, i, a) => a.indexOf(v) === i);
+  /** One-line schedule summary for a medicine. */
   const schedule = (m: Medicine) =>
     m.times.map(fmtTime).join(" · ") +
     " · " +
@@ -208,6 +141,7 @@ export function PatientDetails({
         : m.frequencyPattern === "specificDays"
           ? (m.specificDays || []).join(", ")
           : "Every " + m.cycleEvery + " " + m.cycleUnit);
+  /** Recurring medicines active today (started, not paused, not finished). */
   const ongoingMeds = meds.filter((m) => {
     if (!m.isRecurring || m.startDate > today()) return false;
     if (
@@ -227,40 +161,47 @@ export function PatientDetails({
     }
     return true;
   });
-  const formatSize = (n?: number) =>
-    n == null
-      ? ""
-      : n < 1024 * 1024
-        ? Math.max(1, Math.round(n / 1024)) + " KB"
-        : (n / 1024 / 1024).toFixed(1) + " MB";
-  return (
-    <div className="page-scroll patient-profile-view">
-      <div className="page-head">
-        <div>
-          <span className="eyebrow">PATIENT INFORMATION</span>
-          <h1>{draft.name || "Patient details"}</h1>
-          <p className="muted">
-            {editing
-              ? "Update this patient’s information and care documents."
-              : "Read-only overview of personal details, medical history and current medicines."}
-          </p>
-        </div>
-        <div className="head-actions">
-          <button className="btn soft" onClick={onBack}>
-            <ArrowLeft size={16} />
-            Back
+  if (!patient.id)
+    return (
+      <div className="page-scroll">
+        <PageHeader kicker="Patient information" title="No patient yet" />
+        <div className="card empty-card">
+          <b>Add a patient to see their details here</b>
+          <button className="btn primary" onClick={onAddPatient}>
+            Add patient
           </button>
-          {!editing && (
-            <button className="btn primary" onClick={() => setEditing(true)}>
-              <Pencil size={16} />
-              Edit patient
-            </button>
-          )}
         </div>
       </div>
+    );
+
+  return (
+    <div className="page-scroll patient-profile-view">
+      <PageHeader
+        kicker="Patient information"
+        title={draft.name || "Patient details"}
+        description={
+          editing
+            ? "Update this patient's information and care documents."
+            : "Personal details, medical history, documents and current medicines."
+        }
+        actions={
+          <>
+            <button className="btn soft" onClick={onBack}>
+              <ArrowLeft size={16} aria-hidden="true" />
+              Back
+            </button>
+            {!editing && (
+              <button className="btn primary" onClick={() => setEditing(true)}>
+                <Pencil size={16} aria-hidden="true" />
+                Edit patient
+              </button>
+            )}
+          </>
+        }
+      />
       <div className="patient-info-workspace">
         <nav className="patient-info-nav" aria-label="Patient information sections">
-          <span className="patient-info-nav-label">PATIENT SECTIONS</span>
+          <span className="patient-info-nav-label">Sections</span>
           <button
             type="button"
             className={activeSection === "personal" ? "active" : ""}
@@ -312,7 +253,7 @@ export function PatientDetails({
                   {draft.profileImageUrl ? (
                     <img src={draft.profileImageUrl} alt={draft.name} />
                   ) : (
-                    <span>{initials}</span>
+                    <span>{toInitials(draft.name)}</span>
                   )}
                 </div>
                 <div>
@@ -323,42 +264,14 @@ export function PatientDetails({
                       : "Caregiver relationship · " + (draft.relationship || "Not specified")}
                   </small>
                   {editing && (
-                    <div className="photo-actions">
-                      <label className="btn soft upload-btn">
-                        <FileImage size={15} />
-                        Gallery
-                        <input
-                          type="file"
-                          accept=".jpg,.jpeg,.png,.heic,.heif,image/jpeg,image/png,image/heic,image/heif"
-                          hidden
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) imageFile(f, "profileImageUrl");
-                            e.currentTarget.value = "";
-                          }}
-                        />
-                      </label>
-                      <label className="btn soft upload-btn">
-                        <Camera size={15} />
-                        Camera
-                        <input
-                          type="file"
-                          accept="image/*,.heic,.heif"
-                          capture="environment"
-                          hidden
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) imageFile(f, "profileImageUrl");
-                            e.currentTarget.value = "";
-                          }}
-                        />
-                      </label>
-                      {draft.profileImageUrl && (
-                        <button className="btn soft" onClick={() => set("profileImageUrl", "")}>
-                          Remove photo
-                        </button>
-                      )}
-                    </div>
+                    <ImagePickerButtons
+                      label="patient photo"
+                      onPick={(v) => set("profileImageUrl", v)}
+                      onError={setError}
+                      onRemove={
+                        draft.profileImageUrl ? () => set("profileImageUrl", "") : undefined
+                      }
+                    />
                   )}
                 </div>
               </div>
@@ -433,44 +346,22 @@ export function PatientDetails({
                       onChange={(e) => set("notes", e.target.value)}
                     />
                   </Field>
-                  <Field label="Doctor / prescriber photo">
-                    <div className="photo-actions">
-                      <label className="btn soft upload-btn">
-                        <FileImage size={15} />
-                        Gallery
-                        <input
-                          type="file"
-                          accept="image/*,.heic,.heif"
-                          hidden
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) imageFile(f, "doctorPhotoUrl");
-                            e.currentTarget.value = "";
-                          }}
-                        />
-                      </label>
-                      <label className="btn soft upload-btn">
-                        <Camera size={15} />
-                        Camera
-                        <input
-                          type="file"
-                          accept="image/*,.heic,.heif"
-                          capture="environment"
-                          hidden
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) imageFile(f, "doctorPhotoUrl");
-                            e.currentTarget.value = "";
-                          }}
-                        />
-                      </label>
-                      {draft.doctorPhotoUrl && (
-                        <button className="btn soft" onClick={() => set("doctorPhotoUrl", "")}>
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                  </Field>
+                  <div className="field full-field">
+                    <span className="field-label">Doctor / prescriber photo</span>
+                    {draft.doctorPhotoUrl && (
+                      <img
+                        className="doctor-photo-preview"
+                        src={draft.doctorPhotoUrl}
+                        alt="Doctor or prescriber"
+                      />
+                    )}
+                    <ImagePickerButtons
+                      label="doctor or prescription photo"
+                      onPick={(v) => set("doctorPhotoUrl", v)}
+                      onError={setError}
+                      onRemove={draft.doctorPhotoUrl ? () => set("doctorPhotoUrl", "") : undefined}
+                    />
+                  </div>
                 </div>
               ) : (
                 <div className="patient-details-grid">
@@ -561,7 +452,7 @@ export function PatientDetails({
                         accept=".jpg,.jpeg,.png,.heic,.heif,.pdf,.xlsx,image/jpeg,image/png,image/heic,image/heif,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         hidden
                         onChange={(e) => {
-                          addFiles(e.currentTarget.files);
+                          void addFiles(e.currentTarget.files);
                           e.currentTarget.value = "";
                         }}
                       />
@@ -575,7 +466,7 @@ export function PatientDetails({
                         capture="environment"
                         hidden
                         onChange={(e) => {
-                          addFiles(e.currentTarget.files);
+                          void addFiles(e.currentTarget.files);
                           e.currentTarget.value = "";
                         }}
                       />

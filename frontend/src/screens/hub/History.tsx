@@ -1,10 +1,18 @@
 import { useEffect, useState } from "react";
 import { Clock3 } from "lucide-react";
-import { api, type Dose, type Medicine, type Patient, type HistoryRow } from "../../api";
+import { api, type HistoryRow, type Patient } from "../../api";
 import { fmtTime } from "../../lib/dates";
+import { err } from "../../lib/errors";
+import { initials } from "../../lib/text";
 import { Field } from "../../components/Field";
+import { InlineError } from "../../components/InlineError";
 import { MedicineFormIcon } from "../../components/MedicineFormIcon";
+import { PageHeader } from "../../components/PageHeader";
 
+/**
+ * Filterable dose history across all accessible patients (max 1,000 most recent rows).
+ * The table collapses into stacked cards on phones.
+ */
 export function History({ patients, patient }: { patients: Patient[]; patient: Patient }) {
   const [rows, setRows] = useState<HistoryRow[]>([]),
     [selected, setSelected] = useState<string[]>(patient.id ? [patient.id] : []),
@@ -15,41 +23,63 @@ export function History({ patients, patient }: { patients: Patient[]; patient: P
   useEffect(() => {
     setSelected(patient.id ? [patient.id] : []);
   }, [patient.id]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  // Debounce the free-text medicine filter so typing doesn't fire a request per keystroke.
+  const [medicineQuery, setMedicineQuery] = useState("");
+  useEffect(() => {
+    const t = window.setTimeout(() => setMedicineQuery(medicine.trim()), 300);
+    return () => window.clearTimeout(t);
+  }, [medicine]);
+
+  // Load history whenever a filter changes; stale responses are ignored.
   useEffect(() => {
     const q = new URLSearchParams();
     if (selected.length) q.set("patientIds", selected.join(","));
-    if (medicine) q.set("medicineName", medicine);
+    if (medicineQuery) q.set("medicineName", medicineQuery);
     if (from) q.set("from", from);
     if (to) q.set("to", to);
     if (period) q.set("period", period);
+    let active = true;
+    setLoading(true);
+    setError("");
     api
       .getHistory("?" + q.toString())
-      .then(setRows)
-      .catch(() => setRows([]));
-  }, [selected, medicine, from, to, period]);
+      .then((r) => active && setRows(r))
+      .catch((e) => {
+        if (!active) return;
+        setRows([]);
+        setError(err(e));
+      })
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [selected, medicineQuery, from, to, period]);
+
   return (
     <div className="page-scroll history-page">
-      <div className="page-head">
-        <div>
-          <span className="eyebrow">CARE HISTORY</span>
-          <h1>Medication history</h1>
-          <p className="muted">A clear record of each dose, patient, time and caregiver.</p>
-        </div>
-      </div>
+      <PageHeader
+        kicker="Care history"
+        title="History"
+        description="Every dose with its patient, time, outcome and who recorded it."
+      />
       <div className="card history-filters">
         <div className="section-heading">
           <div>
             <h3>Filter history</h3>
             <p className="muted">Choose one or more patients, medicines or dates.</p>
           </div>
-          <Clock3 />
+          <Clock3 aria-hidden="true" />
         </div>
-        <label className="field">
-          <span className="field-label">Patients</span>
+        {/* fieldset, not label: a <label> wrapping buttons re-clicks the first chip. */}
+        <fieldset className="field">
+          <legend className="field-label">Patients</legend>
           <div className="chips">
             {patients.map((p) => (
               <button
                 type="button"
+                aria-pressed={selected.includes(p.id)}
                 className={selected.includes(p.id) ? "chip selected" : "chip"}
                 key={p.id}
                 onClick={() =>
@@ -62,7 +92,7 @@ export function History({ patients, patient }: { patients: Patient[]; patient: P
               </button>
             ))}
           </div>
-        </label>
+        </fieldset>
         <Field label="Medicine name">
           <input
             className="input"
@@ -94,7 +124,7 @@ export function History({ patients, patient }: { patients: Patient[]; patient: P
             <select className="input" value={period} onChange={(e) => setPeriod(e.target.value)}>
               <option value="">Any time</option>
               <option>Morning</option>
-              <option>Noon</option>
+              <option value="Noon">Afternoon</option>
               <option>Evening</option>
               <option>Night</option>
             </select>
@@ -117,11 +147,12 @@ export function History({ patients, patient }: { patients: Patient[]; patient: P
         <div>
           <h3>Dose records</h3>
           <span className="muted">
-            {rows.length} record{rows.length === 1 ? "" : "s"} found
+            {loading ? "Loading…" : `${rows.length} record${rows.length === 1 ? "" : "s"}`}
           </span>
         </div>
       </div>
-      <div className="card history-table-wrap">
+      {error && <InlineError>{error}</InlineError>}
+      <div className="card history-table-wrap" aria-busy={loading}>
         {rows.length ? (
           <div className="history-table-scroll">
             <table className="history-data-table">
@@ -131,25 +162,19 @@ export function History({ patients, patient }: { patients: Patient[]; patient: P
                   <th>Medicine</th>
                   <th>Scheduled</th>
                   <th>Status</th>
-                  <th>Action recorded by</th>
+                  <th>Recorded by</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.id}>
-                    <td>
+                    <td data-label="Patient">
                       <div className="history-patient-cell">
-                        <span className="history-avatar">
-                          {(r.patientName || "?")
-                            .split(" ")
-                            .map((x) => x[0])
-                            .slice(0, 2)
-                            .join("")}
-                        </span>
+                        <span className="history-avatar">{initials(r.patientName)}</span>
                         <b>{r.patientName || "Unknown patient"}</b>
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Medicine">
                       <div className="history-medication">
                         <span className="dose-icon">
                           <MedicineFormIcon form={r.form} size={17} />
@@ -160,11 +185,11 @@ export function History({ patients, patient }: { patients: Patient[]; patient: P
                         </div>
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Scheduled">
                       <b>{r.date}</b>
                       <small>{fmtTime(r.time)}</small>
                     </td>
-                    <td>
+                    <td data-label="Status">
                       <span
                         className={
                           r.status === "taken"
@@ -183,7 +208,7 @@ export function History({ patients, patient }: { patients: Patient[]; patient: P
                               : r.status}
                       </span>
                     </td>
-                    <td>{r.actionedByName || "—"}</td>
+                    <td data-label="Recorded by">{r.actionedByName || "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -192,7 +217,7 @@ export function History({ patients, patient }: { patients: Patient[]; patient: P
         ) : (
           <div className="history-empty">
             <div className="empty-icon">
-              <Clock3 />
+              <Clock3 aria-hidden="true" />
             </div>
             <b>No history records found</b>
             <span className="muted">

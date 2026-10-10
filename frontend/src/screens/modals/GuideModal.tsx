@@ -1,65 +1,57 @@
-import { Check, HeartPulse, X } from "lucide-react";
-import { today } from "../../lib/dates";
-import { conditions } from "../../constants/options";
+import { BookOpen, HeartPulse } from "lucide-react";
+import { Modal } from "../../components/Modal";
 
+/** The four steps of the quick guide (a real sequence, so numbered). */
+const STEPS = [
+  {
+    title: "Add the person you care for",
+    text: "Or yourself. Add their conditions, doctor and documents.",
+  },
+  {
+    title: "Add each medicine",
+    text: "Enter strength, schedule and supply. Edit or pause it any time.",
+  },
+  {
+    title: "Mark doses as they happen",
+    text: "Take or Skip opens at the scheduled time and stays open for one hour.",
+  },
+  {
+    title: "Share and plan ahead",
+    text: "Invite family to help, check the calendar, and refill when reminded.",
+  },
+];
+
+/** Short onboarding guide opened from the top bar, sidebar and profile. */
 export function GuideModal({ onClose }: { onClose: () => void }) {
   return (
-    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal guide-modal">
-        <div className="modal-head">
-          <div>
-            <span className="eyebrow">QUICK GUIDE</span>
-            <h2>How to use TENDED</h2>
-          </div>
-          <button className="icon-btn" onClick={onClose}>
-            <X />
-          </button>
-        </div>
-        <div className="guide-list">
-          <GuideStep
-            n="1"
-            title="Add your care details"
-            text="Tell TENDED who the plan is for and add relevant conditions."
-          />
-          <GuideStep
-            n="2"
-            title="Add each medicine"
-            text="Enter the strength, form, schedule and supply count. You can edit it anytime."
-          />
-          <GuideStep
-            n="3"
-            title="Follow today's schedule"
-            text="Use Take after you take a dose, or Skip when you intentionally miss one."
-          />
-          <GuideStep
-            n="4"
-            title="Check the calendar"
-            text="Look ahead at upcoming doses and use refill reminders to stay prepared."
-          />
-        </div>
-        <div className="guide-note">
-          <HeartPulse />
-          <span>
-            TENDED helps organize your medication routine. It does not replace advice from your
-            doctor or pharmacist.
-          </span>
-        </div>
-        <button className="btn primary full" onClick={onClose}>
+    <Modal
+      title="How Tended works"
+      icon={<BookOpen size={20} />}
+      onClose={onClose}
+      className="guide-modal"
+      actions={
+        <button className="btn primary" onClick={onClose}>
           Got it
         </button>
+      }
+    >
+      <ol className="guide-list">
+        {STEPS.map((s, i) => (
+          <li className="guide-step" key={s.title}>
+            <span aria-hidden="true">{i + 1}</span>
+            <div>
+              <b>{s.title}</b>
+              <p className="muted">{s.text}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <div className="guide-note">
+        <HeartPulse aria-hidden="true" />
+        <span>
+          Tended organizes medicines. It doesn't replace advice from a doctor or pharmacist.
+        </span>
       </div>
-    </div>
-  );
-}
-
-function GuideStep({ n, title, text }: { n: string; title: string; text: string }) {
-  return (
-    <div className="guide-step">
-      <span>{n}</span>
-      <div>
-        <b>{title}</b>
-        <p className="muted">{text}</p>
-      </div>
-    </div>
+    </Modal>
   );
 }

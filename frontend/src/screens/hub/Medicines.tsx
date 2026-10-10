@@ -1,96 +1,123 @@
-import { Pencil, Pill, Plus, Trash2 } from "lucide-react";
-import { type Medicine } from "../../api";
+import { PauseCircle, Pencil, Pill, Play, Plus, Trash2, UserPlus } from "lucide-react";
+import type { Medicine } from "../../api";
 import { fmtTime } from "../../lib/dates";
+import { plural } from "../../lib/text";
+import { frequencyLabel, isPausedOn } from "../../constants/options";
 import { MedicineFormIcon } from "../../components/MedicineFormIcon";
+import { PageHeader } from "../../components/PageHeader";
 
-export function Medicines({
-  meds,
-  onAdd,
-  onEdit,
-  onDelete,
-}: {
+type MedicinesProps = {
   meds: Medicine[];
+  /** False when no patient exists yet (medicines need a patient). */
+  hasPatient: boolean;
   onAdd: () => void;
+  onAddPatient: () => void;
   onEdit: (m: Medicine) => void;
   onDelete: (m: Medicine) => void;
-}) {
+  /** Ends a pause (new: paused medicines previously could not be resumed). */
+  onResume: (m: Medicine) => Promise<void>;
+};
+
+/** Medicine cabinet: every medicine with schedule, supply, pause state and actions. */
+export function Medicines({
+  meds,
+  hasPatient,
+  onAdd,
+  onAddPatient,
+  onEdit,
+  onDelete,
+  onResume,
+}: MedicinesProps) {
+  const active = meds.filter((m) => !isPausedOn(m)).length;
   return (
     <div className="page-scroll">
-      <div className="page-head">
-        <div>
-          <span className="eyebrow">YOUR MEDICINES</span>
-          <h1>Medicine cabinet</h1>
-          <p className="muted">
-            {meds.length} active medicine{meds.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-        <div className="head-actions">
-          <button className="btn accent" onClick={onAdd}>
-            <Plus size={17} />
-            Add medicine
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        kicker="Medicines"
+        title="Medicine cabinet"
+        description={`${plural(active, "active medicine")}${meds.length > active ? ` · ${meds.length - active} paused` : ""}`}
+        actions={
+          hasPatient && (
+            <button className="btn primary" onClick={onAdd}>
+              <Plus size={17} aria-hidden="true" />
+              Add medicine
+            </button>
+          )
+        }
+      />
       {!meds.length ? (
         <div className="card empty-card">
           <div className="empty-icon">
-            <Pill />
+            {hasPatient ? <Pill aria-hidden="true" /> : <UserPlus aria-hidden="true" />}
           </div>
-          <b>Your medicine list is empty</b>
-          <span className="muted">Add a medicine to create a schedule and refill reminder.</span>
-          <button className="btn accent" onClick={onAdd}>
-            <Plus size={17} />
-            Add medicine
+          <b>{hasPatient ? "No medicines yet" : "Add a patient first"}</b>
+          <span className="muted">
+            {hasPatient
+              ? "Add a medicine to create its schedule and refill reminders."
+              : "Medicines belong to a patient. Add yourself or the person you care for."}
+          </span>
+          <button className="btn primary" onClick={hasPatient ? onAdd : onAddPatient}>
+            <Plus size={17} aria-hidden="true" />
+            {hasPatient ? "Add medicine" : "Add patient"}
           </button>
         </div>
       ) : (
         <div className="medicine-grid">
-          {meds.map((m) => (
-            <div className="card med-card" key={m.id}>
-              <div className="med-top">
-                <div className="dose-icon">
-                  <MedicineFormIcon form={m.form} size={22} />
+          {meds.map((m) => {
+            const paused = isPausedOn(m);
+            const low = m.isRecurring && m.supplyCount <= m.refillThreshold;
+            return (
+              <article className={paused ? "card med-card is-paused" : "card med-card"} key={m.id}>
+                <div className="med-top">
+                  <div className="dose-icon">
+                    <MedicineFormIcon form={m.form} size={22} />
+                  </div>
+                  <div className="med-info">
+                    <b>{m.name}</b>
+                    <span>
+                      {m.strength || "Strength not set"} · {m.form}
+                    </span>
+                    {m.condition && <span className="muted">For {m.condition}</span>}
+                  </div>
                 </div>
-                <div className="med-info">
-                  <b>{m.name}</b>
-                  <span>
-                    {m.strength || "Strength not specified"} · {m.form}
-                  </span>
-                  <span>{m.times.map(fmtTime).join(" · ")}</span>
-                  <small
-                    className={
-                      m.supplyCount <= m.refillThreshold ? "status-danger" : "status-success"
-                    }
+                <div className="med-meta">
+                  {paused && (
+                    <span className="status-chip status-info">
+                      <PauseCircle size={14} aria-hidden="true" />
+                      Paused
+                    </span>
+                  )}
+                  <span>{frequencyLabel(m)}</span>
+                  <span>{m.times.map(fmtTime).join(", ")}</span>
+                  {m.withFood && <span>With food</span>}
+                </div>
+                <div className={low ? "supply low" : "supply"}>
+                  <span>{plural(m.supplyCount, "dose")} left</span>
+                  {low && <b>Refill soon</b>}
+                </div>
+                <div className="med-actions">
+                  {paused ? (
+                    <button className="btn soft" onClick={() => onResume(m)}>
+                      <Play size={15} aria-hidden="true" />
+                      Resume
+                    </button>
+                  ) : (
+                    <button className="btn soft" onClick={() => onEdit(m)}>
+                      <Pencil size={15} aria-hidden="true" />
+                      Edit
+                    </button>
+                  )}
+                  <button
+                    className="btn danger-ghost"
+                    onClick={() => onDelete(m)}
+                    aria-label={`Delete ${m.name}`}
                   >
-                    {m.supplyCount} left
-                    {m.supplyCount <= m.refillThreshold ? " · refill soon" : ""}
-                  </small>
+                    <Trash2 size={15} aria-hidden="true" />
+                    Delete
+                  </button>
                 </div>
-              </div>
-              <div className="med-meta">
-                <span>
-                  {m.frequencyPattern === "daily"
-                    ? "Every day"
-                    : m.frequencyPattern === "everyOtherDay"
-                      ? "Every other day"
-                      : m.frequencyPattern === "specificDays"
-                        ? m.specificDays.join(", ")
-                        : `Every ${m.cycleEvery} ${m.cycleUnit}`}
-                </span>
-                {m.withFood && <span>With food</span>}
-              </div>
-              <div className="med-actions">
-                <button className="btn soft" onClick={() => onEdit(m)}>
-                  <Pencil size={15} />
-                  Edit
-                </button>
-                <button className="btn danger" onClick={() => onDelete(m)}>
-                  <Trash2 size={15} />
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
+              </article>
+            );
+          })}
         </div>
       )}
     </div>
