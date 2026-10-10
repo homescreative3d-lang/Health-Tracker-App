@@ -10,15 +10,18 @@ import { InlineError } from "../../components/InlineError";
  * Submitting runs `onSuccess`, which loads the hub (or onboarding for new accounts).
  */
 export function LoginScreen({
+  initialMode = "signin",
   onSuccess,
   onForgot,
   onError,
 }: {
+  /** Tab to open first ("signin" or "signup"), chosen from the landing navbar. */
+  initialMode?: "signin" | "signup";
   onSuccess: (r: AuthResult, register: boolean) => Promise<void>;
   onForgot: () => void;
   onError: (m: string) => void;
 }) {
-  const [mode, setMode] = useState<"signin" | "signup">("signin"),
+  const [mode, setMode] = useState<"signin" | "signup">(initialMode),
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [name, setName] = useState(""),

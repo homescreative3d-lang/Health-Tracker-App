@@ -8,6 +8,7 @@ import { Field } from "../../components/Field";
 import { InlineError } from "../../components/InlineError";
 import { MedicineFormIcon } from "../../components/MedicineFormIcon";
 import { PageHeader } from "../../components/PageHeader";
+import { SkeletonList } from "../../components/Skeleton";
 
 /**
  * Filterable dose history across all accessible patients (max 1,000 most recent rows).
@@ -153,7 +154,9 @@ export function History({ patients, patient }: { patients: Patient[]; patient: P
       </div>
       {error && <InlineError>{error}</InlineError>}
       <div className="card history-table-wrap" aria-busy={loading}>
-        {rows.length ? (
+        {loading && !rows.length ? (
+          <SkeletonList rows={4} label="Loading history" />
+        ) : rows.length ? (
           <div className="history-table-scroll">
             <table className="history-data-table">
               <thead>

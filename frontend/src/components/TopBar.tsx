@@ -19,7 +19,14 @@ export function TopBar() {
 
   return (
     <header className="topbar">
-      <Brand onClick={user ? () => app.setTab("today") : undefined} />
+      <Brand onClick={user ? () => app.setTab("today") : () => app.setScreen("landing")} />
+      {!user && (
+        <div className="top-actions">
+          <button className="btn ghost sm" onClick={() => app.setScreen("landing")}>
+            Back to home
+          </button>
+        </div>
+      )}
       {user && (
         <div className="top-actions">
           <button

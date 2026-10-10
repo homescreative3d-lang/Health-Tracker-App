@@ -77,6 +77,7 @@ export function Hub() {
                 onAdd={() => app.openWizard()}
                 onAddPatient={() => app.startAddPatient()}
                 onPatientInfo={() => setTab("patientDetails")}
+                loading={app.planLoading}
               />
             )}
             {tab === "calendar" && (
@@ -98,6 +99,7 @@ export function Hub() {
                 onEdit={(m) => app.openWizard(m)}
                 onDelete={app.removeMedicine}
                 onResume={app.resumeMedicine}
+                loading={app.planLoading}
               />
             )}
             {tab === "history" && <History patients={patients} patient={patient} />}

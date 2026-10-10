@@ -5,6 +5,7 @@ import { plural } from "../../lib/text";
 import { frequencyLabel, isPausedOn } from "../../constants/options";
 import { MedicineFormIcon } from "../../components/MedicineFormIcon";
 import { PageHeader } from "../../components/PageHeader";
+import { SkeletonList } from "../../components/Skeleton";
 
 type MedicinesProps = {
   meds: Medicine[];
@@ -16,6 +17,8 @@ type MedicinesProps = {
   onDelete: (m: Medicine) => void;
   /** Ends a pause (new: paused medicines previously could not be resumed). */
   onResume: (m: Medicine) => Promise<void>;
+  /** True while the plan reloads. */
+  loading?: boolean;
 };
 
 /** Medicine cabinet: every medicine with schedule, supply, pause state and actions. */
@@ -27,6 +30,7 @@ export function Medicines({
   onEdit,
   onDelete,
   onResume,
+  loading = false,
 }: MedicinesProps) {
   const active = meds.filter((m) => !isPausedOn(m)).length;
   return (
@@ -44,7 +48,9 @@ export function Medicines({
           )
         }
       />
-      {!meds.length ? (
+      {loading ? (
+        <SkeletonList rows={3} label="Loading medicines" />
+      ) : !meds.length ? (
         <div className="card empty-card">
           <div className="empty-icon">
             {hasPatient ? <Pill aria-hidden="true" /> : <UserPlus aria-hidden="true" />}

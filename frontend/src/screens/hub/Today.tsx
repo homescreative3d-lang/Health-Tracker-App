@@ -8,6 +8,7 @@ import { Avatar } from "../../components/Avatar";
 import { DoseGroup } from "../../components/DoseGroup";
 import { DoseRow, type DoseAction } from "../../components/DoseRow";
 import { PageHeader } from "../../components/PageHeader";
+import { SkeletonList } from "../../components/Skeleton";
 
 type TodayProps = {
   patient: Patient;
@@ -22,6 +23,8 @@ type TodayProps = {
   onAdd: () => void;
   onAddPatient: () => void;
   onPatientInfo: () => void;
+  /** True while switching patients or reloading the plan. */
+  loading?: boolean;
 };
 
 /** Returns a time-of-day greeting for the page kicker. */
@@ -45,6 +48,7 @@ export function Today({
   onAdd,
   onAddPatient,
   onPatientInfo,
+  loading = false,
 }: TodayProps) {
   const all = grouped.flatMap((g) => g.items);
   const total = all.length;
@@ -99,7 +103,9 @@ export function Today({
         </div>
       )}
 
-      {total > 0 && (
+      {loading && <SkeletonList rows={3} label="Loading schedule" />}
+
+      {!loading && total > 0 && (
         <div className="progress-card card">
           <div className="progress-copy">
             <span className="muted">Today's adherence</span>
@@ -140,7 +146,7 @@ export function Today({
         </div>
       )}
 
-      {total > 0 && (
+      {!loading && total > 0 && (
         <>
           <div className="section-heading">
             <h3>Schedule</h3>
@@ -163,7 +169,7 @@ export function Today({
         </>
       )}
 
-      {total === 0 && (
+      {!loading && total === 0 && (
         <div className="card empty-card">
           <div className="empty-icon">
             {patient.id ? <Pill aria-hidden="true" /> : <UserPlus aria-hidden="true" />}

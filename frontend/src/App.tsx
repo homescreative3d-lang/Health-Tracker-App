@@ -1,6 +1,8 @@
 import { CareAppContext } from "./hooks/CareAppContext";
 import { useCareApp } from "./hooks/useCareApp";
 import { TopBar } from "./components/TopBar";
+import { SplashScreen } from "./components/SplashScreen";
+import { LandingScreen } from "./screens/landing/LandingScreen";
 import { Toast } from "./components/Toast";
 import { LoginScreen } from "./screens/auth/LoginScreen";
 import { ForgotScreen } from "./screens/auth/ForgotScreen";
@@ -22,14 +24,20 @@ import { blank } from "./constants/options";
 export default function App() {
   const app = useCareApp();
 
-  if (app.loading)
+  if (app.loading) return <SplashScreen />;
+
+  if (app.screen === "landing")
     return (
-      <div className="center splash" role="status" aria-live="polite">
-        <div className="loading-mark">
-          <img src="/tended-icon.svg" alt="" />
-        </div>
-        <p>Loading your care plan…</p>
-      </div>
+      <>
+        <a className="skip-link" href="#main">
+          Skip to content
+        </a>
+        <LandingScreen
+          onLogin={() => app.openAuth("signin")}
+          onSignup={() => app.openAuth("signup")}
+        />
+        <Toast toast={app.toast} onDismiss={app.dismissToast} />
+      </>
     );
 
   return (
@@ -42,6 +50,8 @@ export default function App() {
         <main id="main" className={app.screen === "hub" ? "main main-hub" : "main"}>
           {app.screen === "login" && (
             <LoginScreen
+              key={app.authMode}
+              initialMode={app.authMode}
               onSuccess={app.onAuth}
               onForgot={() => app.setScreen("forgot")}
               onError={(m) => app.flash(m, true)}
@@ -55,7 +65,7 @@ export default function App() {
               onDone={(m) => {
                 history.replaceState(null, "", "/");
                 app.flash(m);
-                app.setScreen("login");
+                app.openAuth("signin");
               }}
               onBack={() => {
                 history.replaceState(null, "", "/");
