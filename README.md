@@ -88,6 +88,12 @@ The active tab lives in the URL hash (`#/medicines`), so the Back button moves b
   - `Services/PatientAccessService.cs` holds the "who can see this patient" rule.
 - **Errors:** `Infrastructure/GlobalExceptionHandler.cs` returns `application/problem+json` responses with a `message` field.
 
+### Landing page and brand
+
+- **Landing page:** signed-out visitors see the page in `frontend/src/screens/landing/`. All copy and optional media live in `landingContent.ts`. To show a real photo or video instead of the animated phone preview, set a slide's `media` field.
+- **Logo:** the mark (`public/tended-icon.svg`, plus the inline `components/LogoMark.tsx`) is four pill-organizer compartments with a check.
+- **Font:** Poppins is self-hosted through `@fontsource/poppins`.
+
 ### API documentation (Swagger)
 
 1. Run the API in Development, or set `Swagger__Enabled=true` in any environment.
