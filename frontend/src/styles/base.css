@@ -1,0 +1,157 @@
+/* Base element styles, typography and accessibility utilities. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-top: calc(var(--topbar-h) + 12px);
+}
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+}
+body {
+  font-family: var(--font-body);
+  font-size: var(--text-md);
+  line-height: 1.55;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+body.no-scroll {
+  overflow: hidden;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+button {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+img {
+  max-width: 100%;
+  display: block;
+}
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.2;
+}
+h1,
+h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+h1 {
+  font-size: var(--text-2xl);
+}
+h2 {
+  font-size: var(--text-xl);
+}
+h3 {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+h4 {
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+p {
+  margin: 0;
+}
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+dl,
+dd {
+  margin: 0;
+}
+a {
+  color: var(--primary);
+}
+.muted {
+  color: var(--muted);
+}
+.lead {
+  font-size: var(--text-lg);
+}
+.fine {
+  font-size: var(--text-sm);
+  text-align: center;
+}
+/* Short context line above titles: sentence case, not tracked-out caps. */
+.eyebrow {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: var(--space-1);
+}
+
+/* Visible keyboard focus everywhere. */
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: -60px;
+  z-index: 100;
+  background: var(--ink);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  text-decoration: none;
+}
+.skip-link:focus {
+  top: calc(12px + var(--safe-top));
+}
+.center {
+  min-height: 100dvh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-4);
+  color: var(--muted);
+}

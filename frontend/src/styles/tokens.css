@@ -1,0 +1,83 @@
+/*
+ * Design tokens — Tended "clinic morning" theme.
+ * Calm clinical teal for actions, pine ink for text, cool pale surfaces, and
+ * accessible status colors (all text/background pairs meet WCAG AA).
+ * Daypart colors mirror the compartments of a weekly pill organizer.
+ */
+
+:root {
+  /* Brand */
+  --primary: #0f766e; /* 5.4:1 on white */
+  --primary-strong: #0b5a54;
+  --primary-soft: #e3f1ee;
+  --primary-tint: #f0f7f5;
+  --focus: #1d8ad6;
+
+  /* Neutrals */
+  --bg: #f4f8f7;
+  --surface: #ffffff;
+  --surface-2: #f8fbfa;
+  --ink: #12343b; /* 12.6:1 on white */
+  --ink-2: #2f4f55;
+  --muted: #5b7378; /* 4.9:1 on white */
+  --border: #d9e5e2;
+  --border-strong: #c3d5d1;
+
+  /* Status */
+  --success: #2f7a4f;
+  --success-soft: #e5f4ea;
+  --danger: #b4403a;
+  --danger-soft: #fcebea;
+  --warning: #8a5a0b;
+  --warning-soft: #fdf3e1;
+  --info: #2b5f9e;
+  --info-soft: #e9f1fb;
+
+  /* Daypart (pill organizer compartments) */
+  --morning: #d58a1f;
+  --afternoon: #3f8f5f;
+  --evening: #c8613d;
+  --night: #4a56a6;
+
+  /* Type */
+  --font-body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: Fraunces, Georgia, serif;
+  --text-xs: 0.78rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: clamp(1.6rem, 1.2rem + 1.4vw, 2.05rem);
+
+  /* Space, shape, depth */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 1px 2px rgba(18, 52, 59, 0.06);
+  --shadow: 0 1px 2px rgba(18, 52, 59, 0.05), 0 6px 18px rgba(18, 52, 59, 0.06);
+  --shadow-lg: 0 18px 48px rgba(18, 52, 59, 0.18);
+
+  /* Layout */
+  --topbar-h: 64px;
+  --sidebar-w: 248px;
+  --rail-w: 88px;
+  --tabbar-h: 68px;
+  --content-max: 1040px;
+  --tap: 44px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 140ms;
+  --dur: 220ms;
+  --dur-slow: 420ms;
+}
