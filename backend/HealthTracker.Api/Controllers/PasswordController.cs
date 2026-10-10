@@ -1,10 +1,66 @@
-using System.Security.Cryptography;using System.Text;using HealthTracker.Api.Contracts;using HealthTracker.Api.Data;using HealthTracker.Api.Models;using Microsoft.AspNetCore.Identity;using Microsoft.AspNetCore.Mvc;using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
+using System.Text;
+using HealthTracker.Api.Contracts;
+using HealthTracker.Api.Data;
+using HealthTracker.Api.Models;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
 namespace HealthTracker.Api.Controllers;
-[ApiController][Route("api/password")]
-public class PasswordController(AppDbContext db,IPasswordHasher<AppUser> hasher,IConfiguration config,ILogger<PasswordController> log):ControllerBase
+[ApiController]
+[Route("api/password")]
+public class PasswordController(AppDbContext db, IPasswordHasher<AppUser> hasher, IConfiguration config, ILogger<PasswordController> log) : ControllerBase
 {
- [HttpPost("forgot")]public async Task<IActionResult>Forgot(ForgotPasswordRequest r){var u=await db.Users.SingleOrDefaultAsync(x=>x.Email==r.Email.Trim().ToLowerInvariant());if(u is not null){var raw=Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+','-').Replace('/','_');db.PasswordResetTokens.Add(new PasswordResetToken{UserId=u.Id,TokenHash=Hash(raw),ExpiresAt=DateTimeOffset.UtcNow.AddMinutes(30)});await db.SaveChangesAsync();var url=(config["Frontend:Url"]??"https://healthsteady.netlify.app")+"/reset-password?reset="+Uri.EscapeDataString(raw);await SendEmail(u.Email,url);}return Ok(new{message="If an account exists for this email, reset instructions have been sent."});}
- [HttpPost("reset")]public async Task<IActionResult>Reset(ResetPasswordRequest r){if(r.NewPassword.Length<8)return BadRequest(new{message="Password must be at least 8 characters."});var token=await db.PasswordResetTokens.SingleOrDefaultAsync(x=>x.TokenHash==Hash(r.Token)&&!x.Used&&x.ExpiresAt>DateTimeOffset.UtcNow);if(token is null)return BadRequest(new{message="Reset link is invalid or expired."});var u=await db.Users.FindAsync(token.UserId);if(u is null)return BadRequest(new{message="Account not found."});u.PasswordHash=hasher.HashPassword(u,r.NewPassword);token.Used=true;await db.SaveChangesAsync();return Ok(new{message="Password updated."});}
- static string Hash(string v)=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(v)));
- async Task SendEmail(string to,string url){var host=config["Smtp:Host"];if(string.IsNullOrWhiteSpace(host)){log.LogWarning("SMTP not configured; reset URL for {Email}: {Url}",to,url);return;}using var client=new System.Net.Mail.SmtpClient(host,int.TryParse(config["Smtp:Port"],out var port)?port:587){EnableSsl=true,Credentials=new System.Net.NetworkCredential(config["Smtp:Username"],config["Smtp:Password"])};using var msg=new System.Net.Mail.MailMessage(config["Smtp:From"]??config["Smtp:Username"]!,to,"TENDED password reset",$"Reset your password: {url}\nThis link expires in 30 minutes.");await client.SendMailAsync(msg);}
+    [HttpPost("forgot")]
+    public async Task<IActionResult> Forgot(ForgotPasswordRequest r)
+    {
+        var u = await db.Users.SingleOrDefaultAsync(x => x.Email == r.Email.Trim().ToLowerInvariant());
+        if (u is not null)
+        {
+            var raw = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+            db.PasswordResetTokens.Add(new PasswordResetToken { UserId = u.Id, TokenHash = Hash(raw), ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(30) });
+            await db.SaveChangesAsync();
+            var url = (config["Frontend:Url"] ?? "https://healthsteady.netlify.app") + "/reset-password?reset=" + Uri.EscapeDataString(raw);
+            await SendEmail(u.Email, url);
+        }
+
+        return Ok(new { message = "If an account exists for this email, reset instructions have been sent." });
+    }
+
+    [HttpPost("reset")]
+    public async Task<IActionResult> Reset(ResetPasswordRequest r)
+    {
+        if (r.NewPassword.Length < 8)
+            return BadRequest(new { message = "Password must be at least 8 characters." });
+        var token = await db.PasswordResetTokens.SingleOrDefaultAsync(x => x.TokenHash == Hash(r.Token) && !x.Used && x.ExpiresAt > DateTimeOffset.UtcNow);
+        if (token is null)
+            return BadRequest(new { message = "Reset link is invalid or expired." });
+        var u = await db.Users.FindAsync(token.UserId);
+        if (u is null)
+            return BadRequest(new { message = "Account not found." });
+        u.PasswordHash = hasher.HashPassword(u, r.NewPassword);
+        token.Used = true;
+        await db.SaveChangesAsync();
+        return Ok(new { message = "Password updated." });
+    }
+
+    static string Hash(string v) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(v)));
+    async Task SendEmail(string to, string url)
+    {
+        var host = config["Smtp:Host"];
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            log.LogWarning("SMTP not configured; reset URL for {Email}: {Url}", to, url);
+            return;
+        }
+
+        using var client = new System.Net.Mail.SmtpClient(host, int.TryParse(config["Smtp:Port"], out var port) ? port : 587)
+        {
+            EnableSsl = true,
+            Credentials = new System.Net.NetworkCredential(config["Smtp:Username"], config["Smtp:Password"])
+        };
+        using var msg = new System.Net.Mail.MailMessage(config["Smtp:From"] ?? config["Smtp:Username"]!, to, "TENDED password reset", $"Reset your password: {url}\nThis link expires in 30 minutes.");
+        await client.SendMailAsync(msg);
+    }
 }

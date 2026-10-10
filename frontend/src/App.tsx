@@ -1,159 +1,4463 @@
-import{useEffect,useMemo,useState}from"react";import type{FormEvent,ReactNode}from"react";import{AlertCircle,ArrowLeft,Bell,CalendarDays,Check,ChevronRight,ChevronDown,Eye,EyeOff,HeartPulse,Home,Info,Lock,LogOut,Mail,Pencil,Pill,Plus,Settings,Trash2,User,Users,X,BookOpen,Clock3,Syringe,Droplets,Wind,Package,Camera,FileImage,ShieldAlert,FileText,Paperclip,Download,Activity,CalendarClock}from"lucide-react";import{api,enablePush,type Dose,type Medicine,type Patient,type User as ApiUser,type Family,type Notification,type HistoryRow,type PatientAttachment}from"./api";
+import { useEffect, useMemo, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  Bell,
+  CalendarDays,
+  Check,
+  ChevronRight,
+  ChevronDown,
+  Eye,
+  EyeOff,
+  HeartPulse,
+  Home,
+  Info,
+  Lock,
+  LogOut,
+  Mail,
+  Pencil,
+  Pill,
+  Plus,
+  Settings,
+  Trash2,
+  User,
+  Users,
+  X,
+  BookOpen,
+  Clock3,
+  Syringe,
+  Droplets,
+  Wind,
+  Package,
+  Camera,
+  FileImage,
+  ShieldAlert,
+  FileText,
+  Paperclip,
+  Download,
+  Activity,
+  CalendarClock,
+} from "lucide-react";
+import {
+  api,
+  enablePush,
+  type Dose,
+  type Medicine,
+  type Patient,
+  type User as ApiUser,
+  type Family,
+  type Notification,
+  type HistoryRow,
+  type PatientAttachment,
+} from "./api";
 
-const today=()=>new Date().toISOString().slice(0,10);
-const addDays=(s:string,n:number)=>{const d=new Date(s+"T00:00:00");d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)};
-const fmtTime=(t:string)=>{const[h,m]=t.split(":").map(Number);return`${h%12||12}:${String(m).padStart(2,"0")} ${h>=12?"PM":"AM"}`};
-const part=(t:string)=>{const[h,m]=t.split(":").map(Number),n=h*60+m;return n<690?"Morning":n<1020?"Afternoon":n<1260?"Evening":"Night"};
-const dateLabel=(d:string)=>d===today()?"Today":d===addDays(today(),1)?"Tomorrow":new Date(d+"T00:00:00").toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});
-const conditions=["Type 2 diabetes","Type 1 diabetes","Hypertension (high blood pressure)","High cholesterol","Asthma","COPD","Chronic kidney disease","Osteoarthritis","Depression","Anxiety disorder","Hypothyroidism","GERD / acid reflux","Chronic pain"];
-const relationships=["Parent","Spouse","Child","Sibling","Grandparent","Relative","Friend","Professional caregiver","Other"];
-const forms=["Pill","Injection","Syrup","Drops","Inhaler","Powder","Other"];
-const days=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-const blank=():Omit<Medicine,"id">=>({name:"",strength:"",form:"Pill",condition:"",frequencyPattern:"daily",specificDays:[],cycleEvery:1,cycleUnit:"days",times:["08:00"],liquid:"No liquid needed",withFood:false,startDate:today(),durationType:"ongoing",durationValue:30,durationUnit:"days",supplyCount:30,refillThreshold:7,isRecurring:true});
-type Screen="login"|"forgot"|"reset"|"role"|"patient"|"hub";type Toast={message:string;error?:boolean};
+const today = () => new Date().toISOString().slice(0, 10);
+const addDays = (s: string, n: number) => {
+  const d = new Date(s + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+const fmtTime = (t: string) => {
+  const [h, m] = t.split(":").map(Number);
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
+};
+const part = (t: string) => {
+  const [h, m] = t.split(":").map(Number),
+    n = h * 60 + m;
+  return n < 690 ? "Morning" : n < 1020 ? "Afternoon" : n < 1260 ? "Evening" : "Night";
+};
+const dateLabel = (d: string) =>
+  d === today()
+    ? "Today"
+    : d === addDays(today(), 1)
+      ? "Tomorrow"
+      : new Date(d + "T00:00:00").toLocaleDateString(undefined, {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        });
+const conditions = [
+  "Type 2 diabetes",
+  "Type 1 diabetes",
+  "Hypertension (high blood pressure)",
+  "High cholesterol",
+  "Asthma",
+  "COPD",
+  "Chronic kidney disease",
+  "Osteoarthritis",
+  "Depression",
+  "Anxiety disorder",
+  "Hypothyroidism",
+  "GERD / acid reflux",
+  "Chronic pain",
+];
+const relationships = [
+  "Parent",
+  "Spouse",
+  "Child",
+  "Sibling",
+  "Grandparent",
+  "Relative",
+  "Friend",
+  "Professional caregiver",
+  "Other",
+];
+const forms = ["Pill", "Injection", "Syrup", "Drops", "Inhaler", "Powder", "Other"];
+const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const blank = (): Omit<Medicine, "id"> => ({
+  name: "",
+  strength: "",
+  form: "Pill",
+  condition: "",
+  frequencyPattern: "daily",
+  specificDays: [],
+  cycleEvery: 1,
+  cycleUnit: "days",
+  times: ["08:00"],
+  liquid: "No liquid needed",
+  withFood: false,
+  startDate: today(),
+  durationType: "ongoing",
+  durationValue: 30,
+  durationUnit: "days",
+  supplyCount: 30,
+  refillThreshold: 7,
+  isRecurring: true,
+});
+type Screen = "login" | "forgot" | "reset" | "role" | "patient" | "hub";
+type Toast = { message: string; error?: boolean };
 
-export default function App(){const[screen,setScreen]=useState<Screen>(new URLSearchParams(window.location.search).has("reset")?"reset":"login"),[tab,setTab]=useState("today"),[user,setUser]=useState<ApiUser|null>(null),[patient,setPatient]=useState<Patient|null>(null),[patients,setPatients]=useState<Patient[]>([]),[meds,setMeds]=useState<Medicine[]>([]),[doses,setDoses]=useState<Dose[]>([]),[family,setFamily]=useState<Family[]>([]),[notifications,setNotifications]=useState<Notification[]>([]),[selectedDate,setSelectedDate]=useState(today()),[toast,setToast]=useState<Toast|null>(null),[loading,setLoading]=useState(true),[wizard,setWizard]=useState(false),[editing,setEditing]=useState<Medicine|null>(null),[guide,setGuide]=useState(false),[accountMenu,setAccountMenu]=useState(false),[notificationOpen,setNotificationOpen]=useState(false),[selectedNotification,setSelectedNotification]=useState<Notification|null>(null);
-const flash=(message:string,error=false)=>{setToast({message,error});window.setTimeout(()=>setToast(null),3200)};
-const err=(e:unknown)=>e instanceof Error?e.message:"Something went wrong. Please try again.";
-const load=async()=>{try{const[u,p,ps,f,n]=await Promise.all([api.me(),api.getPatient(),api.getPatients(),api.getFamily(),api.getNotifications()]);setUser(u);const chosen=ps[0]||{id:"",name:"",dob:null,conditions:[],notes:"",mobile:"",doctor:"",medicalHistory:"",profileImageUrl:""};setPatient(chosen);setPatients(ps);setFamily(f);setNotifications(n);setMeds(chosen.id?await api.getMedicines(chosen.id):[]);setDoses(chosen.id?await api.getDoses(selectedDate,chosen.id):[]);setSelectedDate(today());setTab("today");setScreen("hub");const params=new URLSearchParams(window.location.search);const doseId=params.get("doseId");const action=params.get("doseAction");if(doseId&&(action==="taken"||action==="skip")){history.replaceState(null,"",window.location.pathname);try{const updated=action==="taken"?await api.take(doseId):await api.skip(doseId,"Skipped from notification");setDoses(current=>current.map(d=>d.id===updated.id?updated:d));flash(action==="taken"?"Dose marked as taken":"Dose marked as skipped")}catch(e){flash(err(e),true)}}}catch{localStorage.removeItem("access_token");setUser(null);setPatient(null);setScreen("login")}finally{setLoading(false)}};
-useEffect(()=>{localStorage.getItem("access_token")?load():setLoading(false)},[]);
-useEffect(()=>{if(user&&patient)api.getDoses(selectedDate,patient.id).then(setDoses).catch(e=>flash(err(e),true))},[selectedDate,user,patient]);
- useEffect(()=>{if(!user)return;let active=true;const refresh=()=>api.getNotifications().then(items=>{if(active)setNotifications(items)}).catch(()=>{});refresh();const timer=window.setInterval(refresh,20000);return()=>{active=false;window.clearInterval(timer)}},[user?.id]);
-const grouped=useMemo(()=>["Morning","Afternoon","Evening","Night"].map(s=>({name:s,items:doses.filter(d=>part(d.time)===s)})),[doses]);
-const onAuth=async(r:{user:ApiUser;token:string},isRegister:boolean)=>{const params=new URLSearchParams(window.location.search);setLoading(true);setUser(null);setPatient(null);setPatients([]);setMeds([]);setDoses([]);setFamily([]);setNotifications([]);localStorage.setItem("access_token",r.token);try{const[p,ps,f,n]=await Promise.all([api.getPatient(),api.getPatients(),api.getFamily(),api.getNotifications()]);const chosen=ps[0]||{id:"",name:"",dob:null,conditions:[],notes:"",mobile:"",doctor:"",medicalHistory:"",profileImageUrl:""};const nextMeds=chosen.id?await api.getMedicines(chosen.id):[];const nextDoses=chosen.id?await api.getDoses(today(),chosen.id):[];setPatient(chosen);setPatients(ps);setFamily(f);setNotifications(n);setMeds(nextMeds);setDoses(nextDoses);setSelectedDate(today());setTab("today");setWizard(false);setEditing(null);history.replaceState(null,"",window.location.pathname);setUser(r.user);setScreen("hub");const doseId=params.get("doseId");const action=params.get("doseAction");if(doseId&&(action==="taken"||action==="skip")){history.replaceState(null,"",window.location.pathname);try{const updated=action==="taken"?await api.take(doseId):await api.skip(doseId,"Skipped from notification");setDoses(current=>current.map(d=>d.id===updated.id?updated:d));flash(action==="taken"?"Dose marked as taken":"Dose marked as skipped")}catch(e){flash(err(e),true)}}}catch(e){localStorage.removeItem("access_token");setUser(null);setPatient(null);setScreen("login");throw e}finally{setLoading(false)}};
-const savePatient=async(v:{name:string;dob:string;conditions:string[];notes:string;relationship?:string;mobile?:string;doctor?:string;medicalHistory?:string;profileImageUrl?:string;doctorPhotoUrl?:string;attachments?:PatientAttachment[]})=>{try{const p=patient?.id?await api.savePatient(v,patient.id):await api.createPatient(v);setPatient(p);setPatients(x=>x.some(a=>a.id===p.id)?x.map(a=>a.id===p.id?p:a):[...x,p]);setScreen("hub");setTab("patientDetails");flash("Patient details saved");return true}catch(e){flash(err(e),true);return false}};
-const doseAction=async(d:Dose,action:"taken"|"skip")=>{try{const updated=action==="taken"?await api.take(d.id):await api.skip(d.id,"Skipped by user");setDoses(x=>x.map(v=>v.id===updated.id?updated:v));flash(action==="taken"?`${d.medName} marked as taken`:`${d.medName} skipped`)}catch(e){flash(err(e),true)}};
-const saveMedicine=async(m:Omit<Medicine,"id">)=>{try{if(editing)await api.updateMedicine(editing.id,m,patient!.id);else await api.createMedicine(m,patient!.id);setWizard(false);setEditing(null);setMeds(await api.getMedicines(patient!.id));setDoses(await api.getDoses(selectedDate,patient!.id));flash(editing?`${m.name} updated`:`${m.name} added to your plan`)}catch(e){flash(err(e),true)}};
-const removeMedicine=async(m:Medicine)=>{if(!confirm(`Remove ${m.name} from your medicine plan?`))return;try{await api.deleteMedicine(m.id,patient!.id);setMeds(await api.getMedicines(patient!.id));setDoses(await api.getDoses(selectedDate,patient!.id));flash(`${m.name} removed`)}catch(e){flash(err(e),true)}};
-const pauseMedicine=async(id:string,start:string)=>{try{await api.pauseMedicine(id,start);flash("Medicine paused from "+start);setMeds(await api.getMedicines(patient!.id));setDoses(await api.getDoses(selectedDate,patient!.id))}catch(e){flash(err(e),true)}};
-if(loading)return<div className="center"><div className="loading-mark"><img src="/tended-icon.svg" alt="" /></div><p>Loading your care plan…</p></div>;
-return <div className="app-shell"><header className="topbar"><a className="brand" href="#" onClick={e=>{e.preventDefault();user&&setTab("today")}}><img className="brand-mark" src="/tended-icon.svg" alt="" /><span>TENDED</span></a>{user&&<div className="top-actions"><button className="icon-btn notification-btn" title="Notifications" onClick={()=>setNotificationOpen(v=>!v)}><Bell size={19}/>{notifications.filter(n=>!n.isRead).length>0&&<span className="notification-dot">{notifications.filter(n=>!n.isRead).length}</span>}</button><button className="help-btn" onClick={()=>setGuide(true)}><BookOpen size={18}/><span>How it works</span></button><button className="avatar-mini avatar-button" title="Profile" onClick={()=>{setNotificationOpen(false);setAccountMenu(v=>!v)}} aria-expanded={accountMenu}>{user.profileImageUrl?<img src={user.profileImageUrl} alt="Profile"/>:(user.displayName||"?").split(" ").map(x=>x[0]).slice(0,2).join("")}</button></div>}</header>{user&&accountMenu&&<div className="account-dropdown" role="menu" aria-label="Account menu"><button role="menuitem" onClick={()=>{setAccountMenu(false);setNotificationOpen(false);setTab("profile")}}><User size={17}/><span>Profile</span></button><button role="menuitem" className="account-dropdown-signout" onClick={()=>{setAccountMenu(false);localStorage.removeItem("access_token");history.replaceState(null,"",window.location.pathname);setUser(null);setPatient(null);setPatients([]);setMeds([]);setDoses([]);setFamily([]);setNotifications([]);setTab("today");setSelectedDate(today());setWizard(false);setEditing(null);setNotificationOpen(false);setGuide(false);setScreen("login")}}><LogOut size={17}/><span>Sign out</span></button></div>}<main className="main">{screen==="login"&&<LoginScreen onSuccess={onAuth} onForgot={()=>setScreen("forgot")} onError={m=>flash(m,true)}/>}
-{screen==="forgot"&&<ForgotScreen onBack={()=>setScreen("login")} onSent={m=>flash(m)}/>} {screen==="reset"&&<ResetScreen onDone={m=>{history.replaceState(null,"","/");flash(m);setScreen("login")}}/>}
-{screen==="role"&&<RoleScreen onPick={r=>{localStorage.setItem("role",r);setScreen("patient")}} onSkip={()=>{localStorage.setItem("role","self");setScreen("hub")}}/>}
-{screen==="patient"&&patient&&<PatientScreen patient={patient} role={localStorage.getItem("role")||"caregiver"} onBack={()=>{setScreen(user?.id?"hub":"role");if(user)setTab("patientDetails")}} onSave={async v=>{await savePatient(v)}}/>}
-{screen==="hub"&&patient&&user&&<Hub user={user} patient={patient} patients={patients} tab={tab} setTab={setTab} grouped={grouped} meds={meds} selectedDate={selectedDate} setSelectedDate={setSelectedDate} onDose={doseAction} onAdd={()=>{setEditing(null);setWizard(true)}} onEdit={m=>{setEditing(m);setWizard(true)}} onDelete={removeMedicine} onEditPatient={()=>setScreen("patient")} onSavePatient={savePatient} onAddPatient={()=>{setPatient({id:"",name:"",dob:null,conditions:[],notes:"",mobile:"",doctor:"",medicalHistory:"",profileImageUrl:""});setScreen("patient")}} onAddSelfPatient={()=>{setPatient({id:"",name:user.displayName||"",dob:null,conditions:[],notes:"",mobile:"",doctor:"",medicalHistory:"",profileImageUrl:"",doctorPhotoUrl:"",relationship:"self"});localStorage.setItem("role","self");setScreen("patient")}} onAccountSave={u=>setUser(u)} onPause={pauseMedicine} family={family} notifications={notifications} onFamilyChange={async()=>{setFamily(await api.getFamily());setNotifications(await api.getNotifications());}} onPatientSelect={async p=>{setPatient(p);setMeds(await api.getMedicines(p.id));setDoses(await api.getDoses(selectedDate,p.id));}} onPatientView={async p=>{setPatient(p);setMeds(await api.getMedicines(p.id));setDoses(await api.getDoses(selectedDate,p.id));setTab("patientDetails")}} onPatientEdit={async p=>{setPatient(p);setMeds(await api.getMedicines(p.id));setDoses(await api.getDoses(selectedDate,p.id));setTab("patientDetailsEdit")}} onGuide={()=>setGuide(true)} onDeleteAccount={async()=>{try{await api.deleteAccount();localStorage.removeItem("access_token");history.replaceState(null,"",window.location.pathname);setUser(null);setPatient(null);setPatients([]);setMeds([]);setDoses([]);setFamily([]);setNotifications([]);setTab("today");setScreen("login");flash("Your account has been deleted.")}catch(e){flash(err(e),true)}}}/>}
-</main>{guide&&<GuideModal onClose={()=>setGuide(false)}/>}
-{notificationOpen&&user&&<NotificationPopover notifications={notifications} patients={patients} onClose={()=>setNotificationOpen(false)} onRead={async id=>{await api.readNotification(id);setNotifications(await api.getNotifications())}} onSelect={async n=>{setSelectedNotification(n);setNotificationOpen(false);if(!n.isRead){try{await api.readNotification(n.id);setNotifications(await api.getNotifications())}catch(e){flash(err(e),true)}}}}/>}{selectedNotification&&<NotificationDetailModal notification={selectedNotification} patients={patients} onClose={()=>setSelectedNotification(null)}/>}{wizard&&<MedicineWizard initial={editing||blank()} onClose={()=>{setWizard(false);setEditing(null)}} onSave={saveMedicine}/>}
-{toast&&<div className={toast.error?"toast error-toast":"toast"}><span>{toast.error?<AlertCircle size={18}/>:<Check size={18}/>}</span>{toast.message}</div>}</div>}
-
-function LoginScreen({onSuccess,onForgot,onError}:{onSuccess:(r:{user:ApiUser;token:string},register:boolean)=>Promise<void>;onForgot:()=>void;onError:(m:string)=>void}){const[mode,setMode]=useState<"signin"|"signup">("signin"),[email,setEmail]=useState(""),[password,setPassword]=useState(""),[name,setName]=useState(""),[show,setShow]=useState(false),[busy,setBusy]=useState(false),[localError,setLocalError]=useState("");
-const submit=async(e:FormEvent)=>{e.preventDefault();setLocalError("");const em=email.trim().toLowerCase();if(!/^\S+@\S+\.\S+$/.test(em))return setLocalError("Enter a valid email address.");if(password.length<8)return setLocalError("Password must be at least 8 characters.");if(mode==="signup"&&(name.trim().length<2||name.trim().length>80))return setLocalError("Enter your name (2–80 characters).");setBusy(true);try{const r=mode==="signin"?await api.login({email:em,password}):await api.register({email:em,password,displayName:name.trim()});await onSuccess(r,mode==="signup")}catch(e){onError(e instanceof Error?e.message:"Unable to complete sign in.")}finally{setBusy(false)}};
-return <section className="auth-layout"><div className="auth-copy"><span className="eyebrow">MEDICATION MADE HEALTH COMPANION</span><h1>Feel more in control of every dose.</h1><p>Keep medicines, schedules and daily progress in one calm, simple place.</p><div className="feature-pills"><span>✓ Clear schedules</span><span>✓ Refill reminders</span><span>✓ Caregiver friendly</span></div></div><form className="auth-card" onSubmit={submit}><div className="auth-card-head"><img className="auth-logo" src="/tended-logo.svg" alt="TENDED" /><div><h2>{mode==="signin"?"Welcome back":"Create your account"}</h2><p className="muted">{mode==="signin"?"Pick up where you left off.":"A few details and you're ready to begin."}</p></div></div><div className="segmented"><button type="button" className={mode==="signin"?"selected":""} onClick={()=>{setMode("signin");setLocalError("")}}>Log in</button><button type="button" className={mode==="signup"?"selected":""} onClick={()=>{setMode("signup");setLocalError("")}}>Sign up</button></div>{mode==="signup"&&<Field label="Your name"><input className="input" value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Grace Whitfield" autoComplete="name"/></Field>}<Field label="Email"><div className="icon-input"><Mail/><input className="input" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@email.com" type="email" autoComplete="email"/></div></Field><Field label="Password"><div className="icon-input"><Lock/><input className="input" value={password} onChange={e=>setPassword(e.target.value)} placeholder="At least 8 characters" type={show?"text":"password"} autoComplete={mode==="signin"?"current-password":"new-password"}/><button type="button" onClick={()=>setShow(!show)} aria-label={show?"Hide password":"Show password"}>{show?<EyeOff/>:<Eye/>}</button></div></Field>{localError&&<InlineError>{localError}</InlineError>}{mode==="signin"&&<div className="forgot"><button type="button" className="text-btn" onClick={onForgot}>Forgot password?</button></div>}<button className="btn primary full" disabled={busy}>{busy?<><span className="spinner"/>Please wait…</>:mode==="signin"?"Log in":"Create account"}</button><p className="fine muted">Your account is protected with secure authentication.</p></form></section>}
-
-function ResetScreen({onDone}:{onDone:(m:string)=>void}){const token=new URLSearchParams(window.location.search).get("reset")||"",[p,setP]=useState(""),[c,setC]=useState(""),[e,setE]=useState("");const save=async()=>{if(p.length<8)return setE("Password must be at least 8 characters.");if(p!==c)return setE("Passwords do not match.");try{await api.resetPassword(token,p);onDone("Password updated. You can log in now.")}catch(x){setE(err(x))}};return <section className="narrow-card"><span className="eyebrow">ACCOUNT ACCESS</span><h2>Choose a new password</h2><Field label="New password"><input className="input" type="password" value={p} onChange={x=>setP(x.target.value)}/></Field><Field label="Confirm password"><input className="input" type="password" value={c} onChange={x=>setC(x.target.value)}/></Field>{e&&<InlineError>{e}</InlineError>}<button className="btn primary full" onClick={save}>Update password</button></section>}
-function ForgotScreen({onBack,onSent}:{onBack:()=>void;onSent:(m:string)=>void}){const[e,setE]=useState(""),[error,setError]=useState("");return <section className="narrow-card"><button className="icon-btn back" onClick={onBack} aria-label="Back"><ArrowLeft/></button><span className="eyebrow">ACCOUNT ACCESS</span><h2>Reset your password</h2><p className="muted lead">Enter your account email and we'll send instructions to reset your password.</p><Field label="Email"><input className="input" value={e} onChange={x=>setE(x.target.value)} placeholder="you@email.com" type="email"/></Field>{error&&<InlineError>{error}</InlineError>}<button className="btn primary full" onClick={async()=>{if(!/^\S+@\S+\.\S+$/.test(e.trim()))return setError("Enter a valid email address.");try{await api.forgotPassword(e.trim().toLowerCase());setError("");onSent("If an account exists for this email, reset instructions have been sent.")}catch(x){setError(err(x))}}}>Send reset link</button></section>}
-
-function RoleScreen({onPick,onSkip}:{onPick:(r:string)=>void;onSkip:()=>void}){return <section className="setup-card"><span className="eyebrow">WELCOME TO HEALTH COMPANION</span><h2>Who are you setting this up for?</h2><p className="muted lead">Choose the setup that fits. You can manage the plan from one place.</p><div className="role-grid"><RoleCard icon={<Users/>} title="I'm a caregiver" text="Manage medicines for a parent, patient or someone you look after." accent="orange" onClick={()=>onPick("caregiver")}/><RoleCard icon={<User/>} title="For myself" text="Track your own medicines, reminders and daily doses." accent="mint" onClick={()=>onPick("self")}/></div><button className="btn soft full" onClick={onSkip}>Skip for now — I’ll add a patient later</button></section>}
-
-function PatientScreen({patient,role,onBack,onSave}:{patient:Patient;role:string;onBack:()=>void;onSave:(v:{name:string;dob:string;conditions:string[];notes:string;relationship?:string;mobile?:string;doctor?:string;medicalHistory?:string;profileImageUrl?:string;doctorPhotoUrl?:string})=>Promise<void>}){const[p,setP]=useState({...patient,conditions:patient.conditions||[]}),[error,setError]=useState("");const isSelf=role==="self";const submit=()=>{setError("");if(!p.name.trim()||p.name.trim().length<2)return setError("Please enter a valid full name.");if(p.name.trim().length>100)return setError("Name must be 100 characters or fewer.");if(!isSelf&&!p.relationship)return setError("Please choose your relationship to the patient.");if(p.dob&&p.dob>today())return setError("Date of birth cannot be in the future.");onSave({name:p.name.trim(),dob:p.dob||"",conditions:p.conditions,notes:p.notes.trim(),relationship:p.relationship,mobile:p.mobile||"",doctor:p.doctor||"",medicalHistory:p.medicalHistory||"",profileImageUrl:p.profileImageUrl||"",doctorPhotoUrl:p.doctorPhotoUrl||""})};return <section className="setup-card"><button className="icon-btn back" onClick={onBack}><ArrowLeft/></button><span className="eyebrow">STEP 1 · YOUR CARE PLAN</span><h2>{isSelf?"A little about you":"Tell us about your patient"}</h2><p className="muted lead">These details help TENDED label doses and reminders clearly.</p>{!isSelf&&<><label className="field-label">Your relationship to the patient <em>required</em></label><div className="chips">{relationships.map(r=><button type="button" className={p.relationship===r?"chip selected":"chip"} key={r} onClick={()=>setP({...p,relationship:r})}>{r}</button>)}</div></>}<div className="patient-photo-field"><div className="avatar patient-avatar-large">{p.profileImageUrl?<img src={p.profileImageUrl} alt="Patient"/>:(p.name||"?").split(" ").map(x=>x[0]).slice(0,2).join("")}</div><div className="photo-actions"><label className="btn soft upload-btn"><FileImage size={15}/>Gallery<input type="file" accept=".jpg,.jpeg,.png,.heic,.heif,image/jpeg,image/png,image/heic,image/heif" hidden onChange={e=>{const f=e.target.files?.[0];if(!f)return;if(f.size>1024*1024){setError("Patient image must be 1 MB or smaller.");return}const ext=f.name.split(".").pop()?.toLowerCase()||"";const mime=f.type||({jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",heic:"image/heic",heif:"image/heif"} as Record<string,string>)[ext]||"image/jpeg";const r=new FileReader();r.onload=()=>{let data=String(r.result);if(!data.startsWith("data:image/"))data=data.replace(/^data:[^;,]*/,mime);setP({...p,profileImageUrl:data})};r.readAsDataURL(f);e.currentTarget.value=""}}/></label><label className="btn soft upload-btn"><Camera size={15}/>Camera<input type="file" accept="image/*,.heic,.heif" capture="environment" hidden onChange={e=>{const f=e.target.files?.[0];if(!f)return;if(f.size>1024*1024){setError("Patient image must be 1 MB or smaller.");return}const r=new FileReader();r.onload=()=>setP({...p,profileImageUrl:String(r.result)});r.readAsDataURL(f);e.currentTarget.value=""}}/></label></div></div><Field label={isSelf?"Your full name":"Patient's full name"}><input className="input" value={p.name} onChange={e=>setP({...p,name:e.target.value})} placeholder="e.g. Grace Whitfield"/></Field><Field label="Date of birth"><input className="input" type="date" max={today()} value={p.dob||""} onChange={e=>setP({...p,dob:e.target.value})}/></Field><Field label="Mobile number"><input className="input" value={p.mobile||""} onChange={e=>setP({...p,mobile:e.target.value})} placeholder="+91 98765 43210"/></Field><Field label="Doctor"><input className="input" value={p.doctor||""} onChange={e=>setP({...p,doctor:e.target.value})} placeholder="Doctor name / clinic"/></Field><Field label="Medical history"><textarea className="input textarea" maxLength={1000} value={p.medicalHistory||""} onChange={e=>setP({...p,medicalHistory:e.target.value})} placeholder="Relevant history"/></Field><Field label="Doctor / prescriber photo"><div className="doctor-photo-upload">{p.doctorPhotoUrl&&<img className="doctor-photo-preview" src={p.doctorPhotoUrl} alt="Doctor or prescriber"/>}<div className="photo-actions"><label className="btn soft upload-btn"><FileImage size={16}/>Gallery / computer<input type="file" accept="image/*" hidden onChange={e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>1024*1024)return setError("Photo must be 1 MB or smaller.");const reader=new FileReader();reader.onload=()=>setP({...p,doctorPhotoUrl:String(reader.result)});reader.readAsDataURL(file);e.currentTarget.value=""}}/></label><label className="btn soft upload-btn"><Camera size={16}/>Use camera<input type="file" accept="image/*" capture="environment" hidden onChange={e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>1024*1024)return setError("Photo must be 1 MB or smaller.");const reader=new FileReader();reader.onload=()=>setP({...p,doctorPhotoUrl:String(reader.result)});reader.readAsDataURL(file);e.currentTarget.value=""}}/></label>{p.doctorPhotoUrl&&<button type="button" className="btn soft" onClick={()=>setP({...p,doctorPhotoUrl:""})}>Remove photo</button>}</div><small className="field-hint">Upload a prescription or doctor/prescriber photo. On mobile, Use camera opens the camera when supported.</small></div></Field><Field label="Main conditions or diagnosis"><ConditionPicker selected={p.conditions} onChange={conditions=>setP({...p,conditions})}/></Field><Field label="Notes for other caregivers <span>optional</span>"><textarea className="input textarea" maxLength={500} value={p.notes} onChange={e=>setP({...p,notes:e.target.value})} placeholder="Allergies, doctor's contact, anything worth knowing"/></Field>{error&&<InlineError>{error}</InlineError>}<button className="btn primary full" onClick={submit}>Save and continue<ChevronRight size={18}/></button></section>}
-
-function ConditionPicker({selected,onChange}:{selected:string[];onChange:(v:string[])=>void}){const[q,setQ]=useState("");const options=conditions.filter(x=>x.toLowerCase().includes(q.toLowerCase())&&!selected.includes(x)).slice(0,6);return <div className="condition-picker"><div className="chips">{selected.map(x=><button type="button" className="chip selected" key={x} onClick={()=>onChange(selected.filter(v=>v!==x))}>{x}<X size={13}/></button>)}</div><input className="input" value={q} onChange={e=>setQ(e.target.value)} placeholder="Search a condition…"/>{q&&options.length>0&&<div className="suggestions">{options.map(x=><button type="button" key={x} onClick={()=>{onChange([...selected,x]);setQ("")}}>{x}</button>)}</div>}</div>}
-
-function Hub({user,patient,patients,tab,setTab,grouped,meds,selectedDate,setSelectedDate,onDose,onAdd,onEdit,onDelete,onEditPatient,onSavePatient,onAddPatient,onAddSelfPatient,onAccountSave,onPause,family,notifications,onFamilyChange,onPatientSelect,onPatientView,onPatientEdit,onGuide ,onDeleteAccount}:{user:ApiUser;patient:Patient;patients:Patient[];tab:string;setTab:(v:string)=>void;grouped:{name:string;items:Dose[]}[];meds:Medicine[];selectedDate:string;setSelectedDate:(v:string)=>void;onDose:(d:Dose,a:"taken"|"skip")=>void;onAdd:()=>void;onEdit:(m:Medicine)=>void;onDelete:(m:Medicine)=>void;onEditPatient:()=>void;onSavePatient:(v:any)=>Promise<boolean>;onAddPatient:()=>void;onAddSelfPatient:()=>void;onAccountSave:(u:ApiUser)=>void;onPause:(id:string,start:string)=>Promise<void>;family:Family[];notifications:Notification[];onFamilyChange:()=>Promise<void>;onPatientSelect:(p:Patient)=>Promise<void>;onPatientView:(p:Patient)=>Promise<void>;onPatientEdit:(p:Patient)=>Promise<void>;onGuide:()=>void;onDeleteAccount:()=>Promise<void>}){return <><div className="dashboard"><aside className="sidebar"><div className="side-intro"><span className="eyebrow">YOUR CARE PLAN</span><h2>{patient.name||"My plan"}</h2><p className="muted">{meds.length} medicine{meds.length!==1?"s":""} · {grouped.reduce((n,g)=>n+g.items.length,0)} doses</p></div><nav><SideTab icon={<Home/>} label="Today" active={tab==="today"} onClick={()=>setTab("today")}/><SideTab icon={<CalendarDays/>} label="Calendar" active={tab==="calendar"} onClick={()=>setTab("calendar")}/><SideTab icon={<Pill/>} label="Medicines" active={tab==="medicines"} onClick={()=>setTab("medicines")}/><SideTab icon={<Clock3/>} label="History" active={tab==="history"} onClick={()=>setTab("history")}/><SideTab icon={<User/>} label="Profile" active={tab==="profile"} onClick={()=>setTab("profile")}/></nav><button className="guide-link" onClick={onGuide}><BookOpen size={18}/>How to use TENDED</button></aside><div className="dashboard-main">{["calendar","medicines","history","patientDetails","patientDetailsEdit"].includes(tab)&&<PatientContextBar patient={patient} patients={patients} onSelect={onPatientSelect}/>} {tab==="today"&&<Today patient={patient} patients={patients} onPatientSelect={onPatientSelect} grouped={grouped} meds={meds} onDose={onDose} onAdd={onAdd} onAddPatient={onAddPatient} onGuide={onGuide} onPatientInfo={()=>setTab("patientDetails")}/>} {tab==="calendar"&&<Calendar selectedDate={selectedDate} setSelectedDate={setSelectedDate} grouped={grouped} meds={meds} onPause={onPause}/>} {tab==="medicines"&&<Medicines meds={meds} onAdd={onAdd} onEdit={onEdit} onDelete={onDelete}/>} {tab==="history"&&<History patients={patients} patient={patient}/>} {tab==="profile"&&<Profile user={user} patients={patients} setTab={setTab} onPatientView={onPatientView} onPatientEdit={onPatientEdit} onAddPatient={onAddPatient} onAddSelfPatient={onAddSelfPatient} onGuide={onGuide} onDeleteAccount={onDeleteAccount}/>} {tab==="profileDetails"&&<AccountDetails user={user} onBack={()=>setTab("profile")} onSave={u=>{onAccountSave(u);setTab("profile")}} title="Edit profile details"/>} {tab==="careDetails"&&<AccountDetails user={user} onBack={()=>setTab("profile")} onSave={u=>{onAccountSave(u);setTab("profile")}} title="Edit care giver details"/>} {(tab==="patientDetails"||tab==="patientDetailsEdit")&&<PatientDetails patient={patient} meds={meds} startEditing={tab==="patientDetailsEdit"} onBack={()=>setTab("profile")} onSave={onSavePatient}/>} {tab==="family"&&<div className="page-scroll"><div className="page-head"><div><span className="eyebrow">SHARED CARE</span><h1>Family management</h1><p className="muted">Manage trusted people and consent.</p></div><button className="btn soft" onClick={()=>setTab("profile")}><ArrowLeft size={16}/>Back to profile</button></div><FamilyManagement family={family} notifications={notifications} onChange={onFamilyChange}/></div>} {tab==="notifications"&&<div className="page-scroll"><div className="page-head"><div><span className="eyebrow">REMINDERS</span><h1>Notification settings</h1><p className="muted">Control reminders and browser delivery.</p></div><button className="btn soft" onClick={()=>setTab("profile")}><ArrowLeft size={16}/>Back to profile</button></div><NotificationSettings/><NotificationInbox notifications={notifications}/></div>}</div></div><nav className="mobile-tabs"><Tab icon={<Home/>} label="Today" active={tab==="today"} onClick={()=>setTab("today")}/><Tab icon={<CalendarDays/>} label="Calendar" active={tab==="calendar"} onClick={()=>setTab("calendar")}/><Tab icon={<Pill/>} label="Medicines" active={tab==="medicines"} onClick={()=>setTab("medicines")}/><Tab icon={<Clock3/>} label="History" active={tab==="history"} onClick={()=>setTab("history")}/><Tab icon={<User/>} label="Profile" active={tab==="profile"} onClick={()=>setTab("profile")}/></nav></>}
-
-function PatientContextBar({patient,patients,onSelect}:{patient:Patient;patients:Patient[];onSelect:(p:Patient)=>Promise<void>}){return <div className="patient-context-bar"><span className="patient-context-avatar">{patient.profileImageUrl?<img src={patient.profileImageUrl} alt=""/>:(patient.name||"?").split(" ").map(x=>x[0]).slice(0,2).join("")}</span><div className="patient-context-copy"><small>YOU ARE VIEWING</small><b>{patient.name||"Select a patient"}</b></div>{patients.length>1&&<label className="patient-context-select"><span>Switch patient</span><select aria-label="Switch patient" value={patient.id} onChange={e=>{const p=patients.find(x=>x.id===e.target.value);if(p)void onSelect(p)}}>{patients.map(p=><option key={p.id} value={p.id}>{p.name||"Unnamed patient"}{p.relationship==="self"?" (Me)":""}</option>)}</select><ChevronDown size={16}/></label>}</div>}
-
-function Today({patient,patients,onPatientSelect,grouped,meds,onDose,onAdd,onAddPatient,onGuide,onPatientInfo}:{patient:Patient;patients:Patient[];onPatientSelect:(p:Patient)=>Promise<void>;grouped:{name:string;items:Dose[]}[];meds:Medicine[];onDose:(d:Dose,a:"taken"|"skip")=>void;onAdd:()=>void;onAddPatient:()=>void;onGuide:()=>void;onPatientInfo:()=>void}){const first=patient.name.split(" ")[0]||"Your";const total=grouped.reduce((n,g)=>n+g.items.length,0);const taken=grouped.reduce((n,g)=>n+g.items.filter(d=>d.status==="taken").length,0);const missed=grouped.reduce((n,g)=>n+g.items.filter(d=>d.status==="skipped"||d.status==="missed").length,0);const decided=taken+missed;const adherence=decided?Math.round(taken/decided*100):0;const remaining=Math.max(0,total-decided);const h=new Date().getHours();const greet=h<12?"Good morning":h<18?"Good afternoon":"Good evening";const low=meds.filter(m=>m.supplyCount<=m.refillThreshold);return <div className="page-scroll"><div className="page-head"><div><span className="eyebrow">{greet.toUpperCase()}</span><h1>{patient.name?first+"'s doses today":"Welcome to TENDED"}</h1><p className="muted">{patient.name?"Select a family patient to manage their care plan.":"Your home is ready. Add a patient when you are ready, or join an existing family."}</p></div><button className="circle-help" onClick={onPatientInfo} title="View patient information" aria-label="View patient information"><Info/></button></div><div className="patient-switcher">{patients.map(p=><button key={p.id} className={p.id===patient.id?"patient-pill active":"patient-pill"} onClick={()=>onPatientSelect(p)}><span className="patient-avatar">{(p.name||"?").split(" ").map(x=>x[0]).slice(0,2).join("")}</span><span>{p.name||"Unnamed patient"}</span></button>)}</div><div className="progress-card"><div><span className="muted">Today’s adherence (actioned doses)</span><strong>{taken} taken · {missed} missed · {remaining} remaining</strong><small className="muted">Skipped doses count as missed.</small></div><div className="progress-ring" style={{"--progress":adherence} as React.CSSProperties}><span>{adherence}%</span></div></div>{low.length>0&&<div className="notice warning"><AlertCircle/><div><b>Refill reminder</b><p>{low.map(m=>m.name).join(", ")} {low.length===1?"is":"are"} running low.</p></div></div>}<div className="section-heading"><h3>Today's schedule</h3><span className="muted">{total} dose{total!==1?"s":""}</span></div>{grouped.map(g=>g.items.length>0&&<div className="dose-group" key={g.name}><h4>{g.name}</h4><div className="card dose-card">{g.items.map(d=><DoseRow d={d} key={d.id} onDose={onDose}/>)}</div></div>)}{total===0&&<div className="card empty-card"><div className="empty-icon"><Pill/></div><b>{!patient.id?"No patient added yet":meds.length?"Nothing scheduled for this day":"Start this patient's medication plan"}</b><span className="muted">{!patient.id?"Add a patient from Profile to begin managing medicines.":meds.length?"Check another date or review the schedule.":"Add the first medicine for this patient."}</span><button className="btn accent" onClick={patient.id?onAdd:onAddPatient}><Plus size={18}/>{patient.id?"Add medicine":"Add patient"}</button></div>}{total>0&&<button className="btn soft full add-btn" onClick={onAdd}><Plus size={18}/>Add another medicine</button>}<div className="tip-card"><HeartPulse/><div><b>Family care, one shared record.</b><p>Changes are tied to the selected patient so approved family members can coordinate care.</p></div></div></div>}
-
-function MedicineFormIcon({form,size=21}:{form:string;size?:number}){switch(form.toLowerCase()){case"injection":return <Syringe size={size}/>;case"drops":case"syrup":return <Droplets size={size}/>;case"inhaler":return <Wind size={size}/>;case"powder":case"other":return <Package size={size}/>;default:return <Pill size={size}/>}}
-function DoseRow({d,onDose}:{d:Dose;onDose:(d:Dose,a:"taken"|"skip")=>void}){return <div className="dose-row"><div className={d.status==="taken"?"dose-icon taken":d.status==="skipped"?"dose-icon skipped":"dose-icon"}><MedicineFormIcon form={d.form} size={21}/></div><div className="dose-main"><div className="dose-top"><div><b>{d.medName}</b><span className="muted">{d.strength}{d.withFood?" · with food":""}</span></div><time>{fmtTime(d.time)}</time></div>{d.status==="taken"?<small className="status-success"><Check size={14}/>Taken</small>:d.status==="skipped"?<small className="status-danger">Skipped</small>:<div className="dose-actions"><button onClick={()=>onDose(d,"skip")}>Skip</button><button className="take" onClick={()=>onDose(d,"taken")}><Check size={15}/>Take</button></div>}</div></div>}
-
-function Calendar({selectedDate,setSelectedDate,grouped,meds,onPause}:{selectedDate:string;setSelectedDate:(v:string)=>void;grouped:{name:string;items:Dose[]}[];meds:Medicine[];onPause:(id:string,start:string)=>Promise<void>}){const days=Array.from({length:21},(_,i)=>addDays(today(),i-7));const total=grouped.reduce((n,g)=>n+g.items.length,0);return <div className="page-scroll"><div className="page-head"><div><span className="eyebrow">PLAN AHEAD</span><h1>Medication calendar</h1><p className="muted">Choose a day to see scheduled doses.</p></div><label className="calendar-picker"><CalendarDays/><input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)}/></label></div><div className="calendar-strip">{days.map(d=><button key={d} className={d===selectedDate?"calendar-day active": "calendar-day"} onClick={()=>setSelectedDate(d)}><span>{new Date(d+"T00:00:00").toLocaleDateString(undefined,{weekday:"short"})}</span><b>{new Date(d+"T00:00:00").getDate()}</b></button>)}</div><div className="pause-panel card"><div className="pause-panel-copy"><span className="pause-panel-icon"><Clock3 size={19}/></span><div><b>Pause a medicine</b><p className="muted">Pause future doses starting {dateLabel(selectedDate)}.</p></div></div><div className="pause-controls"><select className="input" id="pause-med" aria-label="Medicine to pause" disabled={!meds.length}><option value="">Choose medicine</option>{meds.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select><button className="btn soft" disabled={!meds.length} onClick={()=>{const el=document.getElementById("pause-med") as HTMLSelectElement|null;if(el&&el.value)onPause(el.value,selectedDate)}}><Clock3 size={16}/>Pause from selected date</button></div></div><div className="calendar-summary"><div><span className="muted">{dateLabel(selectedDate)}</span><strong>{total} scheduled dose{total!==1?"s":""}</strong></div><Clock3/></div>{grouped.map(g=>g.items.length>0&&<div className="dose-group" key={g.name}><h4>{g.name}</h4><div className="card dose-card">{g.items.map(d=><div className="calendar-dose" key={d.id}><div className="dose-icon"><MedicineFormIcon form={d.form} size={19}/></div><div><b>{d.medName}</b><span className="muted">{d.strength} · {fmtTime(d.time)}</span></div><span className={d.status==="taken"?"status-success":d.status==="skipped"?"status-danger":"status-pending"}>{d.status}</span></div>)}</div></div>)}{total===0&&<div className="card empty-card compact"><CalendarDays/><b>No doses planned for this day</b><span className="muted">Try another date or add a medicine.</span></div>}</div>}
-
-function Medicines({meds,onAdd,onEdit,onDelete}:{meds:Medicine[];onAdd:()=>void;onEdit:(m:Medicine)=>void;onDelete:(m:Medicine)=>void}){return <div className="page-scroll"><div className="page-head"><div><span className="eyebrow">YOUR MEDICINES</span><h1>Medicine cabinet</h1><p className="muted">{meds.length} active medicine{meds.length!==1?"s":""}</p></div><div className="head-actions"><button className="btn accent" onClick={onAdd}><Plus size={17}/>Add medicine</button></div></div>{!meds.length?<div className="card empty-card"><div className="empty-icon"><Pill/></div><b>Your medicine list is empty</b><span className="muted">Add a medicine to create a schedule and refill reminder.</span><button className="btn accent" onClick={onAdd}><Plus size={17}/>Add medicine</button></div>:<div className="medicine-grid">{meds.map(m=><div className="card med-card" key={m.id}><div className="med-top"><div className="dose-icon"><MedicineFormIcon form={m.form} size={22}/></div><div className="med-info"><b>{m.name}</b><span>{m.strength||"Strength not specified"} · {m.form}</span><span>{m.times.map(fmtTime).join(" · ")}</span><small className={m.supplyCount<=m.refillThreshold?"status-danger":"status-success"}>{m.supplyCount} left{m.supplyCount<=m.refillThreshold?" · refill soon":""}</small></div></div><div className="med-meta"><span>{m.frequencyPattern==="daily"?"Every day":m.frequencyPattern==="everyOtherDay"?"Every other day":m.frequencyPattern==="specificDays"?m.specificDays.join(", "):`Every ${m.cycleEvery} ${m.cycleUnit}`}</span>{m.withFood&&<span>With food</span>}</div><div className="med-actions"><button className="btn soft" onClick={()=>onEdit(m)}><Pencil size={15}/>Edit</button><button className="btn danger" onClick={()=>onDelete(m)}><Trash2 size={15}/>Delete</button></div></div>)}</div>}</div>}
-
-function Profile({user,patients,setTab,onPatientView,onPatientEdit,onAddPatient,onAddSelfPatient,onGuide,onDeleteAccount}:{user:ApiUser;patients:Patient[];setTab:(v:string)=>void;onPatientView:(p:Patient)=>Promise<void>;onPatientEdit:(p:Patient)=>Promise<void>;onAddPatient:()=>void;onAddSelfPatient:()=>void;onGuide:()=>void;onDeleteAccount:()=>Promise<void>}){const initials=(user.displayName||"?").split(" ").map(x=>x[0]).slice(0,2).join("");const caredFor=patients.filter(p=>p.relationship!=="self");const ownPlans=patients.filter(p=>p.relationship==="self");return <div className="page-scroll profile-page"><div className="page-head"><div><span className="eyebrow">YOUR ACCOUNT</span><h1>Your profile</h1><p className="muted">Personal information, people you care for, and your own health details.</p></div></div><section className="card profile-section"><div className="section-heading"><div><span className="eyebrow">PERSONAL INFO</span><h3>Personal information</h3><p className="muted">Your account and caregiver details.</p></div><User/></div><div className="profile-head">{user.profileImageUrl?<img className="avatar" src={user.profileImageUrl} alt="Profile"/>:<div className="avatar">{initials}</div>}<div><b>{user.displayName}</b><span className="muted">{user.email}</span><span className="profile-role">Caregiver account</span></div></div><div className="profile-actions-grid"><button className="profile-action" onClick={()=>setTab("profileDetails")}><span className="profile-action-icon"><User size={20}/></span><span><b>Edit personal info</b><small>Update your name and profile photo</small></span><ChevronRight size={18}/></button><button className="profile-action" onClick={()=>setTab("careDetails")}><span className="profile-action-icon"><HeartPulse size={20}/></span><span><b>Caregiver details</b><small>Your details as the person providing care</small></span><ChevronRight size={18}/></button></div></section><section className="profile-section"><div className="section-heading"><div><span className="eyebrow">CAREGIVER</span><h3>People I care for</h3><p className="muted">Patient profiles you manage on behalf of someone else.</p></div><button className="btn accent" onClick={onAddPatient}><Plus size={16}/>Add patient</button></div>{caredFor.length?<div className="patient-cards">{caredFor.map(p=><div className="patient-summary-row" key={p.id}><button className="patient-summary-card" onClick={()=>onPatientView(p)}><span className="avatar">{p.profileImageUrl?<img src={p.profileImageUrl} alt=""/>:(p.name||"?").split(" ").map(x=>x[0]).slice(0,2).join("")}</span><span className="patient-summary-copy"><b>{p.name||"Unnamed patient"}</b><small>{p.relationship||"Patient"}</small></span><span className="patient-open-label">View details <ChevronRight size={15}/></span></button><button className="patient-edit-shortcut" title={"Edit "+(p.name||"patient")} aria-label={"Edit "+(p.name||"patient")} onClick={()=>onPatientEdit(p)}><Pencil size={17}/></button></div>)}</div>:<div className="card empty-card compact"><Users size={25}/><b>No one added yet</b><span className="muted">Add a patient to manage their medicine schedule and history.</span></div>}</section><section className="profile-section"><div className="section-heading"><div><span className="eyebrow">YOUR OWN CARE</span><h3>My health profile</h3><p className="muted">Keep your own medical history separate from the people you care for.</p></div><HeartPulse/></div>{ownPlans.length?ownPlans.map(p=><div className="patient-summary-row own-health-row" key={p.id}><button className="own-health-card card" onClick={()=>onPatientView(p)}><span className="own-health-avatar">{p.profileImageUrl?<img src={p.profileImageUrl} alt=""/>:<User size={22}/>}</span><span className="own-health-copy"><b>{p.name||user.displayName}</b><small>{p.medicalHistory||"Add your medical history and doctor details."}</small>{p.doctorPhotoUrl&&<span className="doctor-photo-thumb"><img src={p.doctorPhotoUrl} alt="Doctor or prescriber"/></span>}</span><span className="patient-open-label">View details <ChevronRight size={15}/></span></button><button className="patient-edit-shortcut" title={"Edit "+(p.name||"health profile")} aria-label={"Edit "+(p.name||"health profile")} onClick={()=>onPatientEdit(p)}><Pencil size={17}/></button></div>):<div className="self-care-prompt"><div><b>Do you manage your own medication too?</b><p className="muted">Create a personal patient profile to store your medical history and prescriber photo.</p></div><button className="btn soft" onClick={onAddSelfPatient}><Plus size={16}/>Add my health profile</button></div>}</section><section className="card profile-section profile-tools"><div className="profile-actions-grid"><button className="profile-action" onClick={()=>setTab("family")}><span className="profile-action-icon"><Users size={20}/></span><span><b>Family management</b><small>Members, invitations and consent</small></span><ChevronRight size={18}/></button><button className="profile-action" onClick={()=>setTab("notifications")}><span className="profile-action-icon"><Bell size={20}/></span><span><b>Notification settings</b><small>Reminders and browser notifications</small></span><ChevronRight size={18}/></button><button className="profile-action" onClick={onGuide}><span className="profile-action-icon"><BookOpen size={20}/></span><span><b>How to use TENDED</b><small>Learn the basics</small></span><ChevronRight size={18}/></button></div></section><section className="card delete-account-section"><div className="delete-account-copy"><span className="delete-account-icon"><ShieldAlert size={20}/></span><div><h3>Delete account</h3><p className="muted">Deletion is allowed only when no doses are pending, or every patient you manage has another approved family caregiver. When possible, care plans are transferred so reminders can continue.</p></div></div><button className="btn danger" onClick={()=>{if(confirm("Permanently delete your TENDED account? This cannot be undone."))void onDeleteAccount()}}><Trash2 size={16}/>Delete my account</button></section></div>}
-
-function AccountDetails({user,onBack,onSave,title}:{user:ApiUser;onBack:()=>void;onSave:(u:ApiUser)=>void;title:string}){const[displayName,setDisplayName]=useState(user.displayName),[image,setImage]=useState(user.profileImageUrl||""),[msg,setMsg]=useState(""),[busy,setBusy]=useState(false);const save=async()=>{if(!displayName.trim()||displayName.trim().length>80){setMsg("Enter a name of 1–80 characters.");return}setBusy(true);try{const u=await api.updateProfile({displayName:displayName.trim(),profileImageUrl:image});onSave(u);setMsg("Details saved.")}catch(e){setMsg(err(e))}finally{setBusy(false)}};const initials=(displayName||"?").split(" ").map(x=>x[0]).slice(0,2).join("");return <div className="page-scroll"><div className="page-head"><div><span className="eyebrow">YOUR ACCOUNT</span><h1>{title}</h1><p className="muted">These are your details as the signed-in caregiver, not the patient’s details.</p></div><button className="btn soft" onClick={onBack}><ArrowLeft size={16}/>Back</button></div><div className="card account-edit-card"><div className="profile-head">{image?<img className="avatar" src={image} alt="Profile"/>:<div className="avatar">{initials}</div>}<div><b>{displayName||user.displayName}</b><span className="muted">{user.email}</span></div></div><Field label="Your display name"><input className="input" maxLength={80} value={displayName} onChange={e=>setDisplayName(e.target.value)} placeholder="Your name"/></Field><Field label="Profile photo"><div className="photo-actions"><label className="btn soft upload-btn"><FileImage size={15}/>Gallery<input type="file" accept=".jpg,.jpeg,.png,.heic,.heif,image/jpeg,image/png,image/heic,image/heif" hidden onChange={e=>{const f=e.target.files?.[0];if(!f)return;if(f.size>1024*1024){setMsg("Image must be 1 MB or smaller.");return}const ext=f.name.split(".").pop()?.toLowerCase()||"";const mime=f.type||({jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",heic:"image/heic",heif:"image/heif"} as Record<string,string>)[ext]||"image/jpeg";const reader=new FileReader();reader.onload=()=>{let data=String(reader.result);if(!data.startsWith("data:image/"))data=data.replace(/^data:[^;,]*/,mime);setImage(data)};reader.readAsDataURL(f);e.currentTarget.value=""}}/></label><label className="btn soft upload-btn"><Camera size={15}/>Camera<input type="file" accept="image/*,.heic,.heif" capture="environment" hidden onChange={e=>{const f=e.target.files?.[0];if(!f)return;if(f.size>1024*1024){setMsg("Image must be 1 MB or smaller.");return}const reader=new FileReader();reader.onload=()=>setImage(String(reader.result));reader.readAsDataURL(f);e.currentTarget.value=""}}/></label><button className="btn soft" onClick={()=>setImage("")}>Remove photo</button></div></Field><Field label="Email address"><input className="input" value={user.email} readOnly/><small className="field-hint">Email address cannot be changed here.</small></Field>{msg&&<p className="notification-settings-message" role="status">{msg}</p>}<div className="modal-actions"><button className="btn soft" onClick={onBack}>Cancel</button><button className="btn primary" disabled={busy} onClick={save}>{busy?"Saving…":"Save details"}</button></div></div></div>}
-
-function PatientDetails({patient,meds,startEditing=false,onBack,onSave}:{patient:Patient;meds:Medicine[];startEditing?:boolean;onBack:()=>void;onSave:(v:any)=>Promise<boolean>}){
- const [activeSection,setActiveSection]=useState<"personal"|"history"|"attachments"|"medicines">("personal"),[editing,setEditing]=useState(startEditing),[draft,setDraft]=useState<Patient>({...patient,conditions:patient.conditions||[],attachments:patient.attachments||[]}),[error,setError]=useState(""),[busy,setBusy]=useState(false);
- useEffect(()=>{setDraft({...patient,conditions:patient.conditions||[],attachments:patient.attachments||[]});setEditing(startEditing);setError("")},[patient.id,patient.name,patient.attachments,startEditing]);
- const set=(key:keyof Patient,value:any)=>setDraft(v=>({...v,[key]:value}));
- const initials=(draft.name||"?").split(" ").map(x=>x[0]).slice(0,2).join("");
- const readFile=(file:File,callback:(dataUrl:string)=>void,maxBytes:number)=>{if(file.size>maxBytes){setError(maxBytes<=1024*1024?"Profile photos must be 1 MB or smaller.":"Each attachment must be 10 MB or smaller.");return}const reader=new FileReader();reader.onload=()=>callback(String(reader.result));reader.onerror=()=>setError("Unable to read this file. Please try another one.");reader.readAsDataURL(file)};
- const imageFile=(file:File,field:"profileImageUrl"|"doctorPhotoUrl")=>{const ext=file.name.split(".").pop()?.toLowerCase()||"";const mime=file.type||({jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",heic:"image/heic",heif:"image/heif"} as Record<string,string>)[ext]||"";if(!["image/jpeg","image/png","image/heic","image/heif","image/webp"].includes(mime)){setError("Choose a JPEG, PNG or iPhone HEIC/HEIF image.");return}readFile(file,v=>set(field,v.startsWith("data:image/")?v:v.replace(/^data:[^;,]*/,mime)),1024*1024)};
- const addFiles=(files:FileList|null)=>{if(!files)return;setError("");const accepted:PatientAttachment[]=[];const picked=Array.from(files);let remaining=picked.length;picked.forEach(file=>{const ext=file.name.split(".").pop()?.toLowerCase()||"";const mime=file.type||({jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",heic:"image/heic",heif:"image/heif",pdf:"application/pdf",xlsx:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"} as Record<string,string>)[ext]||"";const allowed=["image/jpeg","image/png","image/heic","image/heif","application/pdf","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"];if(!allowed.includes(mime)){setError(file.name+": unsupported file type.");remaining--;return}if(file.size>10*1024*1024){setError(file.name+": attachment must be 10 MB or smaller.");remaining--;return}readFile(file,dataUrl=>{accepted.push({name:file.name,mimeType:mime,dataUrl});remaining--;if(remaining===0)setDraft(v=>({...v,attachments:[...(v.attachments||[]),...accepted]}))},10*1024*1024)});};
- const submit=async()=>{setError("");if(!draft.name.trim()||draft.name.trim().length<2){setError("Enter a valid patient name.");return}if(draft.dob&&draft.dob>today()){setError("Date of birth cannot be in the future.");return}setBusy(true);try{const saved=await onSave({name:draft.name.trim(),dob:draft.dob||"",conditions:draft.conditions||[],notes:draft.notes||"",relationship:draft.relationship||"",mobile:draft.mobile||"",doctor:draft.doctor||"",medicalHistory:draft.medicalHistory||"",profileImageUrl:draft.profileImageUrl||"",doctorPhotoUrl:draft.doctorPhotoUrl||"",attachments:draft.attachments||[]});if(saved)setEditing(false);else setError("Changes could not be saved. Please check the error message and try again.")}catch(e){setError(err(e))}finally{setBusy(false)}};
- const historyNodes=[...(draft.conditions||[]),...(draft.medicalHistory||"").split(/[\n;•]+/).map(v=>v.trim()).filter(Boolean)].filter((v,i,a)=>a.indexOf(v)===i);
- const schedule=(m:Medicine)=>m.times.map(fmtTime).join(" · ")+" · "+(m.frequencyPattern==="daily"?"Daily":m.frequencyPattern==="everyOtherDay"?"Every other day":m.frequencyPattern==="specificDays"?(m.specificDays||[]).join(", "):"Every "+m.cycleEvery+" "+m.cycleUnit);
- const ongoingMeds=meds.filter(m=>{if(!m.isRecurring||m.startDate>today())return false;if(m.pauseStartDate&&m.pauseStartDate<=today()&&(!m.pauseEndDate||m.pauseEndDate>=today()))return false;if(m.durationType!=="ongoing"){const duration=m.durationUnit==="weeks"?m.durationValue*7:m.durationUnit==="months"?m.durationValue*30:m.durationValue;if(addDays(m.startDate,duration)<=today())return false}return true});
- const formatSize=(n?:number)=>n==null?"":n<1024*1024?Math.max(1,Math.round(n/1024))+" KB":(n/1024/1024).toFixed(1)+" MB";
- return <div className="page-scroll patient-profile-view"><div className="page-head"><div><span className="eyebrow">PATIENT INFORMATION</span><h1>{draft.name||"Patient details"}</h1><p className="muted">{editing?"Update this patient’s information and care documents.":"Read-only overview of personal details, medical history and current medicines."}</p></div><div className="head-actions"><button className="btn soft" onClick={onBack}><ArrowLeft size={16}/>Back</button>{!editing&&<button className="btn primary" onClick={()=>setEditing(true)}><Pencil size={16}/>Edit patient</button>}</div></div>
- <div className="patient-info-workspace"><nav className="patient-info-nav" aria-label="Patient information sections"><span className="patient-info-nav-label">PATIENT SECTIONS</span><button type="button" className={activeSection==="personal"?"active":""} onClick={()=>setActiveSection("personal")}><User size={17}/><span>Personal details</span></button><button type="button" className={activeSection==="history"?"active":""} onClick={()=>setActiveSection("history")}><Activity size={17}/><span>Medical history</span></button><button type="button" className={activeSection==="attachments"?"active":""} onClick={()=>setActiveSection("attachments")}><Paperclip size={17}/><span>Attachments</span></button><button type="button" className={activeSection==="medicines"?"active":""} onClick={()=>setActiveSection("medicines")}><Pill size={17}/><span>Ongoing medicines</span><small>{ongoingMeds.length}</small></button></nav><div className="patient-info-content">{activeSection==="personal"&&(<section className="card patient-info-section"><div className="patient-info-section-head"><span className="patient-info-section-icon"><User size={20}/></span><div><h3>Personal details</h3><p className="muted">Basic information and caregiver relationship</p></div></div>
- <div className="patient-info-identity"><div className="patient-profile-photo">{draft.profileImageUrl?<img src={draft.profileImageUrl} alt={draft.name}/>:<span>{initials}</span>}</div><div><b>{draft.name||"Unnamed patient"}</b><small>{draft.relationship==="self"?"Own health profile":"Caregiver relationship · "+(draft.relationship||"Not specified")}</small>{editing&&<div className="photo-actions"><label className="btn soft upload-btn"><FileImage size={15}/>Gallery<input type="file" accept=".jpg,.jpeg,.png,.heic,.heif,image/jpeg,image/png,image/heic,image/heif" hidden onChange={e=>{const f=e.target.files?.[0];if(f)imageFile(f,"profileImageUrl");e.currentTarget.value=""}}/></label><label className="btn soft upload-btn"><Camera size={15}/>Camera<input type="file" accept="image/*,.heic,.heif" capture="environment" hidden onChange={e=>{const f=e.target.files?.[0];if(f)imageFile(f,"profileImageUrl");e.currentTarget.value=""}}/></label>{draft.profileImageUrl&&<button className="btn soft" onClick={()=>set("profileImageUrl","")}>Remove photo</button>}</div>}</div></div>
- {editing?<div className="patient-edit-grid"><Field label="Full name"><input className="input" value={draft.name||""} maxLength={100} onChange={e=>set("name",e.target.value)}/></Field><Field label="Date of birth"><input className="input" type="date" max={today()} value={draft.dob||""} onChange={e=>set("dob",e.target.value)}/></Field><Field label="Mobile number"><input className="input" value={draft.mobile||""} onChange={e=>set("mobile",e.target.value)}/></Field><Field label="Relationship to patient"><select className="input" value={draft.relationship||""} onChange={e=>set("relationship",e.target.value)}><option value="">Choose relationship</option><option value="self">Self</option>{relationships.map(r=><option key={r} value={r}>{r}</option>)}</select></Field><Field label="Doctor / clinic"><input className="input" value={draft.doctor||""} onChange={e=>set("doctor",e.target.value)}/></Field><Field label="Conditions or diagnosis"><ConditionPicker selected={draft.conditions||[]} onChange={v=>set("conditions",v)}/></Field><Field label="Medical history"><textarea className="input textarea" value={draft.medicalHistory||""} maxLength={4000} onChange={e=>set("medicalHistory",e.target.value)} placeholder="Add a condition, event or important medical note on each line."/></Field><Field label="Care notes"><textarea className="input textarea" value={draft.notes||""} maxLength={2000} onChange={e=>set("notes",e.target.value)}/></Field><Field label="Doctor / prescriber photo"><div className="photo-actions"><label className="btn soft upload-btn"><FileImage size={15}/>Gallery<input type="file" accept="image/*,.heic,.heif" hidden onChange={e=>{const f=e.target.files?.[0];if(f)imageFile(f,"doctorPhotoUrl");e.currentTarget.value=""}}/></label><label className="btn soft upload-btn"><Camera size={15}/>Camera<input type="file" accept="image/*,.heic,.heif" capture="environment" hidden onChange={e=>{const f=e.target.files?.[0];if(f)imageFile(f,"doctorPhotoUrl");e.currentTarget.value=""}}/></label>{draft.doctorPhotoUrl&&<button className="btn soft" onClick={()=>set("doctorPhotoUrl","")}>Remove</button>}</div></Field></div>:<div className="patient-details-grid"><Row label="Date of birth" value={draft.dob||"Not set"}/><Row label="Mobile" value={draft.mobile||"Not set"}/><Row label="Relationship" value={draft.relationship==="self"?"Self":draft.relationship||"Not set"}/><Row label="Doctor / clinic" value={draft.doctor||"Not set"}/><Row label="Conditions" value={(draft.conditions||[]).join(", ")||"Not set"}/><Row label="Care notes" value={draft.notes||"No notes added"}/></div>}
- </section>)}
- {activeSection==="history"&&(<section className="card patient-info-section"><div className="patient-info-section-head"><span className="patient-info-section-icon"><Activity size={20}/></span><div><h3>Medical history</h3><p className="muted">A visual timeline of recorded conditions and history</p></div></div>{historyNodes.length?<div className="medical-history-flow">{historyNodes.map((node,i)=><div className="medical-history-node" key={node} style={{animationDelay:(i*100)+"ms"} as React.CSSProperties}><span className="medical-history-node-dot">{i+1}</span><div><b>{node}</b><small>{(draft.conditions||[]).includes(node)?"Recorded condition":"Medical history note"}</small></div></div>)}</div>:<div className="patient-section-empty"><Activity size={22}/><b>No medical history added</b><span>Add conditions or history notes in edit mode to build this timeline.</span></div>}{!editing&&draft.doctorPhotoUrl&&<div className="doctor-photo-detail"><b>Doctor / prescriber photo</b><img src={draft.doctorPhotoUrl} alt="Doctor or prescriber"/></div>}</section>)}
- {activeSection==="attachments"&&(<section className="card patient-info-section"><div className="patient-info-section-head"><span className="patient-info-section-icon"><Paperclip size={20}/></span><div><h3>Attachments</h3><p className="muted">Medical documents, images, PDFs and spreadsheets</p></div>{editing&&<div className="attachment-add-actions"><label className="btn soft upload-btn"><FileImage size={15}/>Gallery / files<input type="file" multiple accept=".jpg,.jpeg,.png,.heic,.heif,.pdf,.xlsx,image/jpeg,image/png,image/heic,image/heif,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={e=>{addFiles(e.currentTarget.files);e.currentTarget.value=""}}/></label><label className="btn soft upload-btn"><Camera size={15}/>Camera<input type="file" accept="image/*,.heic,.heif" capture="environment" hidden onChange={e=>{addFiles(e.currentTarget.files);e.currentTarget.value=""}}/></label></div>}</div>{(draft.attachments||[]).length?<div className="patient-attachments-list">{(draft.attachments||[]).map((a,i)=><div className="patient-attachment-row" key={a.key||a.dataUrl||a.name+i}><span className="attachment-file-icon">{a.mimeType.startsWith("image/")?<FileImage size={20}/>:<FileText size={20}/>}</span><div className="attachment-file-copy"><b>{a.name}</b><small>{a.mimeType.split("/").pop()?.toUpperCase()} {a.size?"· "+formatSize(a.size):""}</small></div>{a.url&&<a className="btn soft attachment-download" href={a.url} target="_blank" rel="noreferrer"><Download size={15}/>Open</a>}{editing&&<button className="icon-btn" aria-label={"Remove "+a.name} onClick={()=>set("attachments",(draft.attachments||[]).filter((_,idx)=>idx!==i))}><X size={17}/></button>}</div>)}</div>:<div className="patient-section-empty"><Paperclip size={22}/><b>No attachments yet</b><span>Upload a prescription, report, medical image or XLSX file.</span></div>}<p className="field-hint">Supported: JPG/JPEG, PNG, iPhone HEIC/HEIF, PDF and XLSX. Maximum 10 MB per attachment.</p></section>)}
- {activeSection==="medicines"&&(<section className="card patient-info-section"><div className="patient-info-section-head"><span className="patient-info-section-icon"><CalendarClock size={20}/></span><div><h3>Ongoing medicines</h3><p className="muted">Active prescriptions and their schedules</p></div><span className="medicine-count-pill">{ongoingMeds.length}</span></div>{ongoingMeds.length?<div className="ongoing-medicine-list">{ongoingMeds.map(m=><div className="ongoing-medicine-row" key={m.id}><span className="dose-icon"><MedicineFormIcon form={m.form}/></span><div className="ongoing-medicine-copy"><b>{m.name} {m.strength&&<span>{m.strength}</span>}</b><small>{m.form}{m.condition?" · "+m.condition:""}</small><strong>{schedule(m)}</strong>{m.withFood&&<small>Take with food</small>}</div><span className={m.supplyCount<=m.refillThreshold?"status-danger":"status-success"}>{m.supplyCount} doses left</span></div>)}</div>:<div className="patient-section-empty"><Pill size={22}/><b>No ongoing medicines</b><span>Medicines added to this patient’s plan will appear here with their schedule.</span></div>}</section>)}
- {editing&&<div className="patient-edit-footer">{error&&<InlineError>{error}</InlineError>}<div className="modal-actions"><button className="btn soft" disabled={busy} onClick={()=>{setDraft({...patient,conditions:patient.conditions||[],attachments:patient.attachments||[]});setEditing(false);setError("")}}>Cancel</button><button className="btn primary" disabled={busy} onClick={()=>void submit()}>{busy?"Saving…":"Save patient details"}</button></div></div>}
- </div></div>
- </div>
+export default function App() {
+  const [screen, setScreen] = useState<Screen>(
+      new URLSearchParams(window.location.search).has("reset") ? "reset" : "login",
+    ),
+    [tab, setTab] = useState("today"),
+    [user, setUser] = useState<ApiUser | null>(null),
+    [patient, setPatient] = useState<Patient | null>(null),
+    [patients, setPatients] = useState<Patient[]>([]),
+    [meds, setMeds] = useState<Medicine[]>([]),
+    [doses, setDoses] = useState<Dose[]>([]),
+    [family, setFamily] = useState<Family[]>([]),
+    [notifications, setNotifications] = useState<Notification[]>([]),
+    [selectedDate, setSelectedDate] = useState(today()),
+    [toast, setToast] = useState<Toast | null>(null),
+    [loading, setLoading] = useState(true),
+    [wizard, setWizard] = useState(false),
+    [editing, setEditing] = useState<Medicine | null>(null),
+    [guide, setGuide] = useState(false),
+    [accountMenu, setAccountMenu] = useState(false),
+    [notificationOpen, setNotificationOpen] = useState(false),
+    [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+  const flash = (message: string, error = false) => {
+    setToast({ message, error });
+    window.setTimeout(() => setToast(null), 3200);
+  };
+  const err = (e: unknown) =>
+    e instanceof Error ? e.message : "Something went wrong. Please try again.";
+  const load = async () => {
+    try {
+      const [u, p, ps, f, n] = await Promise.all([
+        api.me(),
+        api.getPatient(),
+        api.getPatients(),
+        api.getFamily(),
+        api.getNotifications(),
+      ]);
+      setUser(u);
+      const chosen = ps[0] || {
+        id: "",
+        name: "",
+        dob: null,
+        conditions: [],
+        notes: "",
+        mobile: "",
+        doctor: "",
+        medicalHistory: "",
+        profileImageUrl: "",
+      };
+      setPatient(chosen);
+      setPatients(ps);
+      setFamily(f);
+      setNotifications(n);
+      setMeds(chosen.id ? await api.getMedicines(chosen.id) : []);
+      setDoses(chosen.id ? await api.getDoses(selectedDate, chosen.id) : []);
+      setSelectedDate(today());
+      setTab("today");
+      setScreen("hub");
+      const params = new URLSearchParams(window.location.search);
+      const doseId = params.get("doseId");
+      const action = params.get("doseAction");
+      if (doseId && (action === "taken" || action === "skip")) {
+        history.replaceState(null, "", window.location.pathname);
+        try {
+          const updated =
+            action === "taken"
+              ? await api.take(doseId)
+              : await api.skip(doseId, "Skipped from notification");
+          setDoses((current) => current.map((d) => (d.id === updated.id ? updated : d)));
+          flash(action === "taken" ? "Dose marked as taken" : "Dose marked as skipped");
+        } catch (e) {
+          flash(err(e), true);
+        }
+      }
+    } catch {
+      localStorage.removeItem("access_token");
+      setUser(null);
+      setPatient(null);
+      setScreen("login");
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    localStorage.getItem("access_token") ? load() : setLoading(false);
+  }, []);
+  useEffect(() => {
+    if (user && patient)
+      api
+        .getDoses(selectedDate, patient.id)
+        .then(setDoses)
+        .catch((e) => flash(err(e), true));
+  }, [selectedDate, user, patient]);
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    const refresh = () =>
+      api
+        .getNotifications()
+        .then((items) => {
+          if (active) setNotifications(items);
+        })
+        .catch(() => {});
+    refresh();
+    const timer = window.setInterval(refresh, 20000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [user?.id]);
+  const grouped = useMemo(
+    () =>
+      ["Morning", "Afternoon", "Evening", "Night"].map((s) => ({
+        name: s,
+        items: doses.filter((d) => part(d.time) === s),
+      })),
+    [doses],
+  );
+  const onAuth = async (r: { user: ApiUser; token: string }, isRegister: boolean) => {
+    const params = new URLSearchParams(window.location.search);
+    setLoading(true);
+    setUser(null);
+    setPatient(null);
+    setPatients([]);
+    setMeds([]);
+    setDoses([]);
+    setFamily([]);
+    setNotifications([]);
+    localStorage.setItem("access_token", r.token);
+    try {
+      const [p, ps, f, n] = await Promise.all([
+        api.getPatient(),
+        api.getPatients(),
+        api.getFamily(),
+        api.getNotifications(),
+      ]);
+      const chosen = ps[0] || {
+        id: "",
+        name: "",
+        dob: null,
+        conditions: [],
+        notes: "",
+        mobile: "",
+        doctor: "",
+        medicalHistory: "",
+        profileImageUrl: "",
+      };
+      const nextMeds = chosen.id ? await api.getMedicines(chosen.id) : [];
+      const nextDoses = chosen.id ? await api.getDoses(today(), chosen.id) : [];
+      setPatient(chosen);
+      setPatients(ps);
+      setFamily(f);
+      setNotifications(n);
+      setMeds(nextMeds);
+      setDoses(nextDoses);
+      setSelectedDate(today());
+      setTab("today");
+      setWizard(false);
+      setEditing(null);
+      history.replaceState(null, "", window.location.pathname);
+      setUser(r.user);
+      setScreen("hub");
+      const doseId = params.get("doseId");
+      const action = params.get("doseAction");
+      if (doseId && (action === "taken" || action === "skip")) {
+        history.replaceState(null, "", window.location.pathname);
+        try {
+          const updated =
+            action === "taken"
+              ? await api.take(doseId)
+              : await api.skip(doseId, "Skipped from notification");
+          setDoses((current) => current.map((d) => (d.id === updated.id ? updated : d)));
+          flash(action === "taken" ? "Dose marked as taken" : "Dose marked as skipped");
+        } catch (e) {
+          flash(err(e), true);
+        }
+      }
+    } catch (e) {
+      localStorage.removeItem("access_token");
+      setUser(null);
+      setPatient(null);
+      setScreen("login");
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  };
+  const savePatient = async (v: {
+    name: string;
+    dob: string;
+    conditions: string[];
+    notes: string;
+    relationship?: string;
+    mobile?: string;
+    doctor?: string;
+    medicalHistory?: string;
+    profileImageUrl?: string;
+    doctorPhotoUrl?: string;
+    attachments?: PatientAttachment[];
+  }) => {
+    try {
+      const p = patient?.id ? await api.savePatient(v, patient.id) : await api.createPatient(v);
+      setPatient(p);
+      setPatients((x) =>
+        x.some((a) => a.id === p.id) ? x.map((a) => (a.id === p.id ? p : a)) : [...x, p],
+      );
+      setScreen("hub");
+      setTab("patientDetails");
+      flash("Patient details saved");
+      return true;
+    } catch (e) {
+      flash(err(e), true);
+      return false;
+    }
+  };
+  const doseAction = async (d: Dose, action: "taken" | "skip") => {
+    try {
+      const updated =
+        action === "taken" ? await api.take(d.id) : await api.skip(d.id, "Skipped by user");
+      setDoses((x) => x.map((v) => (v.id === updated.id ? updated : v)));
+      flash(action === "taken" ? `${d.medName} marked as taken` : `${d.medName} skipped`);
+    } catch (e) {
+      flash(err(e), true);
+    }
+  };
+  const saveMedicine = async (m: Omit<Medicine, "id">) => {
+    try {
+      if (editing) await api.updateMedicine(editing.id, m, patient!.id);
+      else await api.createMedicine(m, patient!.id);
+      setWizard(false);
+      setEditing(null);
+      setMeds(await api.getMedicines(patient!.id));
+      setDoses(await api.getDoses(selectedDate, patient!.id));
+      flash(editing ? `${m.name} updated` : `${m.name} added to your plan`);
+    } catch (e) {
+      flash(err(e), true);
+    }
+  };
+  const removeMedicine = async (m: Medicine) => {
+    if (!confirm(`Remove ${m.name} from your medicine plan?`)) return;
+    try {
+      await api.deleteMedicine(m.id, patient!.id);
+      setMeds(await api.getMedicines(patient!.id));
+      setDoses(await api.getDoses(selectedDate, patient!.id));
+      flash(`${m.name} removed`);
+    } catch (e) {
+      flash(err(e), true);
+    }
+  };
+  const pauseMedicine = async (id: string, start: string) => {
+    try {
+      await api.pauseMedicine(id, start);
+      flash("Medicine paused from " + start);
+      setMeds(await api.getMedicines(patient!.id));
+      setDoses(await api.getDoses(selectedDate, patient!.id));
+    } catch (e) {
+      flash(err(e), true);
+    }
+  };
+  if (loading)
+    return (
+      <div className="center">
+        <div className="loading-mark">
+          <img src="/tended-icon.svg" alt="" />
+        </div>
+        <p>Loading your care plan…</p>
+      </div>
+    );
+  return (
+    <div className="app-shell">
+      <header className="topbar">
+        <a
+          className="brand"
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            user && setTab("today");
+          }}
+        >
+          <img className="brand-mark" src="/tended-icon.svg" alt="" />
+          <span>TENDED</span>
+        </a>
+        {user && (
+          <div className="top-actions">
+            <button
+              className="icon-btn notification-btn"
+              title="Notifications"
+              onClick={() => setNotificationOpen((v) => !v)}
+            >
+              <Bell size={19} />
+              {notifications.filter((n) => !n.isRead).length > 0 && (
+                <span className="notification-dot">
+                  {notifications.filter((n) => !n.isRead).length}
+                </span>
+              )}
+            </button>
+            <button className="help-btn" onClick={() => setGuide(true)}>
+              <BookOpen size={18} />
+              <span>How it works</span>
+            </button>
+            <button
+              className="avatar-mini avatar-button"
+              title="Profile"
+              onClick={() => {
+                setNotificationOpen(false);
+                setAccountMenu((v) => !v);
+              }}
+              aria-expanded={accountMenu}
+            >
+              {user.profileImageUrl ? (
+                <img src={user.profileImageUrl} alt="Profile" />
+              ) : (
+                (user.displayName || "?")
+                  .split(" ")
+                  .map((x) => x[0])
+                  .slice(0, 2)
+                  .join("")
+              )}
+            </button>
+          </div>
+        )}
+      </header>
+      {user && accountMenu && (
+        <div className="account-dropdown" role="menu" aria-label="Account menu">
+          <button
+            role="menuitem"
+            onClick={() => {
+              setAccountMenu(false);
+              setNotificationOpen(false);
+              setTab("profile");
+            }}
+          >
+            <User size={17} />
+            <span>Profile</span>
+          </button>
+          <button
+            role="menuitem"
+            className="account-dropdown-signout"
+            onClick={() => {
+              setAccountMenu(false);
+              localStorage.removeItem("access_token");
+              history.replaceState(null, "", window.location.pathname);
+              setUser(null);
+              setPatient(null);
+              setPatients([]);
+              setMeds([]);
+              setDoses([]);
+              setFamily([]);
+              setNotifications([]);
+              setTab("today");
+              setSelectedDate(today());
+              setWizard(false);
+              setEditing(null);
+              setNotificationOpen(false);
+              setGuide(false);
+              setScreen("login");
+            }}
+          >
+            <LogOut size={17} />
+            <span>Sign out</span>
+          </button>
+        </div>
+      )}
+      <main className="main">
+        {screen === "login" && (
+          <LoginScreen
+            onSuccess={onAuth}
+            onForgot={() => setScreen("forgot")}
+            onError={(m) => flash(m, true)}
+          />
+        )}
+        {screen === "forgot" && (
+          <ForgotScreen onBack={() => setScreen("login")} onSent={(m) => flash(m)} />
+        )}{" "}
+        {screen === "reset" && (
+          <ResetScreen
+            onDone={(m) => {
+              history.replaceState(null, "", "/");
+              flash(m);
+              setScreen("login");
+            }}
+          />
+        )}
+        {screen === "role" && (
+          <RoleScreen
+            onPick={(r) => {
+              localStorage.setItem("role", r);
+              setScreen("patient");
+            }}
+            onSkip={() => {
+              localStorage.setItem("role", "self");
+              setScreen("hub");
+            }}
+          />
+        )}
+        {screen === "patient" && patient && (
+          <PatientScreen
+            patient={patient}
+            role={localStorage.getItem("role") || "caregiver"}
+            onBack={() => {
+              setScreen(user?.id ? "hub" : "role");
+              if (user) setTab("patientDetails");
+            }}
+            onSave={async (v) => {
+              await savePatient(v);
+            }}
+          />
+        )}
+        {screen === "hub" && patient && user && (
+          <Hub
+            user={user}
+            patient={patient}
+            patients={patients}
+            tab={tab}
+            setTab={setTab}
+            grouped={grouped}
+            meds={meds}
+            selectedDate={selectedDate}
+            setSelectedDate={setSelectedDate}
+            onDose={doseAction}
+            onAdd={() => {
+              setEditing(null);
+              setWizard(true);
+            }}
+            onEdit={(m) => {
+              setEditing(m);
+              setWizard(true);
+            }}
+            onDelete={removeMedicine}
+            onEditPatient={() => setScreen("patient")}
+            onSavePatient={savePatient}
+            onAddPatient={() => {
+              setPatient({
+                id: "",
+                name: "",
+                dob: null,
+                conditions: [],
+                notes: "",
+                mobile: "",
+                doctor: "",
+                medicalHistory: "",
+                profileImageUrl: "",
+              });
+              setScreen("patient");
+            }}
+            onAddSelfPatient={() => {
+              setPatient({
+                id: "",
+                name: user.displayName || "",
+                dob: null,
+                conditions: [],
+                notes: "",
+                mobile: "",
+                doctor: "",
+                medicalHistory: "",
+                profileImageUrl: "",
+                doctorPhotoUrl: "",
+                relationship: "self",
+              });
+              localStorage.setItem("role", "self");
+              setScreen("patient");
+            }}
+            onAccountSave={(u) => setUser(u)}
+            onPause={pauseMedicine}
+            family={family}
+            notifications={notifications}
+            onFamilyChange={async () => {
+              setFamily(await api.getFamily());
+              setNotifications(await api.getNotifications());
+            }}
+            onPatientSelect={async (p) => {
+              setPatient(p);
+              setMeds(await api.getMedicines(p.id));
+              setDoses(await api.getDoses(selectedDate, p.id));
+            }}
+            onPatientView={async (p) => {
+              setPatient(p);
+              setMeds(await api.getMedicines(p.id));
+              setDoses(await api.getDoses(selectedDate, p.id));
+              setTab("patientDetails");
+            }}
+            onPatientEdit={async (p) => {
+              setPatient(p);
+              setMeds(await api.getMedicines(p.id));
+              setDoses(await api.getDoses(selectedDate, p.id));
+              setTab("patientDetailsEdit");
+            }}
+            onGuide={() => setGuide(true)}
+            onDeleteAccount={async () => {
+              try {
+                await api.deleteAccount();
+                localStorage.removeItem("access_token");
+                history.replaceState(null, "", window.location.pathname);
+                setUser(null);
+                setPatient(null);
+                setPatients([]);
+                setMeds([]);
+                setDoses([]);
+                setFamily([]);
+                setNotifications([]);
+                setTab("today");
+                setScreen("login");
+                flash("Your account has been deleted.");
+              } catch (e) {
+                flash(err(e), true);
+              }
+            }}
+          />
+        )}
+      </main>
+      {guide && <GuideModal onClose={() => setGuide(false)} />}
+      {notificationOpen && user && (
+        <NotificationPopover
+          notifications={notifications}
+          patients={patients}
+          onClose={() => setNotificationOpen(false)}
+          onRead={async (id) => {
+            await api.readNotification(id);
+            setNotifications(await api.getNotifications());
+          }}
+          onSelect={async (n) => {
+            setSelectedNotification(n);
+            setNotificationOpen(false);
+            if (!n.isRead) {
+              try {
+                await api.readNotification(n.id);
+                setNotifications(await api.getNotifications());
+              } catch (e) {
+                flash(err(e), true);
+              }
+            }
+          }}
+        />
+      )}
+      {selectedNotification && (
+        <NotificationDetailModal
+          notification={selectedNotification}
+          patients={patients}
+          onClose={() => setSelectedNotification(null)}
+        />
+      )}
+      {wizard && (
+        <MedicineWizard
+          initial={editing || blank()}
+          onClose={() => {
+            setWizard(false);
+            setEditing(null);
+          }}
+          onSave={saveMedicine}
+        />
+      )}
+      {toast && (
+        <div className={toast.error ? "toast error-toast" : "toast"}>
+          <span>{toast.error ? <AlertCircle size={18} /> : <Check size={18} />}</span>
+          {toast.message}
+        </div>
+      )}
+    </div>
+  );
 }
-function parseNotificationData(notification:Notification):Record<string,any>{try{const value=JSON.parse(notification.dataJson||"{}");return value&&typeof value==="object"?value:{}}catch{return {}}}
-function NotificationPopover({notifications,patients,onClose,onRead,onSelect}:{notifications:Notification[];patients:Patient[];onClose:()=>void;onRead:(id:string)=>Promise<void>;onSelect:(n:Notification)=>void}){
- const unread=notifications.filter(n=>!n.isRead).length;
- return <div className="notification-popover" role="dialog" aria-label="Notifications">
-  <div className="notification-popover-head"><div><b>Notifications</b><small>{unread?unread+" unread":"You're all caught up"}</small></div><button className="icon-btn" aria-label="Close notifications" onClick={onClose}><X size={17}/></button></div>
-  {notifications.length?notifications.slice(0,30).map(n=>{const data=parseNotificationData(n);const patientName=patients.find(p=>p.id===data.patientId)?.name||data.patientName;return <div className={n.isRead?"notification-popover-item":"notification-popover-item unread"} key={n.id}>
-   <button className="notification-open-btn" onClick={()=>onSelect(n)} aria-label={"View details: "+n.title}>
-    <span className="notification-copy"><b>{n.title}</b>{patientName&&<strong className="notification-patient">Patient: {patientName}</strong>}<span className="notification-message">{n.message}</span><small>{new Date(n.createdAt).toLocaleString()}</small><span className="notification-view-hint">View details <ChevronRight size={14}/></span></span>
-   </button>
-   {!n.isRead&&<button className="btn soft mark-read-btn" onClick={async()=>{try{await onRead(n.id)}catch(e){console.error(e)}}}>Mark read</button>}
-  </div>}):<div className="notification-empty"><Bell size={25}/><b>No notifications yet</b><span>Medicine reminders, missed doses, refill alerts and family invitations will appear here.</span></div>}
- </div>
+
+function LoginScreen({
+  onSuccess,
+  onForgot,
+  onError,
+}: {
+  onSuccess: (r: { user: ApiUser; token: string }, register: boolean) => Promise<void>;
+  onForgot: () => void;
+  onError: (m: string) => void;
+}) {
+  const [mode, setMode] = useState<"signin" | "signup">("signin"),
+    [email, setEmail] = useState(""),
+    [password, setPassword] = useState(""),
+    [name, setName] = useState(""),
+    [show, setShow] = useState(false),
+    [busy, setBusy] = useState(false),
+    [localError, setLocalError] = useState("");
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setLocalError("");
+    const em = email.trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(em)) return setLocalError("Enter a valid email address.");
+    if (password.length < 8) return setLocalError("Password must be at least 8 characters.");
+    if (mode === "signup" && (name.trim().length < 2 || name.trim().length > 80))
+      return setLocalError("Enter your name (2–80 characters).");
+    setBusy(true);
+    try {
+      const r =
+        mode === "signin"
+          ? await api.login({ email: em, password })
+          : await api.register({
+              email: em,
+              password,
+              displayName: name.trim(),
+            });
+      await onSuccess(r, mode === "signup");
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "Unable to complete sign in.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="auth-layout">
+      <div className="auth-copy">
+        <span className="eyebrow">MEDICATION MADE HEALTH COMPANION</span>
+        <h1>Feel more in control of every dose.</h1>
+        <p>Keep medicines, schedules and daily progress in one calm, simple place.</p>
+        <div className="feature-pills">
+          <span>✓ Clear schedules</span>
+          <span>✓ Refill reminders</span>
+          <span>✓ Caregiver friendly</span>
+        </div>
+      </div>
+      <form className="auth-card" onSubmit={submit}>
+        <div className="auth-card-head">
+          <img className="auth-logo" src="/tended-logo.svg" alt="TENDED" />
+          <div>
+            <h2>{mode === "signin" ? "Welcome back" : "Create your account"}</h2>
+            <p className="muted">
+              {mode === "signin"
+                ? "Pick up where you left off."
+                : "A few details and you're ready to begin."}
+            </p>
+          </div>
+        </div>
+        <div className="segmented">
+          <button
+            type="button"
+            className={mode === "signin" ? "selected" : ""}
+            onClick={() => {
+              setMode("signin");
+              setLocalError("");
+            }}
+          >
+            Log in
+          </button>
+          <button
+            type="button"
+            className={mode === "signup" ? "selected" : ""}
+            onClick={() => {
+              setMode("signup");
+              setLocalError("");
+            }}
+          >
+            Sign up
+          </button>
+        </div>
+        {mode === "signup" && (
+          <Field label="Your name">
+            <input
+              className="input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Grace Whitfield"
+              autoComplete="name"
+            />
+          </Field>
+        )}
+        <Field label="Email">
+          <div className="icon-input">
+            <Mail />
+            <input
+              className="input"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@email.com"
+              type="email"
+              autoComplete="email"
+            />
+          </div>
+        </Field>
+        <Field label="Password">
+          <div className="icon-input">
+            <Lock />
+            <input
+              className="input"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="At least 8 characters"
+              type={show ? "text" : "password"}
+              autoComplete={mode === "signin" ? "current-password" : "new-password"}
+            />
+            <button
+              type="button"
+              onClick={() => setShow(!show)}
+              aria-label={show ? "Hide password" : "Show password"}
+            >
+              {show ? <EyeOff /> : <Eye />}
+            </button>
+          </div>
+        </Field>
+        {localError && <InlineError>{localError}</InlineError>}
+        {mode === "signin" && (
+          <div className="forgot">
+            <button type="button" className="text-btn" onClick={onForgot}>
+              Forgot password?
+            </button>
+          </div>
+        )}
+        <button className="btn primary full" disabled={busy}>
+          {busy ? (
+            <>
+              <span className="spinner" />
+              Please wait…
+            </>
+          ) : mode === "signin" ? (
+            "Log in"
+          ) : (
+            "Create account"
+          )}
+        </button>
+        <p className="fine muted">Your account is protected with secure authentication.</p>
+      </form>
+    </section>
+  );
 }
-function NotificationDetailModal({notification,patients,onClose}:{notification:Notification;patients:Patient[];onClose:()=>void}){
- const data=parseNotificationData(notification);
- const patient=patients.find(p=>p.id===data.patientId);
- const typeLabel:Record<string,string>={refill_low:"Low medicine supply",dose_reminder:"Upcoming dose",dose_final:"Dose due now",dose_missed:"Missed dose",notification_failed:"Delivery issue",family_invite:"Family invitation"};
- const patientName=patient?.name||data.patientName||"Patient information unavailable";
- const medicineName=data.medicineName||"";
- const detailRows=[{label:"Patient",value:patientName},{label:"Medicine",value:medicineName||undefined},{label:"Doses remaining",value:data.dosesRemaining!=null?String(data.dosesRemaining):undefined},{label:"Refill threshold",value:data.refillThreshold!=null?String(data.refillThreshold)+" doses":undefined},{label:"Notification type",value:typeLabel[notification.type]||notification.type.replace(/_/g," ")},{label:"Received",value:new Date(notification.createdAt).toLocaleString()},{label:"Status",value:notification.isRead?"Read":"Unread"}].filter(row=>row.value);
- return <div className="modal-backdrop notification-detail-backdrop" role="presentation" onClick={onClose}><section className="notification-detail-modal" role="dialog" aria-modal="true" aria-labelledby="notification-detail-title" onClick={e=>e.stopPropagation()}>
-  <div className="notification-detail-head"><div className="notification-detail-icon"><Bell size={21}/></div><div><span className="eyebrow">NOTIFICATION DETAILS</span><h2 id="notification-detail-title">{notification.title}</h2></div><button className="icon-btn" aria-label="Close details" onClick={onClose}><X size={18}/></button></div>
-  <p className="notification-detail-message">{notification.message}</p>
-  <div className="notification-detail-rows">{detailRows.map(row=><div className="notification-detail-row" key={row.label}><span>{row.label}</span><b>{row.value}</b></div>)}</div>
-  {notification.type==="refill_low"&&<div className="notification-detail-tip"><Package size={17}/><span>Plan a refill soon to avoid missing scheduled doses.</span></div>}
-  <div className="modal-actions"><button className="btn primary" onClick={onClose}>Done</button></div>
- </section></div>
+
+function ResetScreen({ onDone }: { onDone: (m: string) => void }) {
+  const token = new URLSearchParams(window.location.search).get("reset") || "",
+    [p, setP] = useState(""),
+    [c, setC] = useState(""),
+    [e, setE] = useState("");
+  const save = async () => {
+    if (p.length < 8) return setE("Password must be at least 8 characters.");
+    if (p !== c) return setE("Passwords do not match.");
+    try {
+      await api.resetPassword(token, p);
+      onDone("Password updated. You can log in now.");
+    } catch (x) {
+      setE(err(x));
+    }
+  };
+  return (
+    <section className="narrow-card">
+      <span className="eyebrow">ACCOUNT ACCESS</span>
+      <h2>Choose a new password</h2>
+      <Field label="New password">
+        <input className="input" type="password" value={p} onChange={(x) => setP(x.target.value)} />
+      </Field>
+      <Field label="Confirm password">
+        <input className="input" type="password" value={c} onChange={(x) => setC(x.target.value)} />
+      </Field>
+      {e && <InlineError>{e}</InlineError>}
+      <button className="btn primary full" onClick={save}>
+        Update password
+      </button>
+    </section>
+  );
 }
-function NotificationInbox({notifications}:{notifications:Notification[]}){
- const items=notifications.filter(n=>["dose_reminder","dose_final","dose_missed","notification_failed","refill_low"].includes(n.type));
- return <div className="card notification-inbox"><div className="section-heading"><div><span className="eyebrow">ATTENTION</span><h3>Medication notifications</h3></div><Bell/></div>{items.length?items.slice(0,20).map(n=><div className="notification-item" key={n.id}><div><b>{n.title}</b><p>{n.message}</p></div><small>{new Date(n.createdAt).toLocaleString()}</small></div>):<p className="muted">No medication notifications yet. They will appear here when reminders are scheduled.</p>}</div>}
-
-function NotificationSettings(){
- const[s,setS]=useState<any>({timeZoneId:"Asia/Kolkata",leadMinutes:15,repeatMinutes:5,finalNotificationEnabled:true}),[msg,setMsg]=useState(""),[busy,setBusy]=useState(false),[testing,setTesting]=useState(false);
- useEffect(()=>{let active=true;api.getNotificationSettings().then(value=>{if(active)setS(value)}).catch(e=>{if(active)setMsg(err(e))});return()=>{active=false}},[]);
- const save=async()=>{setBusy(true);try{const updated=await api.saveNotificationSettings(s);setS((v:any)=>({...v,...updated}));setMsg("Notification settings saved.")}catch(e){setMsg(err(e))}finally{setBusy(false)}};
- const enable=async()=>{setBusy(true);setMsg("");try{const key=(s.vapidPublicKey||import.meta.env.VITE_VAPID_PUBLIC_KEY||"").trim();if(!key)throw new Error("The API has no VAPID public key configured. Add WebPush:PublicKey and WebPush:PrivateKey to the backend environment first.");await enablePush(key);setMsg("Browser permission granted and this device is subscribed. Send a test notification to verify delivery.")}catch(e){setMsg(err(e))}finally{setBusy(false)}};
- const test=async()=>{setTesting(true);setMsg("");try{if(!(s.vapidPublicKey||import.meta.env.VITE_VAPID_PUBLIC_KEY||"").trim()){setMsg("Browser push is not configured on the API. In Render, open the backend service Environment settings and add WebPush__PublicKey and WebPush__PrivateKey. Keep the private key server-side, then redeploy the API.");return}const result=await api.testPush();setMsg(result.message||"Test notification sent.")}catch(e){setMsg(err(e))}finally{setTesting(false)}};
- return <div className="card notification-settings"><div className="section-heading"><div><span className="eyebrow">REMINDERS</span><h3>Notification settings</h3><p className="muted">Enable browser delivery, then send a test to confirm it works.</p></div><Bell/></div>
-  <div className="form-grid"><Field label="Timezone"><select className="input" value={s.timeZoneId||"Asia/Kolkata"} onChange={e=>setS({...s,timeZoneId:e.target.value})}><option value="Asia/Kolkata">Asia/Kolkata (IST)</option><option value="UTC">UTC</option><option value="America/New_York">America/New_York</option><option value="Europe/London">Europe/London</option></select></Field>
-   <Field label="First reminder (minutes before)"><input className="input" type="number" min="0" max="120" value={s.leadMinutes??15} onChange={e=>setS({...s,leadMinutes:Number(e.target.value)})}/></Field>
-   <Field label="Repeat interval (minutes)"><input className="input" type="number" min="1" max="60" value={s.repeatMinutes??5} onChange={e=>setS({...s,repeatMinutes:Number(e.target.value)})}/></Field></div>
-  <label className="check-row"><input type="checkbox" checked={!!s.finalNotificationEnabled} onChange={e=>setS({...s,finalNotificationEnabled:e.target.checked})}/> Final notification at scheduled time</label>
-  <div className="settings-actions"><button className="btn primary" disabled={busy} onClick={save}>{busy?"Saving…":"Save settings"}</button><button className="btn soft" disabled={busy} onClick={enable}>{busy?"Please wait…":"Enable browser notifications"}</button><button className="btn soft" disabled={testing} onClick={test}>{testing?"Sending…":"Send test notification"}</button></div>
-  {msg&&<p className="notification-settings-message" role="status">{msg}</p>}
- </div>
+function ForgotScreen({ onBack, onSent }: { onBack: () => void; onSent: (m: string) => void }) {
+  const [e, setE] = useState(""),
+    [error, setError] = useState("");
+  return (
+    <section className="narrow-card">
+      <button className="icon-btn back" onClick={onBack} aria-label="Back">
+        <ArrowLeft />
+      </button>
+      <span className="eyebrow">ACCOUNT ACCESS</span>
+      <h2>Reset your password</h2>
+      <p className="muted lead">
+        Enter your account email and we'll send instructions to reset your password.
+      </p>
+      <Field label="Email">
+        <input
+          className="input"
+          value={e}
+          onChange={(x) => setE(x.target.value)}
+          placeholder="you@email.com"
+          type="email"
+        />
+      </Field>
+      {error && <InlineError>{error}</InlineError>}
+      <button
+        className="btn primary full"
+        onClick={async () => {
+          if (!/^\S+@\S+\.\S+$/.test(e.trim())) return setError("Enter a valid email address.");
+          try {
+            await api.forgotPassword(e.trim().toLowerCase());
+            setError("");
+            onSent("If an account exists for this email, reset instructions have been sent.");
+          } catch (x) {
+            setError(err(x));
+          }
+        }}
+      >
+        Send reset link
+      </button>
+    </section>
+  );
 }
 
-function History({patients,patient}:{patients:Patient[];patient:Patient}){const[rows,setRows]=useState<HistoryRow[]>([]),[selected,setSelected]=useState<string[]>(patient.id?[patient.id]:[]),[medicine,setMedicine]=useState(""),[from,setFrom]=useState(""),[to,setTo]=useState(""),[period,setPeriod]=useState("");useEffect(()=>{setSelected(patient.id?[patient.id]:[])},[patient.id]);useEffect(()=>{const q=new URLSearchParams();if(selected.length)q.set("patientIds",selected.join(","));if(medicine)q.set("medicineName",medicine);if(from)q.set("from",from);if(to)q.set("to",to);if(period)q.set("period",period);api.getHistory("?"+q.toString()).then(setRows).catch(()=>setRows([]))},[selected,medicine,from,to,period]);return <div className="page-scroll history-page"><div className="page-head"><div><span className="eyebrow">CARE HISTORY</span><h1>Medication history</h1><p className="muted">A clear record of each dose, patient, time and caregiver.</p></div></div><div className="card history-filters"><div className="section-heading"><div><h3>Filter history</h3><p className="muted">Choose one or more patients, medicines or dates.</p></div><Clock3/></div><label className="field"><span className="field-label">Patients</span><div className="chips">{patients.map(p=><button type="button" className={selected.includes(p.id)?"chip selected":"chip"} key={p.id} onClick={()=>setSelected(x=>x.includes(p.id)?x.filter(id=>id!==p.id):[...x,p.id])}>{p.name||"Unnamed"}</button>)}</div></label><Field label="Medicine name"><input className="input" value={medicine} onChange={e=>setMedicine(e.target.value)} placeholder="Search medicine"/></Field><div className="history-filter-grid"><Field label="From date"><input className="input" type="date" value={from} max={to||undefined} onChange={e=>setFrom(e.target.value)}/></Field><Field label="To date"><input className="input" type="date" value={to} min={from||undefined} onChange={e=>setTo(e.target.value)}/></Field><Field label="Time of day"><select className="input" value={period} onChange={e=>setPeriod(e.target.value)}><option value="">Any time</option><option>Morning</option><option>Noon</option><option>Evening</option><option>Night</option></select></Field><button className="btn soft history-clear" onClick={()=>{setSelected(patient.id?[patient.id]:[]);setMedicine("");setFrom("");setTo("");setPeriod("")}}>Reset filters</button></div></div><div className="history-results-head"><div><h3>Dose records</h3><span className="muted">{rows.length} record{rows.length===1?"":"s"} found</span></div></div><div className="card history-table-wrap">{rows.length?<div className="history-table-scroll"><table className="history-data-table"><thead><tr><th>Patient</th><th>Medicine</th><th>Scheduled</th><th>Status</th><th>Action recorded by</th></tr></thead><tbody>{rows.map(r=><tr key={r.id}><td><div className="history-patient-cell"><span className="history-avatar">{(r.patientName||"?").split(" ").map(x=>x[0]).slice(0,2).join("")}</span><b>{r.patientName||"Unknown patient"}</b></div></td><td><div className="history-medication"><span className="dose-icon"><MedicineFormIcon form={r.form} size={17}/></span><div><b>{r.medicineName}</b><small>{r.form||"Medicine"}</small></div></div></td><td><b>{r.date}</b><small>{fmtTime(r.time)}</small></td><td><span className={r.status==="taken"?"history-status taken":r.status==="missed"||r.status==="skipped"?"history-status missed":"history-status pending"}>{r.status==="taken"?"Taken":r.status==="skipped"?"Skipped":r.status==="missed"?"Missed":r.status}</span></td><td>{r.actionedByName||"—"}</td></tr>)}</tbody></table></div>:<div className="history-empty"><div className="empty-icon"><Clock3/></div><b>No history records found</b><span className="muted">Try adjusting your filters or check back after scheduled doses.</span></div>}</div></div>}
+function RoleScreen({ onPick, onSkip }: { onPick: (r: string) => void; onSkip: () => void }) {
+  return (
+    <section className="setup-card">
+      <span className="eyebrow">WELCOME TO HEALTH COMPANION</span>
+      <h2>Who are you setting this up for?</h2>
+      <p className="muted lead">
+        Choose the setup that fits. You can manage the plan from one place.
+      </p>
+      <div className="role-grid">
+        <RoleCard
+          icon={<Users />}
+          title="I'm a caregiver"
+          text="Manage medicines for a parent, patient or someone you look after."
+          accent="orange"
+          onClick={() => onPick("caregiver")}
+        />
+        <RoleCard
+          icon={<User />}
+          title="For myself"
+          text="Track your own medicines, reminders and daily doses."
+          accent="mint"
+          onClick={() => onPick("self")}
+        />
+      </div>
+      <button className="btn soft full" onClick={onSkip}>
+        Skip for now — I’ll add a patient later
+      </button>
+    </section>
+  );
+}
 
-function FamilyManagement({family,notifications,onChange}:{family:Family[];notifications:Notification[];onChange:()=>Promise<void>}){const[q,setQ]=useState(""),[results,setResults]=useState<any[]>([]),[name,setName]=useState(""),[busy,setBusy]=useState(false),[invited,setInvited]=useState<string[]>([]),[message,setMessage]=useState("");const active=family[0];const search=async(value=q)=>{const term=value.trim();if(term.length<2){setResults([]);return}try{setResults(await api.familySearch(term))}catch(e){setMessage(err(e))}};const create=async()=>{if(!name.trim())return setMessage("Enter a family name.");try{setBusy(true);await api.createFamily(name.trim());setName("");await onChange();setMessage("Family created.")}catch(e){setMessage(err(e))}finally{setBusy(false)}};const invite=async(id:string)=>{try{const response=await api.inviteFamilyMember(id);setInvited(x=>x.includes(id)?x:[...x,id]);const invitee=response?.invitee;if(invitee)setResults(x=>x.map(r=>r.id===id?{...r,...invitee}:r));await onChange();setMessage("Invitation sent. Waiting for their consent.")}catch(e){setMessage(err(e))}};const respond=async(n:Notification,accept:boolean)=>{try{const d=JSON.parse(n.dataJson||"{}");if(d.inviteId)await api.respondFamilyInvite(d.inviteId,accept);await api.readNotification(n.id);await onChange();setMessage(accept?"Family invitation accepted.":"Family invitation rejected.")}catch(e){setMessage(err(e))}};const pendingCount=active?.pending?.length||0;const unreadInvites=notifications.filter(n=>n.type==="family_invite"&&!n.isRead);return <div className="card family-card"><div className="section-heading family-heading"><div><span className="eyebrow">FAMILY CARE</span><h3>Family Management</h3><p className="muted">Invite trusted users and share care access only after consent.</p></div><Users size={22}/></div>{!active?<div className="family-create"><Field label="Family name"><input className="input" value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Sharma Family"/></Field><button className="btn primary" disabled={busy} onClick={create}><Plus size={16}/>Create family</button></div>:<><div className="family-name"><div><b>{active.name}</b><span className="muted">{active.members.length} approved member{active.members.length!==1?"s":""}</span></div>{pendingCount>0&&<span className="status-pending">{pendingCount} pending</span>}</div><div className="family-search"><Field label="Find a user by name or email"><input className="input" value={q} onChange={e=>{setQ(e.target.value);search(e.target.value)}} onKeyDown={e=>e.key==="Enter"&&search()} placeholder="Search registered users"/></Field><button className="btn soft family-search-btn" onClick={()=>search()}>Search</button></div>{results.length>0&&<div className="family-results">{results.map(r=>{const wasInvited=invited.includes(r.id);return <div className="family-result" key={r.id}><div className="avatar">{r.profileImageUrl?<img src={r.profileImageUrl} alt="" />:r.displayName.split(" ").map((x:string)=>x[0]).slice(0,2).join("")}</div><div><b>{r.displayName}</b><span>{r.email}</span></div><button className="btn primary" disabled={wasInvited} onClick={()=>invite(r.id)}>{wasInvited?"Invited":"Add"}</button></div>})}</div>}{message&&<div className="family-message">{message}</div>}<div className="family-members"><div className="family-subhead"><h4>Family members</h4>{pendingCount>0&&<span className="muted">{pendingCount} awaiting consent</span>}</div>{active.members.map(m=><div className="family-member" key={m.userId}><div><b>{m.displayName}</b><span>{m.email}</span></div><span className="status-success">Approved</span></div>)}{active.pending.map(p=><div className="family-member" key={p.id}><div className="family-member-person">{p.inviteeProfileImageUrl?<img className="small-avatar" src={p.inviteeProfileImageUrl} alt="" />:<span className="avatar small-avatar">{(p.inviteeDisplayName||"?").split(" ").map(x=>x[0]).slice(0,2).join("")}</span>}<div><b>{p.inviteeDisplayName||"User"}</b><span>{p.inviteeEmail||"Invitation sent"}</span></div></div><span className="status-pending">Pending consent</span></div>)}</div></>}{unreadInvites.length>0&&<div className="family-notifications"><div className="family-subhead"><h4>Family requests</h4><span className="status-pending">{unreadInvites.length} new</span></div>{unreadInvites.map(n=><div className="family-request" key={n.id}><Bell size={18}/><div><b>{n.title}</b><p>{n.message}</p><div className="dose-actions"><button onClick={()=>respond(n,false)}>Reject</button><button className="take" onClick={()=>respond(n,true)}><Check size={14}/>Accept</button></div></div></div>)}</div>}</div>}
-function MedicineWizard({initial,onClose,onSave}:{initial:Medicine|Omit<Medicine,"id">;onClose:()=>void;onSave:(m:Omit<Medicine,"id">)=>Promise<void>}){const[m,setM]=useState<Omit<Medicine,"id">>({...initial} as Omit<Medicine,"id">),[step,setStep]=useState(0),[error,setError]=useState("");const set=(k:keyof Omit<Medicine,"id">,v:unknown)=>setM(x=>({...x,[k]:v}));const validate=()=>{if(!m.name.trim())return"Medicine name is required.";if(m.name.trim().length>100)return"Medicine name must be 100 characters or fewer.";if(!m.strength.trim())return"Enter the medicine strength.";if(!m.condition)return"Choose the condition this medicine is for.";if(step===1){if(!m.times.length)return"Add at least one dose time.";if(m.times.some(t=>!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(t)))return"Use valid dose times such as 08:00 or 20:00.";if(m.frequencyPattern==="specificDays"&&!m.specificDays.length)return"Choose at least one day.";if(m.frequencyPattern==="recurringCycle"&&(!Number.isInteger(m.cycleEvery)||m.cycleEvery<1))return"Enter a valid recurring cycle.";if(!m.startDate)return"Choose a start date."}if(step===2){if(!m.isRecurring&&m.supplyCount<1)return"Supply is required and must be at least 1.";if(m.isRecurring&&m.supplyCount<1)return"Supply count is required and must be at least 1.";if(m.isRecurring&&(!Number.isInteger(m.refillThreshold)||m.refillThreshold<0))return"Refill threshold cannot be negative."}return""};const next=()=>{const e=validate();if(e)return setError(e);setError("");setStep(step+1)};const save=async()=>{const e=validate();if(e)return setError(e);setError("");await onSave({...m,name:m.name.trim(),strength:m.strength.trim(),times:m.times.map(x=>x.trim()).filter(Boolean)})};return <div className="modal-backdrop"><div className="modal medicine-modal"><div className="modal-head"><div><span className="eyebrow">MEDICINE SETUP · {step+1}/3</span><h2>{step===0?"Medicine details":step===1?"Schedule":"Supply & reminders"}</h2></div><button className="icon-btn" onClick={onClose}><X/></button></div><div className="progress-steps"><i className={step>=0?"done":""}/><i className={step>=1?"done":""}/><i className={step>=2?"done":""}/></div>{step===0&&<div className="form-grid"><Field label="Medicine name"><input className="input" value={m.name} onChange={e=>set("name",e.target.value)} placeholder="e.g. Metformin"/></Field><Field label="Strength"><input className="input" value={m.strength} onChange={e=>set("strength",e.target.value)} placeholder="e.g. 500 mg"/></Field><Field label="Form"><select className="input" value={m.form} onChange={e=>set("form",e.target.value)}>{forms.map(x=><option key={x}>{x}</option>)}</select></Field><Field label="Condition"><select className="input" value={m.condition} onChange={e=>set("condition",e.target.value)}><option value="">Select condition</option>{conditions.map(x=><option key={x}>{x}</option>)}</select></Field></div>}{step===1&&<div className="form-grid"><Field label="Frequency"><select className="input" value={m.frequencyPattern} onChange={e=>set("frequencyPattern",e.target.value)}><option value="daily">Every day</option><option value="everyOtherDay">Every other day</option><option value="specificDays">Specific days</option><option value="recurringCycle">Recurring cycle</option></select></Field>{m.frequencyPattern==="specificDays"&&<div className="full-field"><label className="field-label">Days</label><div className="chips">{days.map(x=><button type="button" className={m.specificDays.includes(x)?"chip selected":"chip"} key={x} onClick={()=>set("specificDays",m.specificDays.includes(x)?m.specificDays.filter(v=>v!==x):[...m.specificDays,x])}>{x}</button>)}</div></div>}{m.frequencyPattern==="recurringCycle"&&<><Field label="Repeat every"><input className="input" type="number" min="1" value={m.cycleEvery} onChange={e=>set("cycleEvery",Number(e.target.value))}/></Field><Field label="Unit"><select className="input" value={m.cycleUnit} onChange={e=>set("cycleUnit",e.target.value)}><option value="days">Days</option><option value="weeks">Weeks</option><option value="months">Months</option></select></Field></>}<div className="full-field"><label className="field-label">Dose times</label><TimePicker times={m.times} onChange={times=>set("times",times)}/></div><Field label="Start date"><input className="input" type="date" min={today()} value={m.startDate} onChange={e=>set("startDate",e.target.value)}/></Field><label className="check-row"><input type="checkbox" checked={m.withFood} onChange={e=>set("withFood",e.target.checked)}/> Take with food</label></div>}{step===2&&<div className="form-grid"><label className="check-row full-field"><input type="checkbox" checked={m.isRecurring} onChange={e=>set("isRecurring",e.target.checked)}/> Recurring medicine</label><Field label="Supply count"><input className="input" type="number" min="1" step="1" value={m.supplyCount} onChange={e=>set("supplyCount",Number(e.target.value))}/></Field><Field label="Refill reminder threshold"><input className="input" disabled={!m.isRecurring} type="number" min="0" step="1" value={m.isRecurring?m.refillThreshold:0} onChange={e=>set("refillThreshold",Number(e.target.value))}/></Field><Field label="Liquid"><select className="input" value={m.liquid} onChange={e=>set("liquid",e.target.value)}><option>No liquid needed</option><option>Lukewarm water</option><option>Milk</option><option>Juice</option></select></Field><div className="review-box"><b>Ready to save?</b><span>{m.name} · {m.strength} · {m.times.map(fmtTime).join(", ")}</span></div></div>}{error&&<InlineError>{error}</InlineError>}<div className="modal-actions">{step>0&&<button className="btn soft" onClick={()=>{setError("");setStep(step-1)}}>Back</button>}{step<2?<button className="btn primary" onClick={next}>Continue<ChevronRight size={17}/></button>:<button className="btn primary" onClick={save}>Save medicine<Check size={17}/></button>}</div></div></div>}
+function PatientScreen({
+  patient,
+  role,
+  onBack,
+  onSave,
+}: {
+  patient: Patient;
+  role: string;
+  onBack: () => void;
+  onSave: (v: {
+    name: string;
+    dob: string;
+    conditions: string[];
+    notes: string;
+    relationship?: string;
+    mobile?: string;
+    doctor?: string;
+    medicalHistory?: string;
+    profileImageUrl?: string;
+    doctorPhotoUrl?: string;
+  }) => Promise<void>;
+}) {
+  const [p, setP] = useState({
+      ...patient,
+      conditions: patient.conditions || [],
+    }),
+    [error, setError] = useState("");
+  const isSelf = role === "self";
+  const submit = () => {
+    setError("");
+    if (!p.name.trim() || p.name.trim().length < 2)
+      return setError("Please enter a valid full name.");
+    if (p.name.trim().length > 100) return setError("Name must be 100 characters or fewer.");
+    if (!isSelf && !p.relationship)
+      return setError("Please choose your relationship to the patient.");
+    if (p.dob && p.dob > today()) return setError("Date of birth cannot be in the future.");
+    onSave({
+      name: p.name.trim(),
+      dob: p.dob || "",
+      conditions: p.conditions,
+      notes: p.notes.trim(),
+      relationship: p.relationship,
+      mobile: p.mobile || "",
+      doctor: p.doctor || "",
+      medicalHistory: p.medicalHistory || "",
+      profileImageUrl: p.profileImageUrl || "",
+      doctorPhotoUrl: p.doctorPhotoUrl || "",
+    });
+  };
+  return (
+    <section className="setup-card">
+      <button className="icon-btn back" onClick={onBack}>
+        <ArrowLeft />
+      </button>
+      <span className="eyebrow">STEP 1 · YOUR CARE PLAN</span>
+      <h2>{isSelf ? "A little about you" : "Tell us about your patient"}</h2>
+      <p className="muted lead">These details help TENDED label doses and reminders clearly.</p>
+      {!isSelf && (
+        <>
+          <label className="field-label">
+            Your relationship to the patient <em>required</em>
+          </label>
+          <div className="chips">
+            {relationships.map((r) => (
+              <button
+                type="button"
+                className={p.relationship === r ? "chip selected" : "chip"}
+                key={r}
+                onClick={() => setP({ ...p, relationship: r })}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      <div className="patient-photo-field">
+        <div className="avatar patient-avatar-large">
+          {p.profileImageUrl ? (
+            <img src={p.profileImageUrl} alt="Patient" />
+          ) : (
+            (p.name || "?")
+              .split(" ")
+              .map((x) => x[0])
+              .slice(0, 2)
+              .join("")
+          )}
+        </div>
+        <div className="photo-actions">
+          <label className="btn soft upload-btn">
+            <FileImage size={15} />
+            Gallery
+            <input
+              type="file"
+              accept=".jpg,.jpeg,.png,.heic,.heif,image/jpeg,image/png,image/heic,image/heif"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                if (f.size > 1024 * 1024) {
+                  setError("Patient image must be 1 MB or smaller.");
+                  return;
+                }
+                const ext = f.name.split(".").pop()?.toLowerCase() || "";
+                const mime =
+                  f.type ||
+                  (
+                    {
+                      jpg: "image/jpeg",
+                      jpeg: "image/jpeg",
+                      png: "image/png",
+                      heic: "image/heic",
+                      heif: "image/heif",
+                    } as Record<string, string>
+                  )[ext] ||
+                  "image/jpeg";
+                const r = new FileReader();
+                r.onload = () => {
+                  let data = String(r.result);
+                  if (!data.startsWith("data:image/")) data = data.replace(/^data:[^;,]*/, mime);
+                  setP({ ...p, profileImageUrl: data });
+                };
+                r.readAsDataURL(f);
+                e.currentTarget.value = "";
+              }}
+            />
+          </label>
+          <label className="btn soft upload-btn">
+            <Camera size={15} />
+            Camera
+            <input
+              type="file"
+              accept="image/*,.heic,.heif"
+              capture="environment"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                if (f.size > 1024 * 1024) {
+                  setError("Patient image must be 1 MB or smaller.");
+                  return;
+                }
+                const r = new FileReader();
+                r.onload = () => setP({ ...p, profileImageUrl: String(r.result) });
+                r.readAsDataURL(f);
+                e.currentTarget.value = "";
+              }}
+            />
+          </label>
+        </div>
+      </div>
+      <Field label={isSelf ? "Your full name" : "Patient's full name"}>
+        <input
+          className="input"
+          value={p.name}
+          onChange={(e) => setP({ ...p, name: e.target.value })}
+          placeholder="e.g. Grace Whitfield"
+        />
+      </Field>
+      <Field label="Date of birth">
+        <input
+          className="input"
+          type="date"
+          max={today()}
+          value={p.dob || ""}
+          onChange={(e) => setP({ ...p, dob: e.target.value })}
+        />
+      </Field>
+      <Field label="Mobile number">
+        <input
+          className="input"
+          value={p.mobile || ""}
+          onChange={(e) => setP({ ...p, mobile: e.target.value })}
+          placeholder="+91 98765 43210"
+        />
+      </Field>
+      <Field label="Doctor">
+        <input
+          className="input"
+          value={p.doctor || ""}
+          onChange={(e) => setP({ ...p, doctor: e.target.value })}
+          placeholder="Doctor name / clinic"
+        />
+      </Field>
+      <Field label="Medical history">
+        <textarea
+          className="input textarea"
+          maxLength={1000}
+          value={p.medicalHistory || ""}
+          onChange={(e) => setP({ ...p, medicalHistory: e.target.value })}
+          placeholder="Relevant history"
+        />
+      </Field>
+      <Field label="Doctor / prescriber photo">
+        <div className="doctor-photo-upload">
+          {p.doctorPhotoUrl && (
+            <img
+              className="doctor-photo-preview"
+              src={p.doctorPhotoUrl}
+              alt="Doctor or prescriber"
+            />
+          )}
+          <div className="photo-actions">
+            <label className="btn soft upload-btn">
+              <FileImage size={16} />
+              Gallery / computer
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (file.size > 1024 * 1024) return setError("Photo must be 1 MB or smaller.");
+                  const reader = new FileReader();
+                  reader.onload = () => setP({ ...p, doctorPhotoUrl: String(reader.result) });
+                  reader.readAsDataURL(file);
+                  e.currentTarget.value = "";
+                }}
+              />
+            </label>
+            <label className="btn soft upload-btn">
+              <Camera size={16} />
+              Use camera
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                hidden
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (file.size > 1024 * 1024) return setError("Photo must be 1 MB or smaller.");
+                  const reader = new FileReader();
+                  reader.onload = () => setP({ ...p, doctorPhotoUrl: String(reader.result) });
+                  reader.readAsDataURL(file);
+                  e.currentTarget.value = "";
+                }}
+              />
+            </label>
+            {p.doctorPhotoUrl && (
+              <button
+                type="button"
+                className="btn soft"
+                onClick={() => setP({ ...p, doctorPhotoUrl: "" })}
+              >
+                Remove photo
+              </button>
+            )}
+          </div>
+          <small className="field-hint">
+            Upload a prescription or doctor/prescriber photo. On mobile, Use camera opens the camera
+            when supported.
+          </small>
+        </div>
+      </Field>
+      <Field label="Main conditions or diagnosis">
+        <ConditionPicker
+          selected={p.conditions}
+          onChange={(conditions) => setP({ ...p, conditions })}
+        />
+      </Field>
+      <Field label="Notes for other caregivers <span>optional</span>">
+        <textarea
+          className="input textarea"
+          maxLength={500}
+          value={p.notes}
+          onChange={(e) => setP({ ...p, notes: e.target.value })}
+          placeholder="Allergies, doctor's contact, anything worth knowing"
+        />
+      </Field>
+      {error && <InlineError>{error}</InlineError>}
+      <button className="btn primary full" onClick={submit}>
+        Save and continue
+        <ChevronRight size={18} />
+      </button>
+    </section>
+  );
+}
 
-function TimePicker({times,onChange}:{times:string[];onChange:(times:string[])=>void}){const toParts=(value:string)=>{const[h,m]=value.split(":").map(Number);return{hour:h%12||12,minute:m,period:(h>=12?"PM":"AM") as "AM"|"PM"}};const first=toParts(times[0]||"08:00");const[hour,setHour]=useState(first.hour),[minute,setMinute]=useState(first.minute),[period,setPeriod]=useState<"AM"|"PM">(first.period);const addTime=()=>{let h=hour%12;if(period==="PM")h+=12;const value=`${String(h).padStart(2,"0")}:${String(minute).padStart(2,"0")}`;if(!times.includes(value))onChange([...times,value].sort())};const removeTime=(value:string)=>onChange(times.filter(t=>t!==value));return <div className="time-picker"><div className="time-picker-controls"><div className="time-select"><span>Hour</span><select value={hour} onChange={e=>setHour(Number(e.target.value))}>{Array.from({length:12},(_,i)=>i+1).map(v=><option key={v} value={v}>{v}</option>)}</select></div><span className="time-colon">:</span><div className="time-select"><span>Minute</span><select value={minute} onChange={e=>setMinute(Number(e.target.value))}>{Array.from({length:60},(_,i)=>i).map(v=><option key={v} value={v}>{String(v).padStart(2,"0")}</option>)}</select></div><div className="time-select period-select"><span>Period</span><select value={period} onChange={e=>setPeriod(e.target.value as "AM"|"PM")}><option value="AM">AM</option><option value="PM">PM</option></select></div><button type="button" className="btn soft time-add" onClick={addTime}><Plus size={16}/>Add time</button></div><div className="selected-times">{times.map(t=><span className="time-chip" key={t}><Clock3 size={14}/>{fmtTime(t)}<button type="button" onClick={()=>removeTime(t)} aria-label={`Remove ${fmtTime(t)}`}><X size={13}/></button></span>)}</div><small className="field-hint">Choose the hour, minute and AM/PM. Add each dose time separately.</small></div>}
+function ConditionPicker({
+  selected,
+  onChange,
+}: {
+  selected: string[];
+  onChange: (v: string[]) => void;
+}) {
+  const [q, setQ] = useState("");
+  const options = conditions
+    .filter((x) => x.toLowerCase().includes(q.toLowerCase()) && !selected.includes(x))
+    .slice(0, 6);
+  return (
+    <div className="condition-picker">
+      <div className="chips">
+        {selected.map((x) => (
+          <button
+            type="button"
+            className="chip selected"
+            key={x}
+            onClick={() => onChange(selected.filter((v) => v !== x))}
+          >
+            {x}
+            <X size={13} />
+          </button>
+        ))}
+      </div>
+      <input
+        className="input"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="Search a condition…"
+      />
+      {q && options.length > 0 && (
+        <div className="suggestions">
+          {options.map((x) => (
+            <button
+              type="button"
+              key={x}
+              onClick={() => {
+                onChange([...selected, x]);
+                setQ("");
+              }}
+            >
+              {x}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
-function GuideModal({onClose}:{onClose:()=>void}){return <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className="modal guide-modal"><div className="modal-head"><div><span className="eyebrow">QUICK GUIDE</span><h2>How to use TENDED</h2></div><button className="icon-btn" onClick={onClose}><X/></button></div><div className="guide-list"><GuideStep n="1" title="Add your care details" text="Tell TENDED who the plan is for and add relevant conditions."/><GuideStep n="2" title="Add each medicine" text="Enter the strength, form, schedule and supply count. You can edit it anytime."/><GuideStep n="3" title="Follow today's schedule" text="Use Take after you take a dose, or Skip when you intentionally miss one."/><GuideStep n="4" title="Check the calendar" text="Look ahead at upcoming doses and use refill reminders to stay prepared."/></div><div className="guide-note"><HeartPulse/><span>TENDED helps organize your medication routine. It does not replace advice from your doctor or pharmacist.</span></div><button className="btn primary full" onClick={onClose}>Got it</button></div></div>}
+function Hub({
+  user,
+  patient,
+  patients,
+  tab,
+  setTab,
+  grouped,
+  meds,
+  selectedDate,
+  setSelectedDate,
+  onDose,
+  onAdd,
+  onEdit,
+  onDelete,
+  onEditPatient,
+  onSavePatient,
+  onAddPatient,
+  onAddSelfPatient,
+  onAccountSave,
+  onPause,
+  family,
+  notifications,
+  onFamilyChange,
+  onPatientSelect,
+  onPatientView,
+  onPatientEdit,
+  onGuide,
+  onDeleteAccount,
+}: {
+  user: ApiUser;
+  patient: Patient;
+  patients: Patient[];
+  tab: string;
+  setTab: (v: string) => void;
+  grouped: { name: string; items: Dose[] }[];
+  meds: Medicine[];
+  selectedDate: string;
+  setSelectedDate: (v: string) => void;
+  onDose: (d: Dose, a: "taken" | "skip") => void;
+  onAdd: () => void;
+  onEdit: (m: Medicine) => void;
+  onDelete: (m: Medicine) => void;
+  onEditPatient: () => void;
+  onSavePatient: (v: any) => Promise<boolean>;
+  onAddPatient: () => void;
+  onAddSelfPatient: () => void;
+  onAccountSave: (u: ApiUser) => void;
+  onPause: (id: string, start: string) => Promise<void>;
+  family: Family[];
+  notifications: Notification[];
+  onFamilyChange: () => Promise<void>;
+  onPatientSelect: (p: Patient) => Promise<void>;
+  onPatientView: (p: Patient) => Promise<void>;
+  onPatientEdit: (p: Patient) => Promise<void>;
+  onGuide: () => void;
+  onDeleteAccount: () => Promise<void>;
+}) {
+  return (
+    <>
+      <div className="dashboard">
+        <aside className="sidebar">
+          <div className="side-intro">
+            <span className="eyebrow">YOUR CARE PLAN</span>
+            <h2>{patient.name || "My plan"}</h2>
+            <p className="muted">
+              {meds.length} medicine{meds.length !== 1 ? "s" : ""} ·{" "}
+              {grouped.reduce((n, g) => n + g.items.length, 0)} doses
+            </p>
+          </div>
+          <nav>
+            <SideTab
+              icon={<Home />}
+              label="Today"
+              active={tab === "today"}
+              onClick={() => setTab("today")}
+            />
+            <SideTab
+              icon={<CalendarDays />}
+              label="Calendar"
+              active={tab === "calendar"}
+              onClick={() => setTab("calendar")}
+            />
+            <SideTab
+              icon={<Pill />}
+              label="Medicines"
+              active={tab === "medicines"}
+              onClick={() => setTab("medicines")}
+            />
+            <SideTab
+              icon={<Clock3 />}
+              label="History"
+              active={tab === "history"}
+              onClick={() => setTab("history")}
+            />
+            <SideTab
+              icon={<User />}
+              label="Profile"
+              active={tab === "profile"}
+              onClick={() => setTab("profile")}
+            />
+          </nav>
+          <button className="guide-link" onClick={onGuide}>
+            <BookOpen size={18} />
+            How to use TENDED
+          </button>
+        </aside>
+        <div className="dashboard-main">
+          {["calendar", "medicines", "history", "patientDetails", "patientDetailsEdit"].includes(
+            tab,
+          ) && (
+            <PatientContextBar patient={patient} patients={patients} onSelect={onPatientSelect} />
+          )}{" "}
+          {tab === "today" && (
+            <Today
+              patient={patient}
+              patients={patients}
+              onPatientSelect={onPatientSelect}
+              grouped={grouped}
+              meds={meds}
+              onDose={onDose}
+              onAdd={onAdd}
+              onAddPatient={onAddPatient}
+              onGuide={onGuide}
+              onPatientInfo={() => setTab("patientDetails")}
+            />
+          )}{" "}
+          {tab === "calendar" && (
+            <Calendar
+              selectedDate={selectedDate}
+              setSelectedDate={setSelectedDate}
+              grouped={grouped}
+              meds={meds}
+              onPause={onPause}
+            />
+          )}{" "}
+          {tab === "medicines" && (
+            <Medicines meds={meds} onAdd={onAdd} onEdit={onEdit} onDelete={onDelete} />
+          )}{" "}
+          {tab === "history" && <History patients={patients} patient={patient} />}{" "}
+          {tab === "profile" && (
+            <Profile
+              user={user}
+              patients={patients}
+              setTab={setTab}
+              onPatientView={onPatientView}
+              onPatientEdit={onPatientEdit}
+              onAddPatient={onAddPatient}
+              onAddSelfPatient={onAddSelfPatient}
+              onGuide={onGuide}
+              onDeleteAccount={onDeleteAccount}
+            />
+          )}{" "}
+          {tab === "profileDetails" && (
+            <AccountDetails
+              user={user}
+              onBack={() => setTab("profile")}
+              onSave={(u) => {
+                onAccountSave(u);
+                setTab("profile");
+              }}
+              title="Edit profile details"
+            />
+          )}{" "}
+          {tab === "careDetails" && (
+            <AccountDetails
+              user={user}
+              onBack={() => setTab("profile")}
+              onSave={(u) => {
+                onAccountSave(u);
+                setTab("profile");
+              }}
+              title="Edit care giver details"
+            />
+          )}{" "}
+          {(tab === "patientDetails" || tab === "patientDetailsEdit") && (
+            <PatientDetails
+              patient={patient}
+              meds={meds}
+              startEditing={tab === "patientDetailsEdit"}
+              onBack={() => setTab("profile")}
+              onSave={onSavePatient}
+            />
+          )}{" "}
+          {tab === "family" && (
+            <div className="page-scroll">
+              <div className="page-head">
+                <div>
+                  <span className="eyebrow">SHARED CARE</span>
+                  <h1>Family management</h1>
+                  <p className="muted">Manage trusted people and consent.</p>
+                </div>
+                <button className="btn soft" onClick={() => setTab("profile")}>
+                  <ArrowLeft size={16} />
+                  Back to profile
+                </button>
+              </div>
+              <FamilyManagement
+                family={family}
+                notifications={notifications}
+                onChange={onFamilyChange}
+              />
+            </div>
+          )}{" "}
+          {tab === "notifications" && (
+            <div className="page-scroll">
+              <div className="page-head">
+                <div>
+                  <span className="eyebrow">REMINDERS</span>
+                  <h1>Notification settings</h1>
+                  <p className="muted">Control reminders and browser delivery.</p>
+                </div>
+                <button className="btn soft" onClick={() => setTab("profile")}>
+                  <ArrowLeft size={16} />
+                  Back to profile
+                </button>
+              </div>
+              <NotificationSettings />
+              <NotificationInbox notifications={notifications} />
+            </div>
+          )}
+        </div>
+      </div>
+      <nav className="mobile-tabs">
+        <Tab
+          icon={<Home />}
+          label="Today"
+          active={tab === "today"}
+          onClick={() => setTab("today")}
+        />
+        <Tab
+          icon={<CalendarDays />}
+          label="Calendar"
+          active={tab === "calendar"}
+          onClick={() => setTab("calendar")}
+        />
+        <Tab
+          icon={<Pill />}
+          label="Medicines"
+          active={tab === "medicines"}
+          onClick={() => setTab("medicines")}
+        />
+        <Tab
+          icon={<Clock3 />}
+          label="History"
+          active={tab === "history"}
+          onClick={() => setTab("history")}
+        />
+        <Tab
+          icon={<User />}
+          label="Profile"
+          active={tab === "profile"}
+          onClick={() => setTab("profile")}
+        />
+      </nav>
+    </>
+  );
+}
 
-function GuideStep({n,title,text}:{n:string;title:string;text:string}){return <div className="guide-step"><span>{n}</span><div><b>{title}</b><p className="muted">{text}</p></div></div>}
-function Field({label,children}:{label:string;children:ReactNode}){const plain=label.replace(/<[^>]*>/g,"");return <label className="field"><span className="field-label">{plain}</span>{children}</label>}
-function InlineError({children}:{children:ReactNode}){return <div className="inline-error"><AlertCircle size={17}/><span>{children}</span></div>}
-function RoleCard({icon,title,text,accent,onClick}:{icon:ReactNode;title:string;text:string;accent:string;onClick:()=>void}){return <button className="role-card" onClick={onClick}><span className={"role-icon "+accent}>{icon}</span><span><b>{title}</b><small>{text}</small></span><ChevronRight/></button>}
-function SideTab({icon,label,active,onClick}:{icon:ReactNode;label:string;active:boolean;onClick:()=>void}){return <button className={active?"side-tab active":"side-tab"} onClick={onClick}>{icon}<span>{label}</span></button>}
-function Tab({icon,label,active,onClick}:{icon:ReactNode;label:string;active:boolean;onClick:()=>void}){return <button className={active?"tab active":"tab"} onClick={onClick}>{icon}<span>{label}</span></button>}
-function Row({label,value}:{label:string;value:string}){return <div className="detail-row"><span className="muted">{label}</span><b>{value}</b></div>}
+function PatientContextBar({
+  patient,
+  patients,
+  onSelect,
+}: {
+  patient: Patient;
+  patients: Patient[];
+  onSelect: (p: Patient) => Promise<void>;
+}) {
+  return (
+    <div className="patient-context-bar">
+      <span className="patient-context-avatar">
+        {patient.profileImageUrl ? (
+          <img src={patient.profileImageUrl} alt="" />
+        ) : (
+          (patient.name || "?")
+            .split(" ")
+            .map((x) => x[0])
+            .slice(0, 2)
+            .join("")
+        )}
+      </span>
+      <div className="patient-context-copy">
+        <small>YOU ARE VIEWING</small>
+        <b>{patient.name || "Select a patient"}</b>
+      </div>
+      {patients.length > 1 && (
+        <label className="patient-context-select">
+          <span>Switch patient</span>
+          <select
+            aria-label="Switch patient"
+            value={patient.id}
+            onChange={(e) => {
+              const p = patients.find((x) => x.id === e.target.value);
+              if (p) void onSelect(p);
+            }}
+          >
+            {patients.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name || "Unnamed patient"}
+                {p.relationship === "self" ? " (Me)" : ""}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={16} />
+        </label>
+      )}
+    </div>
+  );
+}
 
-function err(e:unknown){return e instanceof Error?e.message:"Something went wrong. Please try again.";}
+function Today({
+  patient,
+  patients,
+  onPatientSelect,
+  grouped,
+  meds,
+  onDose,
+  onAdd,
+  onAddPatient,
+  onGuide,
+  onPatientInfo,
+}: {
+  patient: Patient;
+  patients: Patient[];
+  onPatientSelect: (p: Patient) => Promise<void>;
+  grouped: { name: string; items: Dose[] }[];
+  meds: Medicine[];
+  onDose: (d: Dose, a: "taken" | "skip") => void;
+  onAdd: () => void;
+  onAddPatient: () => void;
+  onGuide: () => void;
+  onPatientInfo: () => void;
+}) {
+  const first = patient.name.split(" ")[0] || "Your";
+  const total = grouped.reduce((n, g) => n + g.items.length, 0);
+  const taken = grouped.reduce((n, g) => n + g.items.filter((d) => d.status === "taken").length, 0);
+  const missed = grouped.reduce(
+    (n, g) => n + g.items.filter((d) => d.status === "skipped" || d.status === "missed").length,
+    0,
+  );
+  const decided = taken + missed;
+  const adherence = decided ? Math.round((taken / decided) * 100) : 0;
+  const remaining = Math.max(0, total - decided);
+  const h = new Date().getHours();
+  const greet = h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  const low = meds.filter((m) => m.supplyCount <= m.refillThreshold);
+  return (
+    <div className="page-scroll">
+      <div className="page-head">
+        <div>
+          <span className="eyebrow">{greet.toUpperCase()}</span>
+          <h1>{patient.name ? first + "'s doses today" : "Welcome to TENDED"}</h1>
+          <p className="muted">
+            {patient.name
+              ? "Select a family patient to manage their care plan."
+              : "Your home is ready. Add a patient when you are ready, or join an existing family."}
+          </p>
+        </div>
+        <button
+          className="circle-help"
+          onClick={onPatientInfo}
+          title="View patient information"
+          aria-label="View patient information"
+        >
+          <Info />
+        </button>
+      </div>
+      <div className="patient-switcher">
+        {patients.map((p) => (
+          <button
+            key={p.id}
+            className={p.id === patient.id ? "patient-pill active" : "patient-pill"}
+            onClick={() => onPatientSelect(p)}
+          >
+            <span className="patient-avatar">
+              {(p.name || "?")
+                .split(" ")
+                .map((x) => x[0])
+                .slice(0, 2)
+                .join("")}
+            </span>
+            <span>{p.name || "Unnamed patient"}</span>
+          </button>
+        ))}
+      </div>
+      <div className="progress-card">
+        <div>
+          <span className="muted">Today’s adherence (actioned doses)</span>
+          <strong>
+            {taken} taken · {missed} missed · {remaining} remaining
+          </strong>
+          <small className="muted">Skipped doses count as missed.</small>
+        </div>
+        <div className="progress-ring" style={{ "--progress": adherence } as React.CSSProperties}>
+          <span>{adherence}%</span>
+        </div>
+      </div>
+      {low.length > 0 && (
+        <div className="notice warning">
+          <AlertCircle />
+          <div>
+            <b>Refill reminder</b>
+            <p>
+              {low.map((m) => m.name).join(", ")} {low.length === 1 ? "is" : "are"} running low.
+            </p>
+          </div>
+        </div>
+      )}
+      <div className="section-heading">
+        <h3>Today's schedule</h3>
+        <span className="muted">
+          {total} dose{total !== 1 ? "s" : ""}
+        </span>
+      </div>
+      {grouped.map(
+        (g) =>
+          g.items.length > 0 && (
+            <div className="dose-group" key={g.name}>
+              <h4>{g.name}</h4>
+              <div className="card dose-card">
+                {g.items.map((d) => (
+                  <DoseRow d={d} key={d.id} onDose={onDose} />
+                ))}
+              </div>
+            </div>
+          ),
+      )}
+      {total === 0 && (
+        <div className="card empty-card">
+          <div className="empty-icon">
+            <Pill />
+          </div>
+          <b>
+            {!patient.id
+              ? "No patient added yet"
+              : meds.length
+                ? "Nothing scheduled for this day"
+                : "Start this patient's medication plan"}
+          </b>
+          <span className="muted">
+            {!patient.id
+              ? "Add a patient from Profile to begin managing medicines."
+              : meds.length
+                ? "Check another date or review the schedule."
+                : "Add the first medicine for this patient."}
+          </span>
+          <button className="btn accent" onClick={patient.id ? onAdd : onAddPatient}>
+            <Plus size={18} />
+            {patient.id ? "Add medicine" : "Add patient"}
+          </button>
+        </div>
+      )}
+      {total > 0 && (
+        <button className="btn soft full add-btn" onClick={onAdd}>
+          <Plus size={18} />
+          Add another medicine
+        </button>
+      )}
+      <div className="tip-card">
+        <HeartPulse />
+        <div>
+          <b>Family care, one shared record.</b>
+          <p>
+            Changes are tied to the selected patient so approved family members can coordinate care.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MedicineFormIcon({ form, size = 21 }: { form: string; size?: number }) {
+  switch (form.toLowerCase()) {
+    case "injection":
+      return <Syringe size={size} />;
+    case "drops":
+    case "syrup":
+      return <Droplets size={size} />;
+    case "inhaler":
+      return <Wind size={size} />;
+    case "powder":
+    case "other":
+      return <Package size={size} />;
+    default:
+      return <Pill size={size} />;
+  }
+}
+function DoseRow({ d, onDose }: { d: Dose; onDose: (d: Dose, a: "taken" | "skip") => void }) {
+  return (
+    <div className="dose-row">
+      <div
+        className={
+          d.status === "taken"
+            ? "dose-icon taken"
+            : d.status === "skipped"
+              ? "dose-icon skipped"
+              : "dose-icon"
+        }
+      >
+        <MedicineFormIcon form={d.form} size={21} />
+      </div>
+      <div className="dose-main">
+        <div className="dose-top">
+          <div>
+            <b>{d.medName}</b>
+            <span className="muted">
+              {d.strength}
+              {d.withFood ? " · with food" : ""}
+            </span>
+          </div>
+          <time>{fmtTime(d.time)}</time>
+        </div>
+        {d.status === "taken" ? (
+          <small className="status-success">
+            <Check size={14} />
+            Taken
+          </small>
+        ) : d.status === "skipped" ? (
+          <small className="status-danger">Skipped</small>
+        ) : (
+          <div className="dose-actions">
+            <button onClick={() => onDose(d, "skip")}>Skip</button>
+            <button className="take" onClick={() => onDose(d, "taken")}>
+              <Check size={15} />
+              Take
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Calendar({
+  selectedDate,
+  setSelectedDate,
+  grouped,
+  meds,
+  onPause,
+}: {
+  selectedDate: string;
+  setSelectedDate: (v: string) => void;
+  grouped: { name: string; items: Dose[] }[];
+  meds: Medicine[];
+  onPause: (id: string, start: string) => Promise<void>;
+}) {
+  const days = Array.from({ length: 21 }, (_, i) => addDays(today(), i - 7));
+  const total = grouped.reduce((n, g) => n + g.items.length, 0);
+  return (
+    <div className="page-scroll">
+      <div className="page-head">
+        <div>
+          <span className="eyebrow">PLAN AHEAD</span>
+          <h1>Medication calendar</h1>
+          <p className="muted">Choose a day to see scheduled doses.</p>
+        </div>
+        <label className="calendar-picker">
+          <CalendarDays />
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+          />
+        </label>
+      </div>
+      <div className="calendar-strip">
+        {days.map((d) => (
+          <button
+            key={d}
+            className={d === selectedDate ? "calendar-day active" : "calendar-day"}
+            onClick={() => setSelectedDate(d)}
+          >
+            <span>
+              {new Date(d + "T00:00:00").toLocaleDateString(undefined, {
+                weekday: "short",
+              })}
+            </span>
+            <b>{new Date(d + "T00:00:00").getDate()}</b>
+          </button>
+        ))}
+      </div>
+      <div className="pause-panel card">
+        <div className="pause-panel-copy">
+          <span className="pause-panel-icon">
+            <Clock3 size={19} />
+          </span>
+          <div>
+            <b>Pause a medicine</b>
+            <p className="muted">Pause future doses starting {dateLabel(selectedDate)}.</p>
+          </div>
+        </div>
+        <div className="pause-controls">
+          <select
+            className="input"
+            id="pause-med"
+            aria-label="Medicine to pause"
+            disabled={!meds.length}
+          >
+            <option value="">Choose medicine</option>
+            {meds.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+          <button
+            className="btn soft"
+            disabled={!meds.length}
+            onClick={() => {
+              const el = document.getElementById("pause-med") as HTMLSelectElement | null;
+              if (el && el.value) onPause(el.value, selectedDate);
+            }}
+          >
+            <Clock3 size={16} />
+            Pause from selected date
+          </button>
+        </div>
+      </div>
+      <div className="calendar-summary">
+        <div>
+          <span className="muted">{dateLabel(selectedDate)}</span>
+          <strong>
+            {total} scheduled dose{total !== 1 ? "s" : ""}
+          </strong>
+        </div>
+        <Clock3 />
+      </div>
+      {grouped.map(
+        (g) =>
+          g.items.length > 0 && (
+            <div className="dose-group" key={g.name}>
+              <h4>{g.name}</h4>
+              <div className="card dose-card">
+                {g.items.map((d) => (
+                  <div className="calendar-dose" key={d.id}>
+                    <div className="dose-icon">
+                      <MedicineFormIcon form={d.form} size={19} />
+                    </div>
+                    <div>
+                      <b>{d.medName}</b>
+                      <span className="muted">
+                        {d.strength} · {fmtTime(d.time)}
+                      </span>
+                    </div>
+                    <span
+                      className={
+                        d.status === "taken"
+                          ? "status-success"
+                          : d.status === "skipped"
+                            ? "status-danger"
+                            : "status-pending"
+                      }
+                    >
+                      {d.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ),
+      )}
+      {total === 0 && (
+        <div className="card empty-card compact">
+          <CalendarDays />
+          <b>No doses planned for this day</b>
+          <span className="muted">Try another date or add a medicine.</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Medicines({
+  meds,
+  onAdd,
+  onEdit,
+  onDelete,
+}: {
+  meds: Medicine[];
+  onAdd: () => void;
+  onEdit: (m: Medicine) => void;
+  onDelete: (m: Medicine) => void;
+}) {
+  return (
+    <div className="page-scroll">
+      <div className="page-head">
+        <div>
+          <span className="eyebrow">YOUR MEDICINES</span>
+          <h1>Medicine cabinet</h1>
+          <p className="muted">
+            {meds.length} active medicine{meds.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <div className="head-actions">
+          <button className="btn accent" onClick={onAdd}>
+            <Plus size={17} />
+            Add medicine
+          </button>
+        </div>
+      </div>
+      {!meds.length ? (
+        <div className="card empty-card">
+          <div className="empty-icon">
+            <Pill />
+          </div>
+          <b>Your medicine list is empty</b>
+          <span className="muted">Add a medicine to create a schedule and refill reminder.</span>
+          <button className="btn accent" onClick={onAdd}>
+            <Plus size={17} />
+            Add medicine
+          </button>
+        </div>
+      ) : (
+        <div className="medicine-grid">
+          {meds.map((m) => (
+            <div className="card med-card" key={m.id}>
+              <div className="med-top">
+                <div className="dose-icon">
+                  <MedicineFormIcon form={m.form} size={22} />
+                </div>
+                <div className="med-info">
+                  <b>{m.name}</b>
+                  <span>
+                    {m.strength || "Strength not specified"} · {m.form}
+                  </span>
+                  <span>{m.times.map(fmtTime).join(" · ")}</span>
+                  <small
+                    className={
+                      m.supplyCount <= m.refillThreshold ? "status-danger" : "status-success"
+                    }
+                  >
+                    {m.supplyCount} left
+                    {m.supplyCount <= m.refillThreshold ? " · refill soon" : ""}
+                  </small>
+                </div>
+              </div>
+              <div className="med-meta">
+                <span>
+                  {m.frequencyPattern === "daily"
+                    ? "Every day"
+                    : m.frequencyPattern === "everyOtherDay"
+                      ? "Every other day"
+                      : m.frequencyPattern === "specificDays"
+                        ? m.specificDays.join(", ")
+                        : `Every ${m.cycleEvery} ${m.cycleUnit}`}
+                </span>
+                {m.withFood && <span>With food</span>}
+              </div>
+              <div className="med-actions">
+                <button className="btn soft" onClick={() => onEdit(m)}>
+                  <Pencil size={15} />
+                  Edit
+                </button>
+                <button className="btn danger" onClick={() => onDelete(m)}>
+                  <Trash2 size={15} />
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Profile({
+  user,
+  patients,
+  setTab,
+  onPatientView,
+  onPatientEdit,
+  onAddPatient,
+  onAddSelfPatient,
+  onGuide,
+  onDeleteAccount,
+}: {
+  user: ApiUser;
+  patients: Patient[];
+  setTab: (v: string) => void;
+  onPatientView: (p: Patient) => Promise<void>;
+  onPatientEdit: (p: Patient) => Promise<void>;
+  onAddPatient: () => void;
+  onAddSelfPatient: () => void;
+  onGuide: () => void;
+  onDeleteAccount: () => Promise<void>;
+}) {
+  const initials = (user.displayName || "?")
+    .split(" ")
+    .map((x) => x[0])
+    .slice(0, 2)
+    .join("");
+  const caredFor = patients.filter((p) => p.relationship !== "self");
+  const ownPlans = patients.filter((p) => p.relationship === "self");
+  return (
+    <div className="page-scroll profile-page">
+      <div className="page-head">
+        <div>
+          <span className="eyebrow">YOUR ACCOUNT</span>
+          <h1>Your profile</h1>
+          <p className="muted">
+            Personal information, people you care for, and your own health details.
+          </p>
+        </div>
+      </div>
+      <section className="card profile-section">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">PERSONAL INFO</span>
+            <h3>Personal information</h3>
+            <p className="muted">Your account and caregiver details.</p>
+          </div>
+          <User />
+        </div>
+        <div className="profile-head">
+          {user.profileImageUrl ? (
+            <img className="avatar" src={user.profileImageUrl} alt="Profile" />
+          ) : (
+            <div className="avatar">{initials}</div>
+          )}
+          <div>
+            <b>{user.displayName}</b>
+            <span className="muted">{user.email}</span>
+            <span className="profile-role">Caregiver account</span>
+          </div>
+        </div>
+        <div className="profile-actions-grid">
+          <button className="profile-action" onClick={() => setTab("profileDetails")}>
+            <span className="profile-action-icon">
+              <User size={20} />
+            </span>
+            <span>
+              <b>Edit personal info</b>
+              <small>Update your name and profile photo</small>
+            </span>
+            <ChevronRight size={18} />
+          </button>
+          <button className="profile-action" onClick={() => setTab("careDetails")}>
+            <span className="profile-action-icon">
+              <HeartPulse size={20} />
+            </span>
+            <span>
+              <b>Caregiver details</b>
+              <small>Your details as the person providing care</small>
+            </span>
+            <ChevronRight size={18} />
+          </button>
+        </div>
+      </section>
+      <section className="profile-section">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">CAREGIVER</span>
+            <h3>People I care for</h3>
+            <p className="muted">Patient profiles you manage on behalf of someone else.</p>
+          </div>
+          <button className="btn accent" onClick={onAddPatient}>
+            <Plus size={16} />
+            Add patient
+          </button>
+        </div>
+        {caredFor.length ? (
+          <div className="patient-cards">
+            {caredFor.map((p) => (
+              <div className="patient-summary-row" key={p.id}>
+                <button className="patient-summary-card" onClick={() => onPatientView(p)}>
+                  <span className="avatar">
+                    {p.profileImageUrl ? (
+                      <img src={p.profileImageUrl} alt="" />
+                    ) : (
+                      (p.name || "?")
+                        .split(" ")
+                        .map((x) => x[0])
+                        .slice(0, 2)
+                        .join("")
+                    )}
+                  </span>
+                  <span className="patient-summary-copy">
+                    <b>{p.name || "Unnamed patient"}</b>
+                    <small>{p.relationship || "Patient"}</small>
+                  </span>
+                  <span className="patient-open-label">
+                    View details <ChevronRight size={15} />
+                  </span>
+                </button>
+                <button
+                  className="patient-edit-shortcut"
+                  title={"Edit " + (p.name || "patient")}
+                  aria-label={"Edit " + (p.name || "patient")}
+                  onClick={() => onPatientEdit(p)}
+                >
+                  <Pencil size={17} />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="card empty-card compact">
+            <Users size={25} />
+            <b>No one added yet</b>
+            <span className="muted">
+              Add a patient to manage their medicine schedule and history.
+            </span>
+          </div>
+        )}
+      </section>
+      <section className="profile-section">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">YOUR OWN CARE</span>
+            <h3>My health profile</h3>
+            <p className="muted">
+              Keep your own medical history separate from the people you care for.
+            </p>
+          </div>
+          <HeartPulse />
+        </div>
+        {ownPlans.length ? (
+          ownPlans.map((p) => (
+            <div className="patient-summary-row own-health-row" key={p.id}>
+              <button className="own-health-card card" onClick={() => onPatientView(p)}>
+                <span className="own-health-avatar">
+                  {p.profileImageUrl ? <img src={p.profileImageUrl} alt="" /> : <User size={22} />}
+                </span>
+                <span className="own-health-copy">
+                  <b>{p.name || user.displayName}</b>
+                  <small>
+                    {p.medicalHistory || "Add your medical history and doctor details."}
+                  </small>
+                  {p.doctorPhotoUrl && (
+                    <span className="doctor-photo-thumb">
+                      <img src={p.doctorPhotoUrl} alt="Doctor or prescriber" />
+                    </span>
+                  )}
+                </span>
+                <span className="patient-open-label">
+                  View details <ChevronRight size={15} />
+                </span>
+              </button>
+              <button
+                className="patient-edit-shortcut"
+                title={"Edit " + (p.name || "health profile")}
+                aria-label={"Edit " + (p.name || "health profile")}
+                onClick={() => onPatientEdit(p)}
+              >
+                <Pencil size={17} />
+              </button>
+            </div>
+          ))
+        ) : (
+          <div className="self-care-prompt">
+            <div>
+              <b>Do you manage your own medication too?</b>
+              <p className="muted">
+                Create a personal patient profile to store your medical history and prescriber
+                photo.
+              </p>
+            </div>
+            <button className="btn soft" onClick={onAddSelfPatient}>
+              <Plus size={16} />
+              Add my health profile
+            </button>
+          </div>
+        )}
+      </section>
+      <section className="card profile-section profile-tools">
+        <div className="profile-actions-grid">
+          <button className="profile-action" onClick={() => setTab("family")}>
+            <span className="profile-action-icon">
+              <Users size={20} />
+            </span>
+            <span>
+              <b>Family management</b>
+              <small>Members, invitations and consent</small>
+            </span>
+            <ChevronRight size={18} />
+          </button>
+          <button className="profile-action" onClick={() => setTab("notifications")}>
+            <span className="profile-action-icon">
+              <Bell size={20} />
+            </span>
+            <span>
+              <b>Notification settings</b>
+              <small>Reminders and browser notifications</small>
+            </span>
+            <ChevronRight size={18} />
+          </button>
+          <button className="profile-action" onClick={onGuide}>
+            <span className="profile-action-icon">
+              <BookOpen size={20} />
+            </span>
+            <span>
+              <b>How to use TENDED</b>
+              <small>Learn the basics</small>
+            </span>
+            <ChevronRight size={18} />
+          </button>
+        </div>
+      </section>
+      <section className="card delete-account-section">
+        <div className="delete-account-copy">
+          <span className="delete-account-icon">
+            <ShieldAlert size={20} />
+          </span>
+          <div>
+            <h3>Delete account</h3>
+            <p className="muted">
+              Deletion is allowed only when no doses are pending, or every patient you manage has
+              another approved family caregiver. When possible, care plans are transferred so
+              reminders can continue.
+            </p>
+          </div>
+        </div>
+        <button
+          className="btn danger"
+          onClick={() => {
+            if (confirm("Permanently delete your TENDED account? This cannot be undone."))
+              void onDeleteAccount();
+          }}
+        >
+          <Trash2 size={16} />
+          Delete my account
+        </button>
+      </section>
+    </div>
+  );
+}
+
+function AccountDetails({
+  user,
+  onBack,
+  onSave,
+  title,
+}: {
+  user: ApiUser;
+  onBack: () => void;
+  onSave: (u: ApiUser) => void;
+  title: string;
+}) {
+  const [displayName, setDisplayName] = useState(user.displayName),
+    [image, setImage] = useState(user.profileImageUrl || ""),
+    [msg, setMsg] = useState(""),
+    [busy, setBusy] = useState(false);
+  const save = async () => {
+    if (!displayName.trim() || displayName.trim().length > 80) {
+      setMsg("Enter a name of 1–80 characters.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const u = await api.updateProfile({
+        displayName: displayName.trim(),
+        profileImageUrl: image,
+      });
+      onSave(u);
+      setMsg("Details saved.");
+    } catch (e) {
+      setMsg(err(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const initials = (displayName || "?")
+    .split(" ")
+    .map((x) => x[0])
+    .slice(0, 2)
+    .join("");
+  return (
+    <div className="page-scroll">
+      <div className="page-head">
+        <div>
+          <span className="eyebrow">YOUR ACCOUNT</span>
+          <h1>{title}</h1>
+          <p className="muted">
+            These are your details as the signed-in caregiver, not the patient’s details.
+          </p>
+        </div>
+        <button className="btn soft" onClick={onBack}>
+          <ArrowLeft size={16} />
+          Back
+        </button>
+      </div>
+      <div className="card account-edit-card">
+        <div className="profile-head">
+          {image ? (
+            <img className="avatar" src={image} alt="Profile" />
+          ) : (
+            <div className="avatar">{initials}</div>
+          )}
+          <div>
+            <b>{displayName || user.displayName}</b>
+            <span className="muted">{user.email}</span>
+          </div>
+        </div>
+        <Field label="Your display name">
+          <input
+            className="input"
+            maxLength={80}
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Your name"
+          />
+        </Field>
+        <Field label="Profile photo">
+          <div className="photo-actions">
+            <label className="btn soft upload-btn">
+              <FileImage size={15} />
+              Gallery
+              <input
+                type="file"
+                accept=".jpg,.jpeg,.png,.heic,.heif,image/jpeg,image/png,image/heic,image/heif"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  if (f.size > 1024 * 1024) {
+                    setMsg("Image must be 1 MB or smaller.");
+                    return;
+                  }
+                  const ext = f.name.split(".").pop()?.toLowerCase() || "";
+                  const mime =
+                    f.type ||
+                    (
+                      {
+                        jpg: "image/jpeg",
+                        jpeg: "image/jpeg",
+                        png: "image/png",
+                        heic: "image/heic",
+                        heif: "image/heif",
+                      } as Record<string, string>
+                    )[ext] ||
+                    "image/jpeg";
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    let data = String(reader.result);
+                    if (!data.startsWith("data:image/")) data = data.replace(/^data:[^;,]*/, mime);
+                    setImage(data);
+                  };
+                  reader.readAsDataURL(f);
+                  e.currentTarget.value = "";
+                }}
+              />
+            </label>
+            <label className="btn soft upload-btn">
+              <Camera size={15} />
+              Camera
+              <input
+                type="file"
+                accept="image/*,.heic,.heif"
+                capture="environment"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  if (f.size > 1024 * 1024) {
+                    setMsg("Image must be 1 MB or smaller.");
+                    return;
+                  }
+                  const reader = new FileReader();
+                  reader.onload = () => setImage(String(reader.result));
+                  reader.readAsDataURL(f);
+                  e.currentTarget.value = "";
+                }}
+              />
+            </label>
+            <button className="btn soft" onClick={() => setImage("")}>
+              Remove photo
+            </button>
+          </div>
+        </Field>
+        <Field label="Email address">
+          <input className="input" value={user.email} readOnly />
+          <small className="field-hint">Email address cannot be changed here.</small>
+        </Field>
+        {msg && (
+          <p className="notification-settings-message" role="status">
+            {msg}
+          </p>
+        )}
+        <div className="modal-actions">
+          <button className="btn soft" onClick={onBack}>
+            Cancel
+          </button>
+          <button className="btn primary" disabled={busy} onClick={save}>
+            {busy ? "Saving…" : "Save details"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PatientDetails({
+  patient,
+  meds,
+  startEditing = false,
+  onBack,
+  onSave,
+}: {
+  patient: Patient;
+  meds: Medicine[];
+  startEditing?: boolean;
+  onBack: () => void;
+  onSave: (v: any) => Promise<boolean>;
+}) {
+  const [activeSection, setActiveSection] = useState<
+      "personal" | "history" | "attachments" | "medicines"
+    >("personal"),
+    [editing, setEditing] = useState(startEditing),
+    [draft, setDraft] = useState<Patient>({
+      ...patient,
+      conditions: patient.conditions || [],
+      attachments: patient.attachments || [],
+    }),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false);
+  useEffect(() => {
+    setDraft({
+      ...patient,
+      conditions: patient.conditions || [],
+      attachments: patient.attachments || [],
+    });
+    setEditing(startEditing);
+    setError("");
+  }, [patient.id, patient.name, patient.attachments, startEditing]);
+  const set = (key: keyof Patient, value: any) => setDraft((v) => ({ ...v, [key]: value }));
+  const initials = (draft.name || "?")
+    .split(" ")
+    .map((x) => x[0])
+    .slice(0, 2)
+    .join("");
+  const readFile = (file: File, callback: (dataUrl: string) => void, maxBytes: number) => {
+    if (file.size > maxBytes) {
+      setError(
+        maxBytes <= 1024 * 1024
+          ? "Profile photos must be 1 MB or smaller."
+          : "Each attachment must be 10 MB or smaller.",
+      );
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => callback(String(reader.result));
+    reader.onerror = () => setError("Unable to read this file. Please try another one.");
+    reader.readAsDataURL(file);
+  };
+  const imageFile = (file: File, field: "profileImageUrl" | "doctorPhotoUrl") => {
+    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    const mime =
+      file.type ||
+      (
+        {
+          jpg: "image/jpeg",
+          jpeg: "image/jpeg",
+          png: "image/png",
+          heic: "image/heic",
+          heif: "image/heif",
+        } as Record<string, string>
+      )[ext] ||
+      "";
+    if (!["image/jpeg", "image/png", "image/heic", "image/heif", "image/webp"].includes(mime)) {
+      setError("Choose a JPEG, PNG or iPhone HEIC/HEIF image.");
+      return;
+    }
+    readFile(
+      file,
+      (v) => set(field, v.startsWith("data:image/") ? v : v.replace(/^data:[^;,]*/, mime)),
+      1024 * 1024,
+    );
+  };
+  const addFiles = (files: FileList | null) => {
+    if (!files) return;
+    setError("");
+    const accepted: PatientAttachment[] = [];
+    const picked = Array.from(files);
+    let remaining = picked.length;
+    picked.forEach((file) => {
+      const ext = file.name.split(".").pop()?.toLowerCase() || "";
+      const mime =
+        file.type ||
+        (
+          {
+            jpg: "image/jpeg",
+            jpeg: "image/jpeg",
+            png: "image/png",
+            heic: "image/heic",
+            heif: "image/heif",
+            pdf: "application/pdf",
+            xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          } as Record<string, string>
+        )[ext] ||
+        "";
+      const allowed = [
+        "image/jpeg",
+        "image/png",
+        "image/heic",
+        "image/heif",
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      ];
+      if (!allowed.includes(mime)) {
+        setError(file.name + ": unsupported file type.");
+        remaining--;
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        setError(file.name + ": attachment must be 10 MB or smaller.");
+        remaining--;
+        return;
+      }
+      readFile(
+        file,
+        (dataUrl) => {
+          accepted.push({ name: file.name, mimeType: mime, dataUrl });
+          remaining--;
+          if (remaining === 0)
+            setDraft((v) => ({
+              ...v,
+              attachments: [...(v.attachments || []), ...accepted],
+            }));
+        },
+        10 * 1024 * 1024,
+      );
+    });
+  };
+  const submit = async () => {
+    setError("");
+    if (!draft.name.trim() || draft.name.trim().length < 2) {
+      setError("Enter a valid patient name.");
+      return;
+    }
+    if (draft.dob && draft.dob > today()) {
+      setError("Date of birth cannot be in the future.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const saved = await onSave({
+        name: draft.name.trim(),
+        dob: draft.dob || "",
+        conditions: draft.conditions || [],
+        notes: draft.notes || "",
+        relationship: draft.relationship || "",
+        mobile: draft.mobile || "",
+        doctor: draft.doctor || "",
+        medicalHistory: draft.medicalHistory || "",
+        profileImageUrl: draft.profileImageUrl || "",
+        doctorPhotoUrl: draft.doctorPhotoUrl || "",
+        attachments: draft.attachments || [],
+      });
+      if (saved) setEditing(false);
+      else setError("Changes could not be saved. Please check the error message and try again.");
+    } catch (e) {
+      setError(err(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const historyNodes = [
+    ...(draft.conditions || []),
+    ...(draft.medicalHistory || "")
+      .split(/[\n;•]+/)
+      .map((v) => v.trim())
+      .filter(Boolean),
+  ].filter((v, i, a) => a.indexOf(v) === i);
+  const schedule = (m: Medicine) =>
+    m.times.map(fmtTime).join(" · ") +
+    " · " +
+    (m.frequencyPattern === "daily"
+      ? "Daily"
+      : m.frequencyPattern === "everyOtherDay"
+        ? "Every other day"
+        : m.frequencyPattern === "specificDays"
+          ? (m.specificDays || []).join(", ")
+          : "Every " + m.cycleEvery + " " + m.cycleUnit);
+  const ongoingMeds = meds.filter((m) => {
+    if (!m.isRecurring || m.startDate > today()) return false;
+    if (
+      m.pauseStartDate &&
+      m.pauseStartDate <= today() &&
+      (!m.pauseEndDate || m.pauseEndDate >= today())
+    )
+      return false;
+    if (m.durationType !== "ongoing") {
+      const duration =
+        m.durationUnit === "weeks"
+          ? m.durationValue * 7
+          : m.durationUnit === "months"
+            ? m.durationValue * 30
+            : m.durationValue;
+      if (addDays(m.startDate, duration) <= today()) return false;
+    }
+    return true;
+  });
+  const formatSize = (n?: number) =>
+    n == null
+      ? ""
+      : n < 1024 * 1024
+        ? Math.max(1, Math.round(n / 1024)) + " KB"
+        : (n / 1024 / 1024).toFixed(1) + " MB";
+  return (
+    <div className="page-scroll patient-profile-view">
+      <div className="page-head">
+        <div>
+          <span className="eyebrow">PATIENT INFORMATION</span>
+          <h1>{draft.name || "Patient details"}</h1>
+          <p className="muted">
+            {editing
+              ? "Update this patient’s information and care documents."
+              : "Read-only overview of personal details, medical history and current medicines."}
+          </p>
+        </div>
+        <div className="head-actions">
+          <button className="btn soft" onClick={onBack}>
+            <ArrowLeft size={16} />
+            Back
+          </button>
+          {!editing && (
+            <button className="btn primary" onClick={() => setEditing(true)}>
+              <Pencil size={16} />
+              Edit patient
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="patient-info-workspace">
+        <nav className="patient-info-nav" aria-label="Patient information sections">
+          <span className="patient-info-nav-label">PATIENT SECTIONS</span>
+          <button
+            type="button"
+            className={activeSection === "personal" ? "active" : ""}
+            onClick={() => setActiveSection("personal")}
+          >
+            <User size={17} />
+            <span>Personal details</span>
+          </button>
+          <button
+            type="button"
+            className={activeSection === "history" ? "active" : ""}
+            onClick={() => setActiveSection("history")}
+          >
+            <Activity size={17} />
+            <span>Medical history</span>
+          </button>
+          <button
+            type="button"
+            className={activeSection === "attachments" ? "active" : ""}
+            onClick={() => setActiveSection("attachments")}
+          >
+            <Paperclip size={17} />
+            <span>Attachments</span>
+          </button>
+          <button
+            type="button"
+            className={activeSection === "medicines" ? "active" : ""}
+            onClick={() => setActiveSection("medicines")}
+          >
+            <Pill size={17} />
+            <span>Ongoing medicines</span>
+            <small>{ongoingMeds.length}</small>
+          </button>
+        </nav>
+        <div className="patient-info-content">
+          {activeSection === "personal" && (
+            <section className="card patient-info-section">
+              <div className="patient-info-section-head">
+                <span className="patient-info-section-icon">
+                  <User size={20} />
+                </span>
+                <div>
+                  <h3>Personal details</h3>
+                  <p className="muted">Basic information and caregiver relationship</p>
+                </div>
+              </div>
+              <div className="patient-info-identity">
+                <div className="patient-profile-photo">
+                  {draft.profileImageUrl ? (
+                    <img src={draft.profileImageUrl} alt={draft.name} />
+                  ) : (
+                    <span>{initials}</span>
+                  )}
+                </div>
+                <div>
+                  <b>{draft.name || "Unnamed patient"}</b>
+                  <small>
+                    {draft.relationship === "self"
+                      ? "Own health profile"
+                      : "Caregiver relationship · " + (draft.relationship || "Not specified")}
+                  </small>
+                  {editing && (
+                    <div className="photo-actions">
+                      <label className="btn soft upload-btn">
+                        <FileImage size={15} />
+                        Gallery
+                        <input
+                          type="file"
+                          accept=".jpg,.jpeg,.png,.heic,.heif,image/jpeg,image/png,image/heic,image/heif"
+                          hidden
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) imageFile(f, "profileImageUrl");
+                            e.currentTarget.value = "";
+                          }}
+                        />
+                      </label>
+                      <label className="btn soft upload-btn">
+                        <Camera size={15} />
+                        Camera
+                        <input
+                          type="file"
+                          accept="image/*,.heic,.heif"
+                          capture="environment"
+                          hidden
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) imageFile(f, "profileImageUrl");
+                            e.currentTarget.value = "";
+                          }}
+                        />
+                      </label>
+                      {draft.profileImageUrl && (
+                        <button className="btn soft" onClick={() => set("profileImageUrl", "")}>
+                          Remove photo
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              {editing ? (
+                <div className="patient-edit-grid">
+                  <Field label="Full name">
+                    <input
+                      className="input"
+                      value={draft.name || ""}
+                      maxLength={100}
+                      onChange={(e) => set("name", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Date of birth">
+                    <input
+                      className="input"
+                      type="date"
+                      max={today()}
+                      value={draft.dob || ""}
+                      onChange={(e) => set("dob", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Mobile number">
+                    <input
+                      className="input"
+                      value={draft.mobile || ""}
+                      onChange={(e) => set("mobile", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Relationship to patient">
+                    <select
+                      className="input"
+                      value={draft.relationship || ""}
+                      onChange={(e) => set("relationship", e.target.value)}
+                    >
+                      <option value="">Choose relationship</option>
+                      <option value="self">Self</option>
+                      {relationships.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Doctor / clinic">
+                    <input
+                      className="input"
+                      value={draft.doctor || ""}
+                      onChange={(e) => set("doctor", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Conditions or diagnosis">
+                    <ConditionPicker
+                      selected={draft.conditions || []}
+                      onChange={(v) => set("conditions", v)}
+                    />
+                  </Field>
+                  <Field label="Medical history">
+                    <textarea
+                      className="input textarea"
+                      value={draft.medicalHistory || ""}
+                      maxLength={4000}
+                      onChange={(e) => set("medicalHistory", e.target.value)}
+                      placeholder="Add a condition, event or important medical note on each line."
+                    />
+                  </Field>
+                  <Field label="Care notes">
+                    <textarea
+                      className="input textarea"
+                      value={draft.notes || ""}
+                      maxLength={2000}
+                      onChange={(e) => set("notes", e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Doctor / prescriber photo">
+                    <div className="photo-actions">
+                      <label className="btn soft upload-btn">
+                        <FileImage size={15} />
+                        Gallery
+                        <input
+                          type="file"
+                          accept="image/*,.heic,.heif"
+                          hidden
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) imageFile(f, "doctorPhotoUrl");
+                            e.currentTarget.value = "";
+                          }}
+                        />
+                      </label>
+                      <label className="btn soft upload-btn">
+                        <Camera size={15} />
+                        Camera
+                        <input
+                          type="file"
+                          accept="image/*,.heic,.heif"
+                          capture="environment"
+                          hidden
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) imageFile(f, "doctorPhotoUrl");
+                            e.currentTarget.value = "";
+                          }}
+                        />
+                      </label>
+                      {draft.doctorPhotoUrl && (
+                        <button className="btn soft" onClick={() => set("doctorPhotoUrl", "")}>
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </Field>
+                </div>
+              ) : (
+                <div className="patient-details-grid">
+                  <Row label="Date of birth" value={draft.dob || "Not set"} />
+                  <Row label="Mobile" value={draft.mobile || "Not set"} />
+                  <Row
+                    label="Relationship"
+                    value={draft.relationship === "self" ? "Self" : draft.relationship || "Not set"}
+                  />
+                  <Row label="Doctor / clinic" value={draft.doctor || "Not set"} />
+                  <Row
+                    label="Conditions"
+                    value={(draft.conditions || []).join(", ") || "Not set"}
+                  />
+                  <Row label="Care notes" value={draft.notes || "No notes added"} />
+                </div>
+              )}
+            </section>
+          )}
+          {activeSection === "history" && (
+            <section className="card patient-info-section">
+              <div className="patient-info-section-head">
+                <span className="patient-info-section-icon">
+                  <Activity size={20} />
+                </span>
+                <div>
+                  <h3>Medical history</h3>
+                  <p className="muted">A visual timeline of recorded conditions and history</p>
+                </div>
+              </div>
+              {historyNodes.length ? (
+                <div className="medical-history-flow">
+                  {historyNodes.map((node, i) => (
+                    <div
+                      className="medical-history-node"
+                      key={node}
+                      style={
+                        {
+                          animationDelay: i * 100 + "ms",
+                        } as React.CSSProperties
+                      }
+                    >
+                      <span className="medical-history-node-dot">{i + 1}</span>
+                      <div>
+                        <b>{node}</b>
+                        <small>
+                          {(draft.conditions || []).includes(node)
+                            ? "Recorded condition"
+                            : "Medical history note"}
+                        </small>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="patient-section-empty">
+                  <Activity size={22} />
+                  <b>No medical history added</b>
+                  <span>Add conditions or history notes in edit mode to build this timeline.</span>
+                </div>
+              )}
+              {!editing && draft.doctorPhotoUrl && (
+                <div className="doctor-photo-detail">
+                  <b>Doctor / prescriber photo</b>
+                  <img src={draft.doctorPhotoUrl} alt="Doctor or prescriber" />
+                </div>
+              )}
+            </section>
+          )}
+          {activeSection === "attachments" && (
+            <section className="card patient-info-section">
+              <div className="patient-info-section-head">
+                <span className="patient-info-section-icon">
+                  <Paperclip size={20} />
+                </span>
+                <div>
+                  <h3>Attachments</h3>
+                  <p className="muted">Medical documents, images, PDFs and spreadsheets</p>
+                </div>
+                {editing && (
+                  <div className="attachment-add-actions">
+                    <label className="btn soft upload-btn">
+                      <FileImage size={15} />
+                      Gallery / files
+                      <input
+                        type="file"
+                        multiple
+                        accept=".jpg,.jpeg,.png,.heic,.heif,.pdf,.xlsx,image/jpeg,image/png,image/heic,image/heif,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        hidden
+                        onChange={(e) => {
+                          addFiles(e.currentTarget.files);
+                          e.currentTarget.value = "";
+                        }}
+                      />
+                    </label>
+                    <label className="btn soft upload-btn">
+                      <Camera size={15} />
+                      Camera
+                      <input
+                        type="file"
+                        accept="image/*,.heic,.heif"
+                        capture="environment"
+                        hidden
+                        onChange={(e) => {
+                          addFiles(e.currentTarget.files);
+                          e.currentTarget.value = "";
+                        }}
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
+              {(draft.attachments || []).length ? (
+                <div className="patient-attachments-list">
+                  {(draft.attachments || []).map((a, i) => (
+                    <div className="patient-attachment-row" key={a.key || a.dataUrl || a.name + i}>
+                      <span className="attachment-file-icon">
+                        {a.mimeType.startsWith("image/") ? (
+                          <FileImage size={20} />
+                        ) : (
+                          <FileText size={20} />
+                        )}
+                      </span>
+                      <div className="attachment-file-copy">
+                        <b>{a.name}</b>
+                        <small>
+                          {a.mimeType.split("/").pop()?.toUpperCase()}{" "}
+                          {a.size ? "· " + formatSize(a.size) : ""}
+                        </small>
+                      </div>
+                      {a.url && (
+                        <a
+                          className="btn soft attachment-download"
+                          href={a.url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <Download size={15} />
+                          Open
+                        </a>
+                      )}
+                      {editing && (
+                        <button
+                          className="icon-btn"
+                          aria-label={"Remove " + a.name}
+                          onClick={() =>
+                            set(
+                              "attachments",
+                              (draft.attachments || []).filter((_, idx) => idx !== i),
+                            )
+                          }
+                        >
+                          <X size={17} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="patient-section-empty">
+                  <Paperclip size={22} />
+                  <b>No attachments yet</b>
+                  <span>Upload a prescription, report, medical image or XLSX file.</span>
+                </div>
+              )}
+              <p className="field-hint">
+                Supported: JPG/JPEG, PNG, iPhone HEIC/HEIF, PDF and XLSX. Maximum 10 MB per
+                attachment.
+              </p>
+            </section>
+          )}
+          {activeSection === "medicines" && (
+            <section className="card patient-info-section">
+              <div className="patient-info-section-head">
+                <span className="patient-info-section-icon">
+                  <CalendarClock size={20} />
+                </span>
+                <div>
+                  <h3>Ongoing medicines</h3>
+                  <p className="muted">Active prescriptions and their schedules</p>
+                </div>
+                <span className="medicine-count-pill">{ongoingMeds.length}</span>
+              </div>
+              {ongoingMeds.length ? (
+                <div className="ongoing-medicine-list">
+                  {ongoingMeds.map((m) => (
+                    <div className="ongoing-medicine-row" key={m.id}>
+                      <span className="dose-icon">
+                        <MedicineFormIcon form={m.form} />
+                      </span>
+                      <div className="ongoing-medicine-copy">
+                        <b>
+                          {m.name} {m.strength && <span>{m.strength}</span>}
+                        </b>
+                        <small>
+                          {m.form}
+                          {m.condition ? " · " + m.condition : ""}
+                        </small>
+                        <strong>{schedule(m)}</strong>
+                        {m.withFood && <small>Take with food</small>}
+                      </div>
+                      <span
+                        className={
+                          m.supplyCount <= m.refillThreshold ? "status-danger" : "status-success"
+                        }
+                      >
+                        {m.supplyCount} doses left
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="patient-section-empty">
+                  <Pill size={22} />
+                  <b>No ongoing medicines</b>
+                  <span>
+                    Medicines added to this patient’s plan will appear here with their schedule.
+                  </span>
+                </div>
+              )}
+            </section>
+          )}
+          {editing && (
+            <div className="patient-edit-footer">
+              {error && <InlineError>{error}</InlineError>}
+              <div className="modal-actions">
+                <button
+                  className="btn soft"
+                  disabled={busy}
+                  onClick={() => {
+                    setDraft({
+                      ...patient,
+                      conditions: patient.conditions || [],
+                      attachments: patient.attachments || [],
+                    });
+                    setEditing(false);
+                    setError("");
+                  }}
+                >
+                  Cancel
+                </button>
+                <button className="btn primary" disabled={busy} onClick={() => void submit()}>
+                  {busy ? "Saving…" : "Save patient details"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+function parseNotificationData(notification: Notification): Record<string, any> {
+  try {
+    const value = JSON.parse(notification.dataJson || "{}");
+    return value && typeof value === "object" ? value : {};
+  } catch {
+    return {};
+  }
+}
+function NotificationPopover({
+  notifications,
+  patients,
+  onClose,
+  onRead,
+  onSelect,
+}: {
+  notifications: Notification[];
+  patients: Patient[];
+  onClose: () => void;
+  onRead: (id: string) => Promise<void>;
+  onSelect: (n: Notification) => void;
+}) {
+  const unread = notifications.filter((n) => !n.isRead).length;
+  return (
+    <div className="notification-popover" role="dialog" aria-label="Notifications">
+      <div className="notification-popover-head">
+        <div>
+          <b>Notifications</b>
+          <small>{unread ? unread + " unread" : "You're all caught up"}</small>
+        </div>
+        <button className="icon-btn" aria-label="Close notifications" onClick={onClose}>
+          <X size={17} />
+        </button>
+      </div>
+      {notifications.length ? (
+        notifications.slice(0, 30).map((n) => {
+          const data = parseNotificationData(n);
+          const patientName =
+            patients.find((p) => p.id === data.patientId)?.name || data.patientName;
+          return (
+            <div
+              className={
+                n.isRead ? "notification-popover-item" : "notification-popover-item unread"
+              }
+              key={n.id}
+            >
+              <button
+                className="notification-open-btn"
+                onClick={() => onSelect(n)}
+                aria-label={"View details: " + n.title}
+              >
+                <span className="notification-copy">
+                  <b>{n.title}</b>
+                  {patientName && (
+                    <strong className="notification-patient">Patient: {patientName}</strong>
+                  )}
+                  <span className="notification-message">{n.message}</span>
+                  <small>{new Date(n.createdAt).toLocaleString()}</small>
+                  <span className="notification-view-hint">
+                    View details <ChevronRight size={14} />
+                  </span>
+                </span>
+              </button>
+              {!n.isRead && (
+                <button
+                  className="btn soft mark-read-btn"
+                  onClick={async () => {
+                    try {
+                      await onRead(n.id);
+                    } catch (e) {
+                      console.error(e);
+                    }
+                  }}
+                >
+                  Mark read
+                </button>
+              )}
+            </div>
+          );
+        })
+      ) : (
+        <div className="notification-empty">
+          <Bell size={25} />
+          <b>No notifications yet</b>
+          <span>
+            Medicine reminders, missed doses, refill alerts and family invitations will appear here.
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+function NotificationDetailModal({
+  notification,
+  patients,
+  onClose,
+}: {
+  notification: Notification;
+  patients: Patient[];
+  onClose: () => void;
+}) {
+  const data = parseNotificationData(notification);
+  const patient = patients.find((p) => p.id === data.patientId);
+  const typeLabel: Record<string, string> = {
+    refill_low: "Low medicine supply",
+    dose_reminder: "Upcoming dose",
+    dose_final: "Dose due now",
+    dose_missed: "Missed dose",
+    notification_failed: "Delivery issue",
+    family_invite: "Family invitation",
+  };
+  const patientName = patient?.name || data.patientName || "Patient information unavailable";
+  const medicineName = data.medicineName || "";
+  const detailRows = [
+    { label: "Patient", value: patientName },
+    { label: "Medicine", value: medicineName || undefined },
+    {
+      label: "Doses remaining",
+      value: data.dosesRemaining != null ? String(data.dosesRemaining) : undefined,
+    },
+    {
+      label: "Refill threshold",
+      value: data.refillThreshold != null ? String(data.refillThreshold) + " doses" : undefined,
+    },
+    {
+      label: "Notification type",
+      value: typeLabel[notification.type] || notification.type.replace(/_/g, " "),
+    },
+    {
+      label: "Received",
+      value: new Date(notification.createdAt).toLocaleString(),
+    },
+    { label: "Status", value: notification.isRead ? "Read" : "Unread" },
+  ].filter((row) => row.value);
+  return (
+    <div
+      className="modal-backdrop notification-detail-backdrop"
+      role="presentation"
+      onClick={onClose}
+    >
+      <section
+        className="notification-detail-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="notification-detail-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="notification-detail-head">
+          <div className="notification-detail-icon">
+            <Bell size={21} />
+          </div>
+          <div>
+            <span className="eyebrow">NOTIFICATION DETAILS</span>
+            <h2 id="notification-detail-title">{notification.title}</h2>
+          </div>
+          <button className="icon-btn" aria-label="Close details" onClick={onClose}>
+            <X size={18} />
+          </button>
+        </div>
+        <p className="notification-detail-message">{notification.message}</p>
+        <div className="notification-detail-rows">
+          {detailRows.map((row) => (
+            <div className="notification-detail-row" key={row.label}>
+              <span>{row.label}</span>
+              <b>{row.value}</b>
+            </div>
+          ))}
+        </div>
+        {notification.type === "refill_low" && (
+          <div className="notification-detail-tip">
+            <Package size={17} />
+            <span>Plan a refill soon to avoid missing scheduled doses.</span>
+          </div>
+        )}
+        <div className="modal-actions">
+          <button className="btn primary" onClick={onClose}>
+            Done
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+function NotificationInbox({ notifications }: { notifications: Notification[] }) {
+  const items = notifications.filter((n) =>
+    ["dose_reminder", "dose_final", "dose_missed", "notification_failed", "refill_low"].includes(
+      n.type,
+    ),
+  );
+  return (
+    <div className="card notification-inbox">
+      <div className="section-heading">
+        <div>
+          <span className="eyebrow">ATTENTION</span>
+          <h3>Medication notifications</h3>
+        </div>
+        <Bell />
+      </div>
+      {items.length ? (
+        items.slice(0, 20).map((n) => (
+          <div className="notification-item" key={n.id}>
+            <div>
+              <b>{n.title}</b>
+              <p>{n.message}</p>
+            </div>
+            <small>{new Date(n.createdAt).toLocaleString()}</small>
+          </div>
+        ))
+      ) : (
+        <p className="muted">
+          No medication notifications yet. They will appear here when reminders are scheduled.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function NotificationSettings() {
+  const [s, setS] = useState<any>({
+      timeZoneId: "Asia/Kolkata",
+      leadMinutes: 15,
+      repeatMinutes: 5,
+      finalNotificationEnabled: true,
+    }),
+    [msg, setMsg] = useState(""),
+    [busy, setBusy] = useState(false),
+    [testing, setTesting] = useState(false);
+  useEffect(() => {
+    let active = true;
+    api
+      .getNotificationSettings()
+      .then((value) => {
+        if (active) setS(value);
+      })
+      .catch((e) => {
+        if (active) setMsg(err(e));
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  const save = async () => {
+    setBusy(true);
+    try {
+      const updated = await api.saveNotificationSettings(s);
+      setS((v: any) => ({ ...v, ...updated }));
+      setMsg("Notification settings saved.");
+    } catch (e) {
+      setMsg(err(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const enable = async () => {
+    setBusy(true);
+    setMsg("");
+    try {
+      const key = (s.vapidPublicKey || import.meta.env.VITE_VAPID_PUBLIC_KEY || "").trim();
+      if (!key)
+        throw new Error(
+          "The API has no VAPID public key configured. Add WebPush:PublicKey and WebPush:PrivateKey to the backend environment first.",
+        );
+      await enablePush(key);
+      setMsg(
+        "Browser permission granted and this device is subscribed. Send a test notification to verify delivery.",
+      );
+    } catch (e) {
+      setMsg(err(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const test = async () => {
+    setTesting(true);
+    setMsg("");
+    try {
+      if (!(s.vapidPublicKey || import.meta.env.VITE_VAPID_PUBLIC_KEY || "").trim()) {
+        setMsg(
+          "Browser push is not configured on the API. In Render, open the backend service Environment settings and add WebPush__PublicKey and WebPush__PrivateKey. Keep the private key server-side, then redeploy the API.",
+        );
+        return;
+      }
+      const result = await api.testPush();
+      setMsg(result.message || "Test notification sent.");
+    } catch (e) {
+      setMsg(err(e));
+    } finally {
+      setTesting(false);
+    }
+  };
+  return (
+    <div className="card notification-settings">
+      <div className="section-heading">
+        <div>
+          <span className="eyebrow">REMINDERS</span>
+          <h3>Notification settings</h3>
+          <p className="muted">Enable browser delivery, then send a test to confirm it works.</p>
+        </div>
+        <Bell />
+      </div>
+      <div className="form-grid">
+        <Field label="Timezone">
+          <select
+            className="input"
+            value={s.timeZoneId || "Asia/Kolkata"}
+            onChange={(e) => setS({ ...s, timeZoneId: e.target.value })}
+          >
+            <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
+            <option value="UTC">UTC</option>
+            <option value="America/New_York">America/New_York</option>
+            <option value="Europe/London">Europe/London</option>
+          </select>
+        </Field>
+        <Field label="First reminder (minutes before)">
+          <input
+            className="input"
+            type="number"
+            min="0"
+            max="120"
+            value={s.leadMinutes ?? 15}
+            onChange={(e) => setS({ ...s, leadMinutes: Number(e.target.value) })}
+          />
+        </Field>
+        <Field label="Repeat interval (minutes)">
+          <input
+            className="input"
+            type="number"
+            min="1"
+            max="60"
+            value={s.repeatMinutes ?? 5}
+            onChange={(e) => setS({ ...s, repeatMinutes: Number(e.target.value) })}
+          />
+        </Field>
+      </div>
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={!!s.finalNotificationEnabled}
+          onChange={(e) => setS({ ...s, finalNotificationEnabled: e.target.checked })}
+        />{" "}
+        Final notification at scheduled time
+      </label>
+      <div className="settings-actions">
+        <button className="btn primary" disabled={busy} onClick={save}>
+          {busy ? "Saving…" : "Save settings"}
+        </button>
+        <button className="btn soft" disabled={busy} onClick={enable}>
+          {busy ? "Please wait…" : "Enable browser notifications"}
+        </button>
+        <button className="btn soft" disabled={testing} onClick={test}>
+          {testing ? "Sending…" : "Send test notification"}
+        </button>
+      </div>
+      {msg && (
+        <p className="notification-settings-message" role="status">
+          {msg}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function History({ patients, patient }: { patients: Patient[]; patient: Patient }) {
+  const [rows, setRows] = useState<HistoryRow[]>([]),
+    [selected, setSelected] = useState<string[]>(patient.id ? [patient.id] : []),
+    [medicine, setMedicine] = useState(""),
+    [from, setFrom] = useState(""),
+    [to, setTo] = useState(""),
+    [period, setPeriod] = useState("");
+  useEffect(() => {
+    setSelected(patient.id ? [patient.id] : []);
+  }, [patient.id]);
+  useEffect(() => {
+    const q = new URLSearchParams();
+    if (selected.length) q.set("patientIds", selected.join(","));
+    if (medicine) q.set("medicineName", medicine);
+    if (from) q.set("from", from);
+    if (to) q.set("to", to);
+    if (period) q.set("period", period);
+    api
+      .getHistory("?" + q.toString())
+      .then(setRows)
+      .catch(() => setRows([]));
+  }, [selected, medicine, from, to, period]);
+  return (
+    <div className="page-scroll history-page">
+      <div className="page-head">
+        <div>
+          <span className="eyebrow">CARE HISTORY</span>
+          <h1>Medication history</h1>
+          <p className="muted">A clear record of each dose, patient, time and caregiver.</p>
+        </div>
+      </div>
+      <div className="card history-filters">
+        <div className="section-heading">
+          <div>
+            <h3>Filter history</h3>
+            <p className="muted">Choose one or more patients, medicines or dates.</p>
+          </div>
+          <Clock3 />
+        </div>
+        <label className="field">
+          <span className="field-label">Patients</span>
+          <div className="chips">
+            {patients.map((p) => (
+              <button
+                type="button"
+                className={selected.includes(p.id) ? "chip selected" : "chip"}
+                key={p.id}
+                onClick={() =>
+                  setSelected((x) =>
+                    x.includes(p.id) ? x.filter((id) => id !== p.id) : [...x, p.id],
+                  )
+                }
+              >
+                {p.name || "Unnamed"}
+              </button>
+            ))}
+          </div>
+        </label>
+        <Field label="Medicine name">
+          <input
+            className="input"
+            value={medicine}
+            onChange={(e) => setMedicine(e.target.value)}
+            placeholder="Search medicine"
+          />
+        </Field>
+        <div className="history-filter-grid">
+          <Field label="From date">
+            <input
+              className="input"
+              type="date"
+              value={from}
+              max={to || undefined}
+              onChange={(e) => setFrom(e.target.value)}
+            />
+          </Field>
+          <Field label="To date">
+            <input
+              className="input"
+              type="date"
+              value={to}
+              min={from || undefined}
+              onChange={(e) => setTo(e.target.value)}
+            />
+          </Field>
+          <Field label="Time of day">
+            <select className="input" value={period} onChange={(e) => setPeriod(e.target.value)}>
+              <option value="">Any time</option>
+              <option>Morning</option>
+              <option>Noon</option>
+              <option>Evening</option>
+              <option>Night</option>
+            </select>
+          </Field>
+          <button
+            className="btn soft history-clear"
+            onClick={() => {
+              setSelected(patient.id ? [patient.id] : []);
+              setMedicine("");
+              setFrom("");
+              setTo("");
+              setPeriod("");
+            }}
+          >
+            Reset filters
+          </button>
+        </div>
+      </div>
+      <div className="history-results-head">
+        <div>
+          <h3>Dose records</h3>
+          <span className="muted">
+            {rows.length} record{rows.length === 1 ? "" : "s"} found
+          </span>
+        </div>
+      </div>
+      <div className="card history-table-wrap">
+        {rows.length ? (
+          <div className="history-table-scroll">
+            <table className="history-data-table">
+              <thead>
+                <tr>
+                  <th>Patient</th>
+                  <th>Medicine</th>
+                  <th>Scheduled</th>
+                  <th>Status</th>
+                  <th>Action recorded by</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id}>
+                    <td>
+                      <div className="history-patient-cell">
+                        <span className="history-avatar">
+                          {(r.patientName || "?")
+                            .split(" ")
+                            .map((x) => x[0])
+                            .slice(0, 2)
+                            .join("")}
+                        </span>
+                        <b>{r.patientName || "Unknown patient"}</b>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="history-medication">
+                        <span className="dose-icon">
+                          <MedicineFormIcon form={r.form} size={17} />
+                        </span>
+                        <div>
+                          <b>{r.medicineName}</b>
+                          <small>{r.form || "Medicine"}</small>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <b>{r.date}</b>
+                      <small>{fmtTime(r.time)}</small>
+                    </td>
+                    <td>
+                      <span
+                        className={
+                          r.status === "taken"
+                            ? "history-status taken"
+                            : r.status === "missed" || r.status === "skipped"
+                              ? "history-status missed"
+                              : "history-status pending"
+                        }
+                      >
+                        {r.status === "taken"
+                          ? "Taken"
+                          : r.status === "skipped"
+                            ? "Skipped"
+                            : r.status === "missed"
+                              ? "Missed"
+                              : r.status}
+                      </span>
+                    </td>
+                    <td>{r.actionedByName || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="history-empty">
+            <div className="empty-icon">
+              <Clock3 />
+            </div>
+            <b>No history records found</b>
+            <span className="muted">
+              Try adjusting your filters or check back after scheduled doses.
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FamilyManagement({
+  family,
+  notifications,
+  onChange,
+}: {
+  family: Family[];
+  notifications: Notification[];
+  onChange: () => Promise<void>;
+}) {
+  const [q, setQ] = useState(""),
+    [results, setResults] = useState<any[]>([]),
+    [name, setName] = useState(""),
+    [busy, setBusy] = useState(false),
+    [invited, setInvited] = useState<string[]>([]),
+    [message, setMessage] = useState("");
+  const active = family[0];
+  const search = async (value = q) => {
+    const term = value.trim();
+    if (term.length < 2) {
+      setResults([]);
+      return;
+    }
+    try {
+      setResults(await api.familySearch(term));
+    } catch (e) {
+      setMessage(err(e));
+    }
+  };
+  const create = async () => {
+    if (!name.trim()) return setMessage("Enter a family name.");
+    try {
+      setBusy(true);
+      await api.createFamily(name.trim());
+      setName("");
+      await onChange();
+      setMessage("Family created.");
+    } catch (e) {
+      setMessage(err(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const invite = async (id: string) => {
+    try {
+      const response = await api.inviteFamilyMember(id);
+      setInvited((x) => (x.includes(id) ? x : [...x, id]));
+      const invitee = response?.invitee;
+      if (invitee) setResults((x) => x.map((r) => (r.id === id ? { ...r, ...invitee } : r)));
+      await onChange();
+      setMessage("Invitation sent. Waiting for their consent.");
+    } catch (e) {
+      setMessage(err(e));
+    }
+  };
+  const respond = async (n: Notification, accept: boolean) => {
+    try {
+      const d = JSON.parse(n.dataJson || "{}");
+      if (d.inviteId) await api.respondFamilyInvite(d.inviteId, accept);
+      await api.readNotification(n.id);
+      await onChange();
+      setMessage(accept ? "Family invitation accepted." : "Family invitation rejected.");
+    } catch (e) {
+      setMessage(err(e));
+    }
+  };
+  const pendingCount = active?.pending?.length || 0;
+  const unreadInvites = notifications.filter((n) => n.type === "family_invite" && !n.isRead);
+  return (
+    <div className="card family-card">
+      <div className="section-heading family-heading">
+        <div>
+          <span className="eyebrow">FAMILY CARE</span>
+          <h3>Family Management</h3>
+          <p className="muted">Invite trusted users and share care access only after consent.</p>
+        </div>
+        <Users size={22} />
+      </div>
+      {!active ? (
+        <div className="family-create">
+          <Field label="Family name">
+            <input
+              className="input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Sharma Family"
+            />
+          </Field>
+          <button className="btn primary" disabled={busy} onClick={create}>
+            <Plus size={16} />
+            Create family
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="family-name">
+            <div>
+              <b>{active.name}</b>
+              <span className="muted">
+                {active.members.length} approved member
+                {active.members.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+            {pendingCount > 0 && <span className="status-pending">{pendingCount} pending</span>}
+          </div>
+          <div className="family-search">
+            <Field label="Find a user by name or email">
+              <input
+                className="input"
+                value={q}
+                onChange={(e) => {
+                  setQ(e.target.value);
+                  search(e.target.value);
+                }}
+                onKeyDown={(e) => e.key === "Enter" && search()}
+                placeholder="Search registered users"
+              />
+            </Field>
+            <button className="btn soft family-search-btn" onClick={() => search()}>
+              Search
+            </button>
+          </div>
+          {results.length > 0 && (
+            <div className="family-results">
+              {results.map((r) => {
+                const wasInvited = invited.includes(r.id);
+                return (
+                  <div className="family-result" key={r.id}>
+                    <div className="avatar">
+                      {r.profileImageUrl ? (
+                        <img src={r.profileImageUrl} alt="" />
+                      ) : (
+                        r.displayName
+                          .split(" ")
+                          .map((x: string) => x[0])
+                          .slice(0, 2)
+                          .join("")
+                      )}
+                    </div>
+                    <div>
+                      <b>{r.displayName}</b>
+                      <span>{r.email}</span>
+                    </div>
+                    <button
+                      className="btn primary"
+                      disabled={wasInvited}
+                      onClick={() => invite(r.id)}
+                    >
+                      {wasInvited ? "Invited" : "Add"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {message && <div className="family-message">{message}</div>}
+          <div className="family-members">
+            <div className="family-subhead">
+              <h4>Family members</h4>
+              {pendingCount > 0 && <span className="muted">{pendingCount} awaiting consent</span>}
+            </div>
+            {active.members.map((m) => (
+              <div className="family-member" key={m.userId}>
+                <div>
+                  <b>{m.displayName}</b>
+                  <span>{m.email}</span>
+                </div>
+                <span className="status-success">Approved</span>
+              </div>
+            ))}
+            {active.pending.map((p) => (
+              <div className="family-member" key={p.id}>
+                <div className="family-member-person">
+                  {p.inviteeProfileImageUrl ? (
+                    <img className="small-avatar" src={p.inviteeProfileImageUrl} alt="" />
+                  ) : (
+                    <span className="avatar small-avatar">
+                      {(p.inviteeDisplayName || "?")
+                        .split(" ")
+                        .map((x) => x[0])
+                        .slice(0, 2)
+                        .join("")}
+                    </span>
+                  )}
+                  <div>
+                    <b>{p.inviteeDisplayName || "User"}</b>
+                    <span>{p.inviteeEmail || "Invitation sent"}</span>
+                  </div>
+                </div>
+                <span className="status-pending">Pending consent</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      {unreadInvites.length > 0 && (
+        <div className="family-notifications">
+          <div className="family-subhead">
+            <h4>Family requests</h4>
+            <span className="status-pending">{unreadInvites.length} new</span>
+          </div>
+          {unreadInvites.map((n) => (
+            <div className="family-request" key={n.id}>
+              <Bell size={18} />
+              <div>
+                <b>{n.title}</b>
+                <p>{n.message}</p>
+                <div className="dose-actions">
+                  <button onClick={() => respond(n, false)}>Reject</button>
+                  <button className="take" onClick={() => respond(n, true)}>
+                    <Check size={14} />
+                    Accept
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+function MedicineWizard({
+  initial,
+  onClose,
+  onSave,
+}: {
+  initial: Medicine | Omit<Medicine, "id">;
+  onClose: () => void;
+  onSave: (m: Omit<Medicine, "id">) => Promise<void>;
+}) {
+  const [m, setM] = useState<Omit<Medicine, "id">>({ ...initial } as Omit<Medicine, "id">),
+    [step, setStep] = useState(0),
+    [error, setError] = useState("");
+  const set = (k: keyof Omit<Medicine, "id">, v: unknown) => setM((x) => ({ ...x, [k]: v }));
+  const validate = () => {
+    if (!m.name.trim()) return "Medicine name is required.";
+    if (m.name.trim().length > 100) return "Medicine name must be 100 characters or fewer.";
+    if (!m.strength.trim()) return "Enter the medicine strength.";
+    if (!m.condition) return "Choose the condition this medicine is for.";
+    if (step === 1) {
+      if (!m.times.length) return "Add at least one dose time.";
+      if (m.times.some((t) => !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(t)))
+        return "Use valid dose times such as 08:00 or 20:00.";
+      if (m.frequencyPattern === "specificDays" && !m.specificDays.length)
+        return "Choose at least one day.";
+      if (
+        m.frequencyPattern === "recurringCycle" &&
+        (!Number.isInteger(m.cycleEvery) || m.cycleEvery < 1)
+      )
+        return "Enter a valid recurring cycle.";
+      if (!m.startDate) return "Choose a start date.";
+    }
+    if (step === 2) {
+      if (!m.isRecurring && m.supplyCount < 1) return "Supply is required and must be at least 1.";
+      if (m.isRecurring && m.supplyCount < 1)
+        return "Supply count is required and must be at least 1.";
+      if (m.isRecurring && (!Number.isInteger(m.refillThreshold) || m.refillThreshold < 0))
+        return "Refill threshold cannot be negative.";
+    }
+    return "";
+  };
+  const next = () => {
+    const e = validate();
+    if (e) return setError(e);
+    setError("");
+    setStep(step + 1);
+  };
+  const save = async () => {
+    const e = validate();
+    if (e) return setError(e);
+    setError("");
+    await onSave({
+      ...m,
+      name: m.name.trim(),
+      strength: m.strength.trim(),
+      times: m.times.map((x) => x.trim()).filter(Boolean),
+    });
+  };
+  return (
+    <div className="modal-backdrop">
+      <div className="modal medicine-modal">
+        <div className="modal-head">
+          <div>
+            <span className="eyebrow">MEDICINE SETUP · {step + 1}/3</span>
+            <h2>
+              {step === 0 ? "Medicine details" : step === 1 ? "Schedule" : "Supply & reminders"}
+            </h2>
+          </div>
+          <button className="icon-btn" onClick={onClose}>
+            <X />
+          </button>
+        </div>
+        <div className="progress-steps">
+          <i className={step >= 0 ? "done" : ""} />
+          <i className={step >= 1 ? "done" : ""} />
+          <i className={step >= 2 ? "done" : ""} />
+        </div>
+        {step === 0 && (
+          <div className="form-grid">
+            <Field label="Medicine name">
+              <input
+                className="input"
+                value={m.name}
+                onChange={(e) => set("name", e.target.value)}
+                placeholder="e.g. Metformin"
+              />
+            </Field>
+            <Field label="Strength">
+              <input
+                className="input"
+                value={m.strength}
+                onChange={(e) => set("strength", e.target.value)}
+                placeholder="e.g. 500 mg"
+              />
+            </Field>
+            <Field label="Form">
+              <select
+                className="input"
+                value={m.form}
+                onChange={(e) => set("form", e.target.value)}
+              >
+                {forms.map((x) => (
+                  <option key={x}>{x}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Condition">
+              <select
+                className="input"
+                value={m.condition}
+                onChange={(e) => set("condition", e.target.value)}
+              >
+                <option value="">Select condition</option>
+                {conditions.map((x) => (
+                  <option key={x}>{x}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        )}
+        {step === 1 && (
+          <div className="form-grid">
+            <Field label="Frequency">
+              <select
+                className="input"
+                value={m.frequencyPattern}
+                onChange={(e) => set("frequencyPattern", e.target.value)}
+              >
+                <option value="daily">Every day</option>
+                <option value="everyOtherDay">Every other day</option>
+                <option value="specificDays">Specific days</option>
+                <option value="recurringCycle">Recurring cycle</option>
+              </select>
+            </Field>
+            {m.frequencyPattern === "specificDays" && (
+              <div className="full-field">
+                <label className="field-label">Days</label>
+                <div className="chips">
+                  {days.map((x) => (
+                    <button
+                      type="button"
+                      className={m.specificDays.includes(x) ? "chip selected" : "chip"}
+                      key={x}
+                      onClick={() =>
+                        set(
+                          "specificDays",
+                          m.specificDays.includes(x)
+                            ? m.specificDays.filter((v) => v !== x)
+                            : [...m.specificDays, x],
+                        )
+                      }
+                    >
+                      {x}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {m.frequencyPattern === "recurringCycle" && (
+              <>
+                <Field label="Repeat every">
+                  <input
+                    className="input"
+                    type="number"
+                    min="1"
+                    value={m.cycleEvery}
+                    onChange={(e) => set("cycleEvery", Number(e.target.value))}
+                  />
+                </Field>
+                <Field label="Unit">
+                  <select
+                    className="input"
+                    value={m.cycleUnit}
+                    onChange={(e) => set("cycleUnit", e.target.value)}
+                  >
+                    <option value="days">Days</option>
+                    <option value="weeks">Weeks</option>
+                    <option value="months">Months</option>
+                  </select>
+                </Field>
+              </>
+            )}
+            <div className="full-field">
+              <label className="field-label">Dose times</label>
+              <TimePicker times={m.times} onChange={(times) => set("times", times)} />
+            </div>
+            <Field label="Start date">
+              <input
+                className="input"
+                type="date"
+                min={today()}
+                value={m.startDate}
+                onChange={(e) => set("startDate", e.target.value)}
+              />
+            </Field>
+            <label className="check-row">
+              <input
+                type="checkbox"
+                checked={m.withFood}
+                onChange={(e) => set("withFood", e.target.checked)}
+              />{" "}
+              Take with food
+            </label>
+          </div>
+        )}
+        {step === 2 && (
+          <div className="form-grid">
+            <label className="check-row full-field">
+              <input
+                type="checkbox"
+                checked={m.isRecurring}
+                onChange={(e) => set("isRecurring", e.target.checked)}
+              />{" "}
+              Recurring medicine
+            </label>
+            <Field label="Supply count">
+              <input
+                className="input"
+                type="number"
+                min="1"
+                step="1"
+                value={m.supplyCount}
+                onChange={(e) => set("supplyCount", Number(e.target.value))}
+              />
+            </Field>
+            <Field label="Refill reminder threshold">
+              <input
+                className="input"
+                disabled={!m.isRecurring}
+                type="number"
+                min="0"
+                step="1"
+                value={m.isRecurring ? m.refillThreshold : 0}
+                onChange={(e) => set("refillThreshold", Number(e.target.value))}
+              />
+            </Field>
+            <Field label="Liquid">
+              <select
+                className="input"
+                value={m.liquid}
+                onChange={(e) => set("liquid", e.target.value)}
+              >
+                <option>No liquid needed</option>
+                <option>Lukewarm water</option>
+                <option>Milk</option>
+                <option>Juice</option>
+              </select>
+            </Field>
+            <div className="review-box">
+              <b>Ready to save?</b>
+              <span>
+                {m.name} · {m.strength} · {m.times.map(fmtTime).join(", ")}
+              </span>
+            </div>
+          </div>
+        )}
+        {error && <InlineError>{error}</InlineError>}
+        <div className="modal-actions">
+          {step > 0 && (
+            <button
+              className="btn soft"
+              onClick={() => {
+                setError("");
+                setStep(step - 1);
+              }}
+            >
+              Back
+            </button>
+          )}
+          {step < 2 ? (
+            <button className="btn primary" onClick={next}>
+              Continue
+              <ChevronRight size={17} />
+            </button>
+          ) : (
+            <button className="btn primary" onClick={save}>
+              Save medicine
+              <Check size={17} />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TimePicker({ times, onChange }: { times: string[]; onChange: (times: string[]) => void }) {
+  const toParts = (value: string) => {
+    const [h, m] = value.split(":").map(Number);
+    return {
+      hour: h % 12 || 12,
+      minute: m,
+      period: (h >= 12 ? "PM" : "AM") as "AM" | "PM",
+    };
+  };
+  const first = toParts(times[0] || "08:00");
+  const [hour, setHour] = useState(first.hour),
+    [minute, setMinute] = useState(first.minute),
+    [period, setPeriod] = useState<"AM" | "PM">(first.period);
+  const addTime = () => {
+    let h = hour % 12;
+    if (period === "PM") h += 12;
+    const value = `${String(h).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+    if (!times.includes(value)) onChange([...times, value].sort());
+  };
+  const removeTime = (value: string) => onChange(times.filter((t) => t !== value));
+  return (
+    <div className="time-picker">
+      <div className="time-picker-controls">
+        <div className="time-select">
+          <span>Hour</span>
+          <select value={hour} onChange={(e) => setHour(Number(e.target.value))}>
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+        </div>
+        <span className="time-colon">:</span>
+        <div className="time-select">
+          <span>Minute</span>
+          <select value={minute} onChange={(e) => setMinute(Number(e.target.value))}>
+            {Array.from({ length: 60 }, (_, i) => i).map((v) => (
+              <option key={v} value={v}>
+                {String(v).padStart(2, "0")}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="time-select period-select">
+          <span>Period</span>
+          <select value={period} onChange={(e) => setPeriod(e.target.value as "AM" | "PM")}>
+            <option value="AM">AM</option>
+            <option value="PM">PM</option>
+          </select>
+        </div>
+        <button type="button" className="btn soft time-add" onClick={addTime}>
+          <Plus size={16} />
+          Add time
+        </button>
+      </div>
+      <div className="selected-times">
+        {times.map((t) => (
+          <span className="time-chip" key={t}>
+            <Clock3 size={14} />
+            {fmtTime(t)}
+            <button type="button" onClick={() => removeTime(t)} aria-label={`Remove ${fmtTime(t)}`}>
+              <X size={13} />
+            </button>
+          </span>
+        ))}
+      </div>
+      <small className="field-hint">
+        Choose the hour, minute and AM/PM. Add each dose time separately.
+      </small>
+    </div>
+  );
+}
+
+function GuideModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal guide-modal">
+        <div className="modal-head">
+          <div>
+            <span className="eyebrow">QUICK GUIDE</span>
+            <h2>How to use TENDED</h2>
+          </div>
+          <button className="icon-btn" onClick={onClose}>
+            <X />
+          </button>
+        </div>
+        <div className="guide-list">
+          <GuideStep
+            n="1"
+            title="Add your care details"
+            text="Tell TENDED who the plan is for and add relevant conditions."
+          />
+          <GuideStep
+            n="2"
+            title="Add each medicine"
+            text="Enter the strength, form, schedule and supply count. You can edit it anytime."
+          />
+          <GuideStep
+            n="3"
+            title="Follow today's schedule"
+            text="Use Take after you take a dose, or Skip when you intentionally miss one."
+          />
+          <GuideStep
+            n="4"
+            title="Check the calendar"
+            text="Look ahead at upcoming doses and use refill reminders to stay prepared."
+          />
+        </div>
+        <div className="guide-note">
+          <HeartPulse />
+          <span>
+            TENDED helps organize your medication routine. It does not replace advice from your
+            doctor or pharmacist.
+          </span>
+        </div>
+        <button className="btn primary full" onClick={onClose}>
+          Got it
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function GuideStep({ n, title, text }: { n: string; title: string; text: string }) {
+  return (
+    <div className="guide-step">
+      <span>{n}</span>
+      <div>
+        <b>{title}</b>
+        <p className="muted">{text}</p>
+      </div>
+    </div>
+  );
+}
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  const plain = label.replace(/<[^>]*>/g, "");
+  return (
+    <label className="field">
+      <span className="field-label">{plain}</span>
+      {children}
+    </label>
+  );
+}
+function InlineError({ children }: { children: ReactNode }) {
+  return (
+    <div className="inline-error">
+      <AlertCircle size={17} />
+      <span>{children}</span>
+    </div>
+  );
+}
+function RoleCard({
+  icon,
+  title,
+  text,
+  accent,
+  onClick,
+}: {
+  icon: ReactNode;
+  title: string;
+  text: string;
+  accent: string;
+  onClick: () => void;
+}) {
+  return (
+    <button className="role-card" onClick={onClick}>
+      <span className={"role-icon " + accent}>{icon}</span>
+      <span>
+        <b>{title}</b>
+        <small>{text}</small>
+      </span>
+      <ChevronRight />
+    </button>
+  );
+}
+function SideTab({
+  icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button className={active ? "side-tab active" : "side-tab"} onClick={onClick}>
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+}
+function Tab({
+  icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button className={active ? "tab active" : "tab"} onClick={onClick}>
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+}
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="detail-row">
+      <span className="muted">{label}</span>
+      <b>{value}</b>
+    </div>
+  );
+}
+
+function err(e: unknown) {
+  return e instanceof Error ? e.message : "Something went wrong. Please try again.";
+}
