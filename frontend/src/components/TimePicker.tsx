@@ -1,7 +1,13 @@
 import { useState } from "react";
-import { Plus, X, Clock3 } from "lucide-react";
+import { Clock3, Plus, X } from "lucide-react";
 import { fmtTime } from "../lib/dates";
 
+/**
+ * Picks one or more dose times using 12-hour selects (friendlier than native time inputs
+ * on older Android browsers). Times are emitted sorted in 24-hour `HH:mm` format.
+ * @param times - Selected times.
+ * @param onChange - Receives the updated, de-duplicated, sorted list.
+ */
 export function TimePicker({
   times,
   onChange,
@@ -9,6 +15,7 @@ export function TimePicker({
   times: string[];
   onChange: (times: string[]) => void;
 }) {
+  /** Splits `HH:mm` into 12-hour parts for the selects. */
   const toParts = (value: string) => {
     const [h, m] = value.split(":").map(Number);
     return {
@@ -21,12 +28,14 @@ export function TimePicker({
   const [hour, setHour] = useState(first.hour),
     [minute, setMinute] = useState(first.minute),
     [period, setPeriod] = useState<"AM" | "PM">(first.period);
+  /** Adds the currently selected time if it isn't already in the list. */
   const addTime = () => {
     let h = hour % 12;
     if (period === "PM") h += 12;
     const value = `${String(h).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
     if (!times.includes(value)) onChange([...times, value].sort());
   };
+  /** Removes a time from the list. */
   const removeTime = (value: string) => onChange(times.filter((t) => t !== value));
   return (
     <div className="time-picker">
@@ -60,14 +69,14 @@ export function TimePicker({
           </select>
         </div>
         <button type="button" className="btn soft time-add" onClick={addTime}>
-          <Plus size={16} />
+          <Plus size={16} aria-hidden="true" />
           Add time
         </button>
       </div>
       <div className="selected-times">
         {times.map((t) => (
           <span className="time-chip" key={t}>
-            <Clock3 size={14} />
+            <Clock3 size={14} aria-hidden="true" />
             {fmtTime(t)}
             <button type="button" onClick={() => removeTime(t)} aria-label={`Remove ${fmtTime(t)}`}>
               <X size={13} />

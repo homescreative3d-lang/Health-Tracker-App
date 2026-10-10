@@ -1,37 +1,29 @@
 import { ChevronDown } from "lucide-react";
-import { type Patient } from "../api";
+import type { Patient } from "../api";
+import { Avatar } from "./Avatar";
 
-export function PatientContextBar({
-  patient,
-  patients,
-  onSelect,
-}: {
+type PatientContextBarProps = {
+  /** Patient currently in focus. */
   patient: Patient;
+  /** All accessible patients (switcher shown when more than one). */
   patients: Patient[];
+  /** Switches the focused patient. */
   onSelect: (p: Patient) => Promise<void>;
-}) {
+};
+
+/** Shows whose plan is being viewed, with a switcher when the user cares for several people. */
+export function PatientContextBar({ patient, patients, onSelect }: PatientContextBarProps) {
   return (
     <div className="patient-context-bar">
-      <span className="patient-context-avatar">
-        {patient.profileImageUrl ? (
-          <img src={patient.profileImageUrl} alt="" />
-        ) : (
-          (patient.name || "?")
-            .split(" ")
-            .map((x) => x[0])
-            .slice(0, 2)
-            .join("")
-        )}
-      </span>
+      <Avatar name={patient.name} src={patient.profileImageUrl} size="sm" />
       <div className="patient-context-copy">
-        <small>YOU ARE VIEWING</small>
-        <b>{patient.name || "Select a patient"}</b>
+        <small>Viewing plan for</small>
+        <b>{patient.name || "No patient selected"}</b>
       </div>
       {patients.length > 1 && (
         <label className="patient-context-select">
-          <span>Switch patient</span>
+          <span className="sr-only">Switch patient</span>
           <select
-            aria-label="Switch patient"
             value={patient.id}
             onChange={(e) => {
               const p = patients.find((x) => x.id === e.target.value);
@@ -41,11 +33,11 @@ export function PatientContextBar({
             {patients.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name || "Unnamed patient"}
-                {p.relationship === "self" ? " (Me)" : ""}
+                {p.relationship === "self" ? " (me)" : ""}
               </option>
             ))}
           </select>
-          <ChevronDown size={16} />
+          <ChevronDown size={16} aria-hidden="true" />
         </label>
       )}
     </div>
