@@ -83,6 +83,12 @@ export type Medicine = {
   isRecurring: boolean;
   pauseStartDate?: string | null;
   pauseEndDate?: string | null;
+  /** Set when the schedule was rescheduled into a newer record; the medicine stops on this date. */
+  endedOn?: string | null;
+  /** The record this medicine replaced when its schedule was rescheduled. */
+  rescheduledFromId?: string | null;
+  /** Dose times before the reschedule (for "was 8:00 AM"). */
+  previousTimes?: string[] | null;
 };
 export type Dose = {
   id: string;
@@ -102,6 +108,14 @@ export type Dose = {
   rescheduleTo?: string | null;
   actionedByUserId?: string | null;
   actionedByName?: string | null;
+  /** For a moved original: target time (`HH:mm`), paired with `rescheduleTo` (date). */
+  rescheduleToTime?: string | null;
+  /** For a moved-in dose: the original dose it replaces. */
+  rescheduledFromId?: string | null;
+  rescheduledFromDate?: string | null;
+  rescheduledFromTime?: string | null;
+  /** Calendar date of this dose (`YYYY-MM-DD`). */
+  date?: string | null;
 };
 export type HistoryRow = {
   id: string;

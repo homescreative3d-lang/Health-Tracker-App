@@ -8,6 +8,8 @@ import { Avatar } from "../../components/Avatar";
 import { DoseGroup } from "../../components/DoseGroup";
 import { DoseRow, type DoseAction } from "../../components/DoseRow";
 import { SkyScene } from "../../components/art/SkyScene";
+import { doseWindow } from "../../lib/doseWindow";
+import { useNow } from "../../hooks/useNow";
 import { EmptyArt } from "../../components/art/EmptyArt";
 import { Celebration } from "../../components/art/Celebration";
 import { SkeletonList } from "../../components/Skeleton";
@@ -22,6 +24,8 @@ type TodayProps = {
   /** Always today's date (the controller enforces this). */
   date: string;
   onDose: (d: Dose, a: DoseAction) => Promise<void>;
+  /** Opens the reschedule dialog for a dose. */
+  onReschedule: (d: Dose) => void;
   onAdd: () => void;
   onAddPatient: () => void;
   onPatientInfo: () => void;
@@ -47,23 +51,33 @@ export function Today({
   meds,
   date,
   onDose,
+  onReschedule,
   onAdd,
   onAddPatient,
   onPatientInfo,
   loading = false,
 }: TodayProps) {
+  const now = useNow();
   const all = grouped.flatMap((g) => g.items);
   const total = all.length;
   const taken = all.filter((d) => d.status === "taken").length;
-  const missed = all.filter((d) => d.status === "skipped" || d.status === "missed").length;
-  const decided = taken + missed;
+  const skipped = all.filter((d) => d.status === "skipped").length;
+  // A dose only counts as missed once its 1-hour window has closed (the API flags it "missed"
+  // as soon as the time passes, while it is still takeable and shown as "Due now").
+  const missed = all.filter(
+    (d) =>
+      (d.status === "missed" || d.status === "pending") && doseWindow(date, d, now) === "locked",
+  ).length;
+  const moved = all.filter((d) => d.status === "rescheduled").length;
+  // Adherence = taken out of doses that have an outcome (taken, skipped or missed).
+  const decided = taken + skipped + missed;
   const adherence = decided ? Math.round((taken / decided) * 100) : 0;
-  const remaining = Math.max(0, total - decided);
+  const remaining = Math.max(0, total - decided - moved);
   const low = meds.filter(
     (m) => m.isRecurring && m.supplyCount <= m.refillThreshold && !isPausedOn(m),
   );
   const firstName = patient.name.split(" ")[0];
-  const allTaken = total > 0 && taken === total;
+  const allTaken = total - moved > 0 && taken === total - moved;
   // Celebrate once when the last dose of the day is taken during this visit.
   const [celebrate, setCelebrate] = useState(false);
   const prevTaken = useRef(taken);
@@ -147,6 +161,9 @@ export function Today({
               <span className="stat taken">
                 <b>{taken}</b> taken
               </span>
+              <span className="stat skipped">
+                <b>{skipped}</b> skipped
+              </span>
               <span className="stat missed">
                 <b>{missed}</b> missed
               </span>
@@ -156,10 +173,14 @@ export function Today({
             </div>
             <div className="progress-bar" aria-hidden="true">
               <span className="seg taken" style={{ flexGrow: taken }} />
+              <span className="seg skipped" style={{ flexGrow: skipped }} />
               <span className="seg missed" style={{ flexGrow: missed }} />
               <span className="seg remaining" style={{ flexGrow: remaining }} />
             </div>
-            <small className="muted">Skipped doses count as missed.</small>
+            <small className="muted">
+              Adherence counts taken doses out of those taken, skipped or missed
+              {moved ? `; ${moved} moved to another time` : ""}.
+            </small>
           </div>
         </div>
       )}
@@ -188,7 +209,13 @@ export function Today({
               g.items.length > 0 && (
                 <DoseGroup key={g.name} name={g.name} count={g.items.length}>
                   {g.items.map((d) => (
-                    <DoseRow d={d} key={d.id} date={date} onDose={onDose} />
+                    <DoseRow
+                      d={d}
+                      key={d.id}
+                      date={date}
+                      onDose={onDose}
+                      onReschedule={onReschedule}
+                    />
                   ))}
                 </DoseGroup>
               ),
