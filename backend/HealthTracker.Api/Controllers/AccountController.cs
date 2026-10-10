@@ -2,6 +2,7 @@ using System.Security.Claims;
 using HealthTracker.Api.Contracts;
 using HealthTracker.Api.Data;
 using HealthTracker.Api.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
