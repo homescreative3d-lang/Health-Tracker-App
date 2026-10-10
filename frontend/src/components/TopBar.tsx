@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Bell, BookOpen, LogOut, User } from "lucide-react";
 import { useCare } from "../hooks/CareAppContext";
 import { useDismiss } from "../hooks/useDismiss";
@@ -16,6 +16,18 @@ export function TopBar() {
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   useDismiss(menuRef, closeMenu, menuOpen);
   const user = app.user;
+  // Shake the bell and pop the badge when a new unread notification arrives.
+  const [ring, setRing] = useState(false);
+  const prevUnread = useRef(app.unreadCount);
+  useEffect(() => {
+    if (app.unreadCount > prevUnread.current) {
+      setRing(true);
+      const t = window.setTimeout(() => setRing(false), 1200);
+      prevUnread.current = app.unreadCount;
+      return () => window.clearTimeout(t);
+    }
+    prevUnread.current = app.unreadCount;
+  }, [app.unreadCount]);
 
   return (
     <header className="topbar">
@@ -30,7 +42,7 @@ export function TopBar() {
       {user && (
         <div className="top-actions">
           <button
-            className="icon-btn notification-btn"
+            className={ring ? "icon-btn notification-btn ringing" : "icon-btn notification-btn"}
             aria-label={
               app.unreadCount ? `Notifications, ${app.unreadCount} unread` : "Notifications"
             }

@@ -59,7 +59,7 @@ export const blank = (): MedicineInput => ({
   specificDays: [],
   cycleEvery: 1,
   cycleUnit: "days",
-  times: ["08:00"],
+  times: [], // no default time: the user must choose each dose time
   liquid: "No liquid needed",
   withFood: false,
   startDate: today(),
@@ -88,6 +88,16 @@ export function frequencyLabel(
     default:
       return `Every ${m.cycleEvery} ${m.cycleUnit}`;
   }
+}
+
+/**
+ * True when a medicine record is no longer current because its schedule was rescheduled
+ * into a newer record (from `endedOn`).
+ * @param m - Medicine.
+ * @param date - Date to test, defaults to today.
+ */
+export function isEnded(m: { endedOn?: string | null }, date = today()): boolean {
+  return !!m.endedOn && m.endedOn <= date;
 }
 
 /**
