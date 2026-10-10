@@ -1,0 +1,22 @@
+# .NET build output
+**/bin/
+**/obj/
+.vs/
+*.user
+*.suo
+
+# Local-only configuration and secrets
+**/appsettings.Development.json
+**/appsettings.Local.json
+.env
+.env.*
+!.env.example
+!frontend/.env.local.example
+
+# Frontend build output
+frontend/node_modules/
+frontend/dist/
+
+# IDE / OS files
+.DS_Store
+Thumbs.db
