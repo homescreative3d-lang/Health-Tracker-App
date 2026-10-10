@@ -1,5 +1,4 @@
 namespace HealthTracker.Api.Models;
-
 public class AppUser
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -12,6 +11,7 @@ public class AppUser
     public bool FinalNotificationEnabled { get; set; } = true;
     public string? ProfileImageUrl { get; set; }
 }
+
 public class Patient
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -28,6 +28,7 @@ public class Patient
     public string? DoctorPhotoUrl { get; set; }
     public string AttachmentsJson { get; set; } = "[]";
 }
+
 public class Medicine
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -53,6 +54,7 @@ public class Medicine
     public DateOnly? PauseStartDate { get; set; }
     public DateOnly? PauseEndDate { get; set; }
 }
+
 public class DoseEvent
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -67,6 +69,7 @@ public class DoseEvent
     public Guid? ActionedByUserId { get; set; }
     public DateTimeOffset? MissedAt { get; set; }
 }
+
 public class Family
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -74,6 +77,7 @@ public class Family
     public Guid OwnerUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
+
 public class FamilyMember
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -82,6 +86,7 @@ public class FamilyMember
     public string Status { get; set; } = "approved";
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
+
 public class FamilyInvite
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -91,6 +96,7 @@ public class FamilyInvite
     public string Status { get; set; } = "pending";
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
+
 public class AppNotification
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -102,6 +108,7 @@ public class AppNotification
     public bool IsRead { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
+
 public class PushSubscription
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -112,6 +119,7 @@ public class PushSubscription
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
+
 public class NotificationDelivery
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -123,6 +131,7 @@ public class NotificationDelivery
     public string Status { get; set; } = "pending";
     public string? Error { get; set; }
 }
+
 public class PasswordResetToken
 {
     public Guid Id { get; set; } = Guid.NewGuid();
