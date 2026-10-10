@@ -34,6 +34,7 @@ public class PatientController(AppDbContext db,INeonObjectStorage storage):Contr
     {
         var p=Build(r,U);
         if(IsDataImage(r.ProfileImageUrl))p.ProfileImageUrl=await storage.PutDataUrlAsync("patient",$"{p.Id}/{Guid.NewGuid():N}",r.ProfileImageUrl);
+        if(IsDataImage(r.DoctorPhotoUrl))p.DoctorPhotoUrl=await storage.PutDataUrlAsync("patient",$"{p.Id}/doctor-{Guid.NewGuid():N}",r.DoctorPhotoUrl);
         db.Patients.Add(p);await db.SaveChangesAsync();return Ok(await Map(p));
     }
 
@@ -56,6 +57,6 @@ public class PatientController(AppDbContext db,INeonObjectStorage storage):Contr
 
     static bool IsDataImage(string? value)=>!string.IsNullOrWhiteSpace(value)&&value.StartsWith("data:image/",StringComparison.OrdinalIgnoreCase);
     static Patient Build(PatientRequest r,Guid uid)=>new(){UserId=uid,Name=r.Name.Trim(),Dob=string.IsNullOrWhiteSpace(r.Dob)?null:DateOnly.Parse(r.Dob),ConditionsJson=JsonSerializer.Serialize(r.Conditions??[]),Notes=r.Notes,Relationship=r.Relationship,Mobile=r.Mobile?.Trim()??"",Doctor=r.Doctor?.Trim()??"",MedicalHistory=r.MedicalHistory?.Trim()??"",ProfileImageUrl=null};
-    async Task<object>Map(Patient p)=>new{p.Id,p.Name,p.Dob,Conditions=JsonSerializer.Deserialize<List<string>>(p.ConditionsJson)??[],p.Notes,p.Relationship,p.Mobile,p.Doctor,p.MedicalHistory,ProfileImageUrl=string.IsNullOrWhiteSpace(p.ProfileImageUrl)?null:storage.GetReadUrl("patient",p.ProfileImageUrl)};
+    async Task<object>Map(Patient p)=>new{p.Id,p.Name,p.Dob,Conditions=JsonSerializer.Deserialize<List<string>>(p.ConditionsJson)??[],p.Notes,p.Relationship,p.Mobile,p.Doctor,p.MedicalHistory,DoctorPhotoUrl=string.IsNullOrWhiteSpace(p.DoctorPhotoUrl)?null:storage.GetReadUrl("patient",p.DoctorPhotoUrl),ProfileImageUrl=string.IsNullOrWhiteSpace(p.ProfileImageUrl)?null:storage.GetReadUrl("patient",p.ProfileImageUrl)};
     async Task<List<Guid>>AccessibleUsers(){var ids=await db.FamilyMembers.Where(x=>x.UserId==U&&x.Status=="approved").Join(db.FamilyMembers,a=>a.FamilyId,b=>b.FamilyId,(a,b)=>b.UserId).Distinct().ToListAsync();ids.Add(U);return ids;}
 }
