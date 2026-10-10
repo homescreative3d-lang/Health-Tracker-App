@@ -1,5 +1,6 @@
 import { Bell } from "lucide-react";
 import type { Notification } from "../../api";
+import { EmptyArt } from "../../components/art/EmptyArt";
 
 /** Notification types related to medication (family invites are shown on the Family page). */
 const MEDICATION_TYPES = [

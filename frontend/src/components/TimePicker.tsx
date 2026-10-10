@@ -40,7 +40,7 @@ export function TimePicker({
   return (
     <div className="time-picker">
       <div className="time-picker-controls">
-        <div className="time-select">
+        <label className="time-select">
           <span>Hour</span>
           <select value={hour} onChange={(e) => setHour(Number(e.target.value))}>
             {Array.from({ length: 12 }, (_, i) => i + 1).map((v) => (
@@ -49,9 +49,9 @@ export function TimePicker({
               </option>
             ))}
           </select>
-        </div>
+        </label>
         <span className="time-colon">:</span>
-        <div className="time-select">
+        <label className="time-select">
           <span>Minute</span>
           <select value={minute} onChange={(e) => setMinute(Number(e.target.value))}>
             {Array.from({ length: 60 }, (_, i) => i).map((v) => (
@@ -60,14 +60,14 @@ export function TimePicker({
               </option>
             ))}
           </select>
-        </div>
-        <div className="time-select period-select">
+        </label>
+        <label className="time-select period-select">
           <span>Period</span>
           <select value={period} onChange={(e) => setPeriod(e.target.value as "AM" | "PM")}>
             <option value="AM">AM</option>
             <option value="PM">PM</option>
           </select>
-        </div>
+        </label>
         <button type="button" className="btn soft time-add" onClick={addTime}>
           <Plus size={16} aria-hidden="true" />
           Add time

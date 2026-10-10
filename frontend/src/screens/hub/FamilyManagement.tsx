@@ -4,6 +4,7 @@ import { api, type Family, type Notification } from "../../api";
 import { err } from "../../lib/errors";
 import { initials } from "../../lib/text";
 import { Field } from "../../components/Field";
+import { LogoMark } from "../../components/LogoMark";
 
 /**
  * Family group management: create a group, search and invite registered users, see members
@@ -192,6 +193,35 @@ export function FamilyManagement({
               {message}
             </div>
           )}
+          <div className="family-orbit" aria-hidden="true">
+            <div className="family-orbit-center">
+              <LogoMark size={44} />
+              <small>Shared plan</small>
+            </div>
+            {[
+              ...active.members.map((m) => ({
+                id: m.userId || m.id,
+                name: m.displayName,
+                pending: false,
+              })),
+              ...active.pending.map((p) => ({
+                id: p.id,
+                name: p.inviteeDisplayName || "Invited",
+                pending: true,
+              })),
+            ]
+              .slice(0, 8)
+              .map((m, i, all) => (
+                <span
+                  key={m.id}
+                  className={m.pending ? "orbit-member pending" : "orbit-member"}
+                  style={{ ["--a" as string]: `${(360 / all.length) * i}deg` }}
+                  title={m.name}
+                >
+                  {initials(m.name)}
+                </span>
+              ))}
+          </div>
           <div className="family-members">
             <div className="family-subhead">
               <h4>Family members</h4>

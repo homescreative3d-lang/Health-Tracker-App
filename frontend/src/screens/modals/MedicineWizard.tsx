@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Pill } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Medicine, MedicineInput } from "../../api";
-import { fmtTime, today } from "../../lib/dates";
+import { DAY_PARTS, fmtTime, part, today } from "../../lib/dates";
 import { conditions, days, forms, frequencyLabel, liquids } from "../../constants/options";
 import { Field } from "../../components/Field";
 import { InlineError } from "../../components/InlineError";
 import { Modal } from "../../components/Modal";
 import { TimePicker } from "../../components/TimePicker";
+import { MedicineArt } from "../../components/art/MedicineArt";
 
 type MedicineWizardProps = {
   /** Starting values (blank for new medicines, the medicine itself when editing). */
@@ -21,6 +22,29 @@ type MedicineWizardProps = {
 };
 
 const STEPS = ["Details", "Schedule", "Supply"] as const;
+
+/**
+ * Live preview of which pill-organizer compartments the chosen dose times fall into,
+ * so users see how the medicine will appear on the Today screen.
+ */
+function CompartmentPreview({ times }: { times: string[] }) {
+  return (
+    <div className="compartment-preview full-field" aria-label="Where these doses appear on Today">
+      {DAY_PARTS.map((p) => {
+        const hits = times.filter((t) => part(t) === p);
+        return (
+          <div
+            key={p}
+            className={`compartment part-${p.toLowerCase()}${hits.length ? " filled" : ""}`}
+          >
+            <span className="compartment-name">{p}</span>
+            {hits.length ? hits.map((t) => <b key={t}>{fmtTime(t)}</b>) : <small>—</small>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 /**
  * Three-step add/edit medicine dialog: details → schedule → supply & review.
@@ -100,7 +124,7 @@ export function MedicineWizard({
     <Modal
       title={isEdit ? `Edit ${initial.name || "medicine"}` : "Add a medicine"}
       kicker={patientName ? `For ${patientName}` : undefined}
-      icon={<Pill size={20} />}
+      icon={<MedicineArt form={m.form} size={40} />}
       onClose={onClose}
       closeOnBackdrop={false}
       className="medicine-modal"
@@ -268,6 +292,7 @@ export function MedicineWizard({
             <span className="field-label">Dose times</span>
             <TimePicker times={m.times} onChange={(times) => set("times", times)} />
           </div>
+          <CompartmentPreview times={m.times} />
           <label className="check-row full-field">
             <input
               type="checkbox"

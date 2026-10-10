@@ -12,6 +12,80 @@ const DEFAULTS: NotificationSettingsData = {
   finalNotificationEnabled: true,
 };
 
+/**
+ * Live preview of when reminders fire for a sample 8:00 PM dose, mirroring the server
+ * scheduler: first reminder `lead` minutes before, repeats every `repeat` minutes until the
+ * dose time, an optional final alert on time, and a missed-dose alert one hour after.
+ */
+function ReminderTimeline({
+  lead,
+  repeat,
+  final,
+}: {
+  lead: number;
+  repeat: number;
+  final: boolean;
+}) {
+  const span = Math.max(lead, 15) + 60; // minutes shown: from first reminder to +60
+  const start = -Math.max(lead, 15);
+  const pos = (m: number) => ((m - start) / span) * 100;
+  const reminders: number[] = [];
+  if (lead > 0)
+    for (let m = -lead; m < 0 && reminders.length < 40; m += Math.max(1, repeat)) reminders.push(m);
+  const clock = (m: number) => {
+    const t = 20 * 60 + m;
+    const h = Math.floor((((t % 1440) + 1440) % 1440) / 60);
+    return `${h % 12 || 12}:${String(((t % 60) + 60) % 60).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
+  };
+  return (
+    <div className="reminder-timeline" aria-label="Reminder preview for a dose at 8:00 PM">
+      <div className="rt-head">
+        <b>Preview for a dose at 8:00 PM</b>
+        <small>
+          {reminders.length} reminder{reminders.length === 1 ? "" : "s"}
+          {final ? " + on-time alert" : ""}
+        </small>
+      </div>
+      <div className="rt-track">
+        <span
+          className="rt-window"
+          style={{ left: `${pos(0)}%`, width: `${pos(60) - pos(0)}%` }}
+          title="Take/Skip window"
+        />
+        {reminders.map((m, i) => (
+          <span
+            key={m}
+            className="rt-mark reminder"
+            style={{ left: `${pos(m)}%`, ["--i" as string]: i }}
+            title={`Reminder at ${clock(m)}`}
+          />
+        ))}
+        <span
+          className={final ? "rt-mark dose final" : "rt-mark dose"}
+          style={{ left: `${pos(0)}%` }}
+          title="Dose time"
+        />
+        <span
+          className="rt-mark missed"
+          style={{ left: `${pos(60)}%` }}
+          title="Missed-dose alert"
+        />
+      </div>
+      <div className="rt-labels">
+        <span style={{ left: `${pos(reminders[0] ?? 0)}%` }}>{clock(reminders[0] ?? 0)}</span>
+        <span style={{ left: `${pos(0)}%` }}>8:00 PM</span>
+        <span style={{ left: `${pos(60)}%` }}>9:00 PM</span>
+      </div>
+      <ul className="rt-legend">
+        <li className="reminder">Reminder</li>
+        <li className="dose">{final ? "On-time alert" : "Dose time"}</li>
+        <li className="window">Take / Skip window</li>
+        <li className="missed">Missed alert</li>
+      </ul>
+    </div>
+  );
+}
+
 /** Resolves the VAPID public key from the API, falling back to the build-time env var. */
 const vapidKey = (s: NotificationSettingsData) =>
   (s.vapidPublicKey || import.meta.env.VITE_VAPID_PUBLIC_KEY || "").trim();
@@ -113,25 +187,26 @@ export function NotificationSettings() {
             ))}
           </select>
         </Field>
-        <Field label="First reminder (minutes before)">
+        <Field label={`First reminder: ${s.leadMinutes ? `${s.leadMinutes} min before` : "off"}`}>
           <input
-            className="input"
-            type="number"
-            inputMode="numeric"
+            className="range"
+            type="range"
             min={0}
             max={120}
+            step={5}
             value={s.leadMinutes}
+            style={{ ["--v" as string]: `${(s.leadMinutes / 120) * 100}%` }}
             onChange={(e) => setS({ ...s, leadMinutes: Number(e.target.value) })}
           />
         </Field>
-        <Field label="Repeat every (minutes)">
+        <Field label={`Repeat every ${s.repeatMinutes} min`}>
           <input
-            className="input"
-            type="number"
-            inputMode="numeric"
+            className="range"
+            type="range"
             min={1}
             max={60}
             value={s.repeatMinutes}
+            style={{ ["--v" as string]: `${((s.repeatMinutes - 1) / 59) * 100}%` }}
             onChange={(e) => setS({ ...s, repeatMinutes: Number(e.target.value) })}
           />
         </Field>
@@ -144,6 +219,11 @@ export function NotificationSettings() {
           Send a final alert at the scheduled time
         </label>
       </div>
+      <ReminderTimeline
+        lead={s.leadMinutes}
+        repeat={s.repeatMinutes}
+        final={s.finalNotificationEnabled}
+      />
       <div className="settings-actions">
         <button className="btn primary" disabled={!!busy || !loaded} onClick={save}>
           {busy === "save" ? "Saving…" : "Save settings"}

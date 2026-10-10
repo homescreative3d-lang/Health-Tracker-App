@@ -1,14 +1,58 @@
 import { useEffect, useState } from "react";
-import { Clock3 } from "lucide-react";
+import { Clock3, ListTree, Table2 } from "lucide-react";
 import { api, type HistoryRow, type Patient } from "../../api";
-import { fmtTime } from "../../lib/dates";
+import { dateLabel, fmtTime, part } from "../../lib/dates";
 import { err } from "../../lib/errors";
 import { initials } from "../../lib/text";
 import { Field } from "../../components/Field";
 import { InlineError } from "../../components/InlineError";
 import { MedicineFormIcon } from "../../components/MedicineFormIcon";
 import { PageHeader } from "../../components/PageHeader";
+import { EmptyArt } from "../../components/art/EmptyArt";
 import { SkeletonList } from "../../components/Skeleton";
+
+/**
+ * Day-grouped timeline: each dose is a node colored by outcome on a rail colored by daypart.
+ * @param rows - History rows (newest first).
+ */
+function HistoryTimeline({ rows }: { rows: HistoryRow[] }) {
+  const days = rows.reduce<Record<string, HistoryRow[]>>((acc, r) => {
+    (acc[r.date] ||= []).push(r);
+    return acc;
+  }, {});
+  return (
+    <div className="history-timeline">
+      {Object.entries(days).map(([date, items]) => (
+        <section className="timeline-day" key={date}>
+          <h4>{dateLabel(date)}</h4>
+          <ol>
+            {items.map((r) => (
+              <li
+                key={r.id}
+                className={`timeline-item st-${r.status} part-${part(r.time).toLowerCase()}`}
+              >
+                <span className="timeline-dot" aria-hidden="true" />
+                <time>{fmtTime(r.time)}</time>
+                <div className="timeline-copy">
+                  <b>{r.medicineName}</b>
+                  <small>
+                    {r.patientName}
+                    {r.actionedByName ? ` · by ${r.actionedByName}` : ""}
+                  </small>
+                </div>
+                <span
+                  className={`history-status ${r.status === "taken" ? "taken" : r.status === "missed" || r.status === "skipped" ? "missed" : "pending"}`}
+                >
+                  {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ))}
+    </div>
+  );
+}
 
 /**
  * Filterable dose history across all accessible patients (max 1,000 most recent rows).
@@ -25,6 +69,15 @@ export function History({ patients, patient }: { patients: Patient[]; patient: P
     setSelected(patient.id ? [patient.id] : []);
   }, [patient.id]);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<"timeline" | "table">("timeline");
+  const counts = {
+    taken: rows.filter((r) => r.status === "taken").length,
+    skipped: rows.filter((r) => r.status === "skipped").length,
+    missed: rows.filter((r) => r.status === "missed").length,
+    pending: rows.filter((r) => !["taken", "skipped", "missed"].includes(r.status)).length,
+  };
+  const recorded = counts.taken + counts.skipped + counts.missed;
+  const rate = recorded ? Math.round((counts.taken / recorded) * 100) : 0;
   const [error, setError] = useState("");
   // Debounce the free-text medicine filter so typing doesn't fire a request per keystroke.
   const [medicineQuery, setMedicineQuery] = useState("");
@@ -151,11 +204,50 @@ export function History({ patients, patient }: { patients: Patient[]; patient: P
             {loading ? "Loading…" : `${rows.length} record${rows.length === 1 ? "" : "s"}`}
           </span>
         </div>
+        <div className="view-toggle" role="radiogroup" aria-label="History view">
+          {(["timeline", "table"] as const).map((v) => (
+            <button
+              key={v}
+              role="radio"
+              aria-checked={view === v}
+              className={view === v ? "active" : ""}
+              onClick={() => setView(v)}
+            >
+              {v === "timeline" ? (
+                <ListTree size={16} aria-hidden="true" />
+              ) : (
+                <Table2 size={16} aria-hidden="true" />
+              )}
+              {v === "timeline" ? "Timeline" : "Table"}
+            </button>
+          ))}
+        </div>
       </div>
+      {rows.length > 0 && (
+        <div className="history-summary">
+          {[
+            ["taken", "Taken", counts.taken],
+            ["skipped", "Skipped", counts.skipped],
+            ["missed", "Missed", counts.missed],
+            ["pending", "Pending", counts.pending],
+          ].map(([k, label, n]) => (
+            <div className={`summary-chip s-${k}`} key={k as string}>
+              <b>{n as number}</b>
+              <span>{label as string}</span>
+            </div>
+          ))}
+          <div className="summary-chip s-rate">
+            <b>{rate}%</b>
+            <span>Taken of recorded</span>
+          </div>
+        </div>
+      )}
       {error && <InlineError>{error}</InlineError>}
       <div className="card history-table-wrap" aria-busy={loading}>
         {loading && !rows.length ? (
           <SkeletonList rows={4} label="Loading history" />
+        ) : rows.length && view === "timeline" ? (
+          <HistoryTimeline rows={rows} />
         ) : rows.length ? (
           <div className="history-table-scroll">
             <table className="history-data-table">
@@ -219,9 +311,7 @@ export function History({ patients, patient }: { patients: Patient[]; patient: P
           </div>
         ) : (
           <div className="history-empty">
-            <div className="empty-icon">
-              <Clock3 aria-hidden="true" />
-            </div>
+            <EmptyArt kind="history" />
             <b>No history records found</b>
             <span className="muted">
               Try adjusting your filters or check back after scheduled doses.
