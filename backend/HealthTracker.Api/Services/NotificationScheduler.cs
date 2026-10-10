@@ -18,7 +18,7 @@ public class NotificationScheduler(IServiceScopeFactory scopes,ILogger<Notificat
      {
       var start=new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue),zone.GetUtcOffset(date.ToDateTime(TimeOnly.MinValue)));
       if(!await db.Notifications.AnyAsync(n=>n.UserId==user.Id&&n.Type=="refill_low"&&n.CreatedAt>=start&&n.DataJson.Contains(m.Id.ToString()),ct))
-      {db.Notifications.Add(new AppNotification{UserId=user.Id,Type="refill_low",Title="Refill reminder",Message=$"{m.Name} has {m.SupplyCount} doses remaining.",DataJson=JsonSerializer.Serialize(new{medicineId=m.Id,patientId=p.Id})});await db.SaveChangesAsync(ct);await push.SendToUsersAsync([user.Id],"Refill reminder",$"{m.Name} for {p.Name} has {m.SupplyCount} doses remaining.","refill_low",null,ct);}
+      {db.Notifications.Add(new AppNotification{UserId=user.Id,Type="refill_low",Title="Refill reminder",Message=$"{m.Name} has {m.SupplyCount} doses remaining.",DataJson=JsonSerializer.Serialize(new{medicineId=m.Id,patientId=p.Id})});await db.SaveChangesAsync(ct);await push.SendToUsersAsync([user.Id],"Refill reminder",$"{m.Name} for {p.Name} has {m.SupplyCount} doses remaining.","refill_low",null,ct,m.Form);}
      }
      if(!Occurs(m,date))continue;
      foreach(var time in JsonSerializer.Deserialize<List<string>>(m.TimesJson)??[])
@@ -50,7 +50,7 @@ public class NotificationScheduler(IServiceScopeFactory scopes,ILogger<Notificat
  }
  static async Task Deliver(AppDbContext db,Guid userId,Patient p,Medicine m,DoseEvent dose,string title,string body,string type,DateTimeOffset occurrence,IPushNotificationService push,CancellationToken ct)
  {
-  var sent=await push.SendToUsersAsync([userId],title,body,type,dose.Id,ct);
+  var sent=await push.SendToUsersAsync([userId],title,body,type,dose.Id,ct,m.Form);
   var delivery=await db.NotificationDeliveries.SingleAsync(x=>x.UserId==userId&&x.DoseEventId==dose.Id&&x.Type==type&&x.ScheduledFor==occurrence,ct);
   delivery.SentAt=sent?DateTimeOffset.UtcNow:null;delivery.Status=sent?"sent":"failed";delivery.Error=sent?null:"No active browser push subscription or delivery failed.";
   if(!sent)db.Notifications.Add(new AppNotification{UserId=userId,Type="notification_failed",Title="Notification not delivered",Message=title+": "+m.Name+" for "+p.Name+".",DataJson=JsonSerializer.Serialize(new{doseId=dose.Id,type})});
