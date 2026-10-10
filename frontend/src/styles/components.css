@@ -7,9 +7,9 @@
   justify-content: center;
   gap: 8px;
   min-height: var(--tap);
-  padding: 0 18px;
-  border-radius: var(--radius-sm);
-  font-weight: 700;
+  padding: 0 20px;
+  border-radius: var(--radius-pill);
+  font-weight: 600;
   font-size: var(--text-md);
   line-height: 1.1;
   white-space: nowrap;
@@ -73,7 +73,7 @@
 }
 .text-btn {
   color: var(--primary-strong);
-  font-weight: 700;
+  font-weight: 600;
   min-height: var(--tap);
   padding: 0 4px;
 }
@@ -220,7 +220,7 @@
   padding: 3px 10px;
   border-radius: var(--radius-pill);
   font-size: var(--text-sm);
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
 }
 .status-success {
@@ -244,7 +244,7 @@ span.status-danger,
 span.status-pending,
 span.status-info {
   border-radius: var(--radius-pill);
-  font-weight: 700;
+  font-weight: 600;
   font-size: var(--text-sm);
   padding: 3px 10px;
 }
@@ -258,7 +258,7 @@ span.status-info {
   overflow: hidden;
   background: var(--primary-soft);
   color: var(--primary-strong);
-  font-weight: 700;
+  font-weight: 600;
 }
 .avatar img {
   width: 100%;
@@ -293,7 +293,7 @@ span.status-info {
   min-width: 0;
 }
 .field-label {
-  font-weight: 700;
+  font-weight: 600;
   font-size: var(--text-sm);
   color: var(--ink-2);
   padding: 0;
@@ -396,7 +396,7 @@ select.input {
   align-items: center;
   gap: 10px;
   min-height: var(--tap);
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
 }
 .check-row input {
@@ -412,7 +412,7 @@ select.input {
   border-radius: var(--radius-sm);
   background: var(--danger-soft);
   color: var(--danger);
-  font-weight: 700;
+  font-weight: 600;
   font-size: var(--text-sm);
 }
 .inline-error svg {
@@ -424,7 +424,7 @@ select.input {
   border-radius: var(--radius-sm);
   background: var(--success-soft);
   color: var(--success);
-  font-weight: 700;
+  font-weight: 600;
   font-size: var(--text-sm);
 }
 .settings-message.error {
@@ -442,7 +442,7 @@ select.input {
 .segmented button {
   min-height: 40px;
   border-radius: var(--radius-sm);
-  font-weight: 700;
+  font-weight: 600;
   color: var(--muted);
   transition:
     background var(--dur),
@@ -468,7 +468,7 @@ select.input {
   border-radius: var(--radius-pill);
   border: 1px solid var(--border-strong);
   background: var(--surface);
-  font-weight: 700;
+  font-weight: 600;
   font-size: var(--text-sm);
   color: var(--ink-2);
   transition:
@@ -538,7 +538,7 @@ select.input {
   display: grid;
   gap: 4px;
   font-size: var(--text-xs);
-  font-weight: 700;
+  font-weight: 600;
   color: var(--muted);
 }
 .time-select select {
@@ -552,7 +552,7 @@ select.input {
   color: var(--ink);
 }
 .time-colon {
-  font-weight: 700;
+  font-weight: 600;
   padding-bottom: 10px;
 }
 .selected-times {
@@ -569,7 +569,7 @@ select.input {
   border-radius: var(--radius-pill);
   background: var(--primary-soft);
   color: var(--primary-strong);
-  font-weight: 700;
+  font-weight: 600;
   font-size: var(--text-sm);
 }
 .time-chip button {
@@ -621,7 +621,7 @@ select.input {
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-strong);
   background: var(--surface);
-  font-weight: 700;
+  font-weight: 600;
 }
 .patient-context-select svg {
   position: absolute;
@@ -703,7 +703,7 @@ select.input {
   display: grid;
   gap: 6px;
   font-size: var(--text-sm);
-  font-weight: 700;
+  font-weight: 600;
   color: var(--muted);
 }
 .progress-steps li::before {
@@ -746,7 +746,7 @@ select.input {
   background: var(--ink);
   color: #fff;
   box-shadow: var(--shadow-lg);
-  font-weight: 700;
+  font-weight: 600;
 }
 .toast-icon {
   display: grid;
@@ -899,7 +899,7 @@ select.input {
   color: var(--muted);
 }
 .notification-detail-row dd {
-  font-weight: 700;
+  font-weight: 600;
   text-align: right;
 }
 
@@ -955,5 +955,127 @@ select.input {
     flex: 1;
     max-width: none;
     width: 100%;
+  }
+}
+
+/* ---------- Splash (session restore) ---------- */
+.splash {
+  min-height: 100dvh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-4);
+  background:
+    radial-gradient(500px 300px at 50% 35%, rgba(11, 122, 110, 0.1), transparent 70%), var(--bg);
+  color: var(--muted);
+}
+.splash-word {
+  font-size: 1.8rem;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  color: var(--ink);
+  animation: rise 600ms 500ms var(--ease-out) both;
+}
+.splash-bar {
+  width: 180px;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--border);
+  overflow: hidden;
+}
+.splash-bar span {
+  display: block;
+  height: 100%;
+  width: 40%;
+  border-radius: 4px;
+  background: var(--day-ribbon);
+  animation: splash-slide 1.4s ease-in-out infinite;
+}
+.splash p {
+  font-size: var(--text-sm);
+  animation: fade-in 400ms var(--ease-out);
+}
+@keyframes splash-slide {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(260%);
+  }
+}
+
+/* Animated logo: compartments fill in daypart order, then the check draws. */
+.logo-mark.animated .lm-cell {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: cell-in 520ms var(--ease-out) both;
+}
+.logo-mark.animated .c1 {
+  animation-delay: 80ms;
+}
+.logo-mark.animated .c2 {
+  animation-delay: 200ms;
+}
+.logo-mark.animated .c3 {
+  animation-delay: 320ms;
+}
+.logo-mark.animated .c4 {
+  animation-delay: 440ms;
+}
+.logo-mark.animated .lm-check {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation:
+    check-draw 520ms 640ms var(--ease-out) forwards,
+    check-breathe 2.4s 1.4s ease-in-out infinite;
+}
+@keyframes cell-in {
+  from {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+}
+@keyframes check-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes check-breathe {
+  50% {
+    opacity: 0.75;
+  }
+}
+
+/* ---------- Skeletons ---------- */
+.skeleton {
+  display: block;
+  flex: none;
+  background: linear-gradient(90deg, #eef2f6 25%, #f7f9fb 45%, #eef2f6 65%);
+  background-size: 300% 100%;
+  animation: shimmer 1.3s ease-in-out infinite;
+}
+.skeleton-list {
+  overflow: hidden;
+}
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+.skeleton-row + .skeleton-row {
+  border-top: 1px solid var(--border);
+}
+.skeleton-lines {
+  flex: 1;
+  display: grid;
+  gap: 8px;
+}
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
   }
 }
