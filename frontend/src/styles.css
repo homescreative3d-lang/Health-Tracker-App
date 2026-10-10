@@ -280,3 +280,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
  .ongoing-medicine-row>.status-success,.ongoing-medicine-row>.status-danger{margin-left:52px}
 }
 @media(prefers-reduced-motion:reduce){.medical-history-node{opacity:1;animation:none}.medical-history-node>div{transition:none}}
+
+.patient-summary-row{display:flex;align-items:stretch;gap:7px;min-width:0}
+.patient-summary-row .patient-summary-card,.patient-summary-row .own-health-card{flex:1;min-width:0}
+.patient-edit-shortcut{align-self:center;flex:0 0 42px;width:42px;height:42px;display:grid;place-items:center;border:1px solid var(--border);border-radius:12px;background:#fff;color:var(--primary-dark);transition:background .18s,border-color .18s}
+.patient-edit-shortcut:hover{background:var(--mint);border-color:var(--mint2)}
+.own-health-row{margin-bottom:10px}
+@media(max-width:760px){.patient-cards{grid-template-columns:minmax(0,1fr)}}
