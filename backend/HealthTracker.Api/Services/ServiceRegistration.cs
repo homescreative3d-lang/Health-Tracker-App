@@ -27,6 +27,7 @@ public static class ServiceRegistration
         services.AddScoped<IPatientAccessService, PatientAccessService>();
         services.AddScoped<ITokenService, TokenService>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<ICareTeamNotifier, CareTeamNotifier>();
         services.AddScoped<IDoseService, DoseService>();
         services.AddScoped<IPushNotificationService, PushNotificationService>();
         services.AddSingleton<INeonObjectStorage, NeonObjectStorage>();

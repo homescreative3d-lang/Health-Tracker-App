@@ -118,38 +118,61 @@ public class NotificationScheduler(IServiceScopeFactory scopes, ILogger<Notifica
                             continue;
                         }
 
-                        var minutesUntilDose = (scheduledUtc - now).TotalMinutes;
-                        if (minutesUntilDose > 0 && user.NotificationLeadMinutes > 0 && minutesUntilDose <= user.NotificationLeadMinutes)
-                        {
-                            var repeatMinutes = Math.Max(1, user.NotificationRepeatMinutes);
-                            var elapsedMinutes = user.NotificationLeadMinutes - minutesUntilDose;
-                            var slot = (int)Math.Floor(elapsedMinutes / repeatMinutes);
-                            var occurrenceUtc = scheduledUtc.AddMinutes(-user.NotificationLeadMinutes + slot * repeatMinutes).ToUniversalTime();
-                            if (occurrenceUtc <= now && await Reserve(db, user.Id, dose.Id, "reminder", occurrenceUtc, cancellationToken))
-                            {
-                                await Deliver(db, user.Id, patient, medicine, dose, "Medicine reminder", $"{medicine.Name} ({medicine.Strength}) for {patient.Name} is due at {timeOfDay}.", "dose_reminder", occurrenceUtc, push, cancellationToken);
-                            }
-                        }
-
-                        if (user.FinalNotificationEnabled && minutesUntilDose <= 0 && minutesUntilDose >= -1.0 && await Reserve(db, user.Id, dose.Id, "final", scheduledUtc, cancellationToken))
-                        {
-                            await Deliver(db, user.Id, patient, medicine, dose, "Medicine due now", $"{medicine.Name} ({medicine.Strength}) for {patient.Name} is due now.", "dose_final", scheduledUtc, push, cancellationToken);
-                        }
-
-                        if (minutesUntilDose <= 0 && dose.Status == "pending")
-                        {
-                            dose.Status = "missed";
-                            dose.MissedAt = now;
-                            await db.SaveChangesAsync(cancellationToken);
-                        }
-
-                        if (minutesUntilDose <= -1.0 && dose.Status == "missed" && await Reserve(db, user.Id, dose.Id, "missed", scheduledUtc, cancellationToken))
-                        {
-                            await Deliver(db, user.Id, patient, medicine, dose, "Dose missed", $"{medicine.Name} ({medicine.Strength}) for {patient.Name} was not marked taken at {timeOfDay}.", "dose_missed", scheduledUtc, push, cancellationToken);
-                        }
+                        await ProcessReminders(db, push, user, patient, medicine, dose, scheduledUtc, timeOfDay, now, "", cancellationToken);
                     }
                 }
+
+                // Doses moved here by a reschedule aren't on the regular schedule: remind for them too.
+                var movedDoses = await db.DoseEvents
+                    .Where(e => e.PatientId == patient.Id && e.Date == localDate && e.RescheduledFromId != null && (e.Status == "pending" || e.Status == "missed"))
+                    .ToListAsync(cancellationToken);
+                foreach (var moved in movedDoses)
+                {
+                    var medicine = medicines.FirstOrDefault(m => m.Id == moved.MedicineId);
+                    if (medicine is null || !TimeOnly.TryParse(moved.Time, out var movedTime))
+                        continue;
+                    var movedUtc = DoseSchedule.ScheduledAt(localDate, moved.Time, timeZone).ToUniversalTime();
+                    await ProcessReminders(db, push, user, patient, medicine, moved, movedUtc, movedTime, now, " (rescheduled)", cancellationToken);
+                }
             }
+        }
+    }
+
+    /// <summary>
+    /// Sends the lead-time reminders, the on-time alert and the missed-dose alert for one dose,
+    /// and marks it missed once its time passes. Shared by scheduled and rescheduled doses;
+    /// <c>label</c> is appended to message text (e.g. " (rescheduled)").
+    /// </summary>
+    private static async Task ProcessReminders(AppDbContext db, IPushNotificationService push, AppUser user, Patient patient, Medicine medicine, DoseEvent dose, DateTimeOffset scheduledUtc, TimeOnly timeOfDay, DateTimeOffset now, string label, CancellationToken cancellationToken)
+    {
+        var minutesUntilDose = (scheduledUtc - now).TotalMinutes;
+        if (minutesUntilDose > 0 && user.NotificationLeadMinutes > 0 && minutesUntilDose <= user.NotificationLeadMinutes)
+        {
+            var repeatMinutes = Math.Max(1, user.NotificationRepeatMinutes);
+            var elapsedMinutes = user.NotificationLeadMinutes - minutesUntilDose;
+            var slot = (int)Math.Floor(elapsedMinutes / repeatMinutes);
+            var occurrenceUtc = scheduledUtc.AddMinutes(-user.NotificationLeadMinutes + slot * repeatMinutes).ToUniversalTime();
+            if (occurrenceUtc <= now && await Reserve(db, user.Id, dose.Id, "reminder", occurrenceUtc, cancellationToken))
+            {
+                await Deliver(db, user.Id, patient, medicine, dose, "Medicine reminder", $"{medicine.Name} ({medicine.Strength}) for {patient.Name} is due at {timeOfDay}{label}.", "dose_reminder", occurrenceUtc, push, cancellationToken);
+            }
+        }
+
+        if (user.FinalNotificationEnabled && minutesUntilDose <= 0 && minutesUntilDose >= -1.0 && await Reserve(db, user.Id, dose.Id, "final", scheduledUtc, cancellationToken))
+        {
+            await Deliver(db, user.Id, patient, medicine, dose, "Medicine due now", $"{medicine.Name} ({medicine.Strength}) for {patient.Name} is due now{label}.", "dose_final", scheduledUtc, push, cancellationToken);
+        }
+
+        if (minutesUntilDose <= 0 && dose.Status == "pending")
+        {
+            dose.Status = "missed";
+            dose.MissedAt = now;
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        if (minutesUntilDose <= -1.0 && dose.Status == "missed" && await Reserve(db, user.Id, dose.Id, "missed", scheduledUtc, cancellationToken))
+        {
+            await Deliver(db, user.Id, patient, medicine, dose, "Dose missed", $"{medicine.Name} ({medicine.Strength}) for {patient.Name} was not marked taken at {timeOfDay}{label}.", "dose_missed", scheduledUtc, push, cancellationToken);
         }
     }
 

@@ -30,6 +30,9 @@ public static class DoseSchedule
     {
         if (date < medicine.StartDate || IsPaused(medicine, date))
             return false;
+        // A rescheduled medicine hands over to its replacement from EndedOn onwards.
+        if (medicine.EndedOn.HasValue && date >= medicine.EndedOn.Value)
+            return false;
         var daysSinceStart = date.DayNumber - medicine.StartDate.DayNumber;
         if (!medicine.IsRecurring && daysSinceStart != 0)
             return false;
