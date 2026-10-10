@@ -160,7 +160,7 @@ public class NotificationsController(
     public async Task<IActionResult> Get()
     {
         var rows = await db.Notifications
-            .Where(notification => notification.UserId == UserId)
+            .Where(notification => notification.UserId == UserId && notification.CreatedAt >= DateTimeOffset.UtcNow.AddDays(-3))
             .OrderByDescending(notification => notification.CreatedAt)
             .Take(100)
             .ToListAsync();
