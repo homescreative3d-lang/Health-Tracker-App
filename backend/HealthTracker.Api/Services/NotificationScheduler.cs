@@ -5,7 +5,12 @@ public class NotificationScheduler(IServiceScopeFactory scopes,ILogger<Notificat
  protected override async Task ExecuteAsync(CancellationToken stop){await Task.Delay(TimeSpan.FromSeconds(5),stop);while(!stop.IsCancellationRequested){try{using var scope=scopes.CreateScope();await Tick(scope.ServiceProvider,stop);}catch(Exception ex){log.LogError(ex,"Notification scheduler failed");}await Task.Delay(TimeSpan.FromSeconds(30),stop);}}
  static async Task Tick(IServiceProvider sp,CancellationToken ct)
  {
-  var db=sp.GetRequiredService<AppDbContext>();var push=sp.GetRequiredService<IPushNotificationService>();var now=DateTimeOffset.UtcNow;var users=await db.Users.AsNoTracking().ToListAsync(ct);
+  var db=sp.GetRequiredService<AppDbContext>();
+  var runtimeConfig=await db.NotificationRuntimeConfigs.AsNoTracking().SingleOrDefaultAsync(x=>x.Id==1,ct);
+  if(runtimeConfig is null||!runtimeConfig.Enabled||!string.Equals(runtimeConfig.ActiveProvider,"dotnet",StringComparison.OrdinalIgnoreCase))return;
+  var push=sp.GetRequiredService<IPushNotificationService>();
+  var now=DateTimeOffset.UtcNow;
+  var users=await db.Users.AsNoTracking().ToListAsync(ct);
   foreach(var user in users)
   {
    var zone=Zone(user.TimeZoneId);var local=TimeZoneInfo.ConvertTime(now,zone);var date=DateOnly.FromDateTime(local.DateTime);var ownerIds=await AccessibleOwnerIds(db,user.Id,ct);var patients=await db.Patients.Where(p=>ownerIds.Contains(p.UserId)).ToListAsync(ct);
