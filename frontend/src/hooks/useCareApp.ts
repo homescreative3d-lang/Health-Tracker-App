@@ -21,7 +21,7 @@ import { useHashRoute } from "./useHashRoute";
 import { useToast } from "./useToast";
 
 /** Top-level screens outside the signed-in hub. */
-export type Screen = "login" | "forgot" | "reset" | "role" | "patient" | "hub";
+export type Screen = "landing" | "login" | "forgot" | "reset" | "role" | "patient" | "hub";
 
 /** Placeholder used when the user has no patient yet, or when adding a new one. */
 export const emptyPatient = (overrides: Partial<Patient> = {}): Patient => ({
@@ -50,9 +50,12 @@ const DOSE_REFRESH_MS = 60_000;
  * through 21 props.
  */
 export function useCareApp() {
+  // Signed-out visitors start on the landing page; reset links open the reset form.
   const [screen, setScreen] = useState<Screen>(
-    new URLSearchParams(window.location.search).has("reset") ? "reset" : "login",
+    new URLSearchParams(window.location.search).has("reset") ? "reset" : "landing",
   );
+  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  const [planLoading, setPlanLoading] = useState(false);
   const [tab, setTab] = useHashRoute<HubTab>("today", HUB_TABS);
   const [user, setUser] = useState<User | null>(null);
   const [patient, setPatient] = useState<Patient | null>(null);
@@ -87,7 +90,7 @@ export function useCareApp() {
     setEditing(null);
     setNotificationOpen(false);
     setGuide(false);
-    setScreen("login");
+    setScreen("landing");
   }, []);
 
   /**
@@ -248,7 +251,17 @@ export function useCareApp() {
     }
   };
 
-  /** Signs out and returns to the login screen. */
+  /**
+   * Opens the auth screen on the requested tab (used by the landing navbar and CTAs).
+   * @param mode - "signin" for Log in, "signup" for Sign up.
+   */
+  const openAuth = (mode: "signin" | "signup") => {
+    setAuthMode(mode);
+    setScreen("login");
+    window.scrollTo({ top: 0 });
+  };
+
+  /** Signs out and returns to the landing page. */
   const signOut = () => {
     resetSession();
     window.location.hash = "";
@@ -388,14 +401,17 @@ export function useCareApp() {
    * @param nextTab - Optional view to open afterwards.
    */
   const selectPatient = async (p: Patient, nextTab?: HubTab) => {
+    setPlanLoading(true);
     try {
       setPatient(p);
+      if (nextTab) setTab(nextTab);
       const [m, d] = await Promise.all([api.getMedicines(p.id), api.getDoses(selectedDate, p.id)]);
       setMeds(m);
       setDoses(d);
-      if (nextTab) setTab(nextTab);
     } catch (e) {
       fail(e);
+    } finally {
+      setPlanLoading(false);
     }
   };
 
@@ -495,6 +511,9 @@ export function useCareApp() {
     // state
     screen,
     setScreen,
+    authMode,
+    openAuth,
+    planLoading,
     tab,
     setTab,
     user,
