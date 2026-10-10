@@ -23,7 +23,7 @@ export async function enablePush(vapidPublicKey:string){
  if(!window.isSecureContext)throw new Error("Browser notifications require HTTPS (localhost is supported for development).");
  const permission=await Notification.requestPermission();
  if(permission!=="granted")throw new Error(permission==="denied"?"Notifications are blocked in browser settings. Allow notifications for this site and try again.":"Notification permission was not granted.");
- const registration=await navigator.serviceWorker.register("/sw.js");
+ await navigator.serviceWorker.register("/sw.js");
  const reg=await navigator.serviceWorker.ready;
  if(!reg.active)throw new Error("The notification service worker is not active yet. Refresh the page and try again.");
  let sub=await reg.pushManager.getSubscription();
