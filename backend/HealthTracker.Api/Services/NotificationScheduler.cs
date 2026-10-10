@@ -9,7 +9,7 @@ public class NotificationScheduler(
     IServiceScopeFactory scopes,
     ILogger<NotificationScheduler> log) : BackgroundService
 {
-    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(20);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
