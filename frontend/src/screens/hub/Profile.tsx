@@ -1,17 +1,91 @@
+import { useState } from "react";
+import type { ReactNode } from "react";
 import {
   Bell,
+  BookOpen,
   ChevronRight,
   HeartPulse,
   Pencil,
   Plus,
+  ShieldAlert,
   Trash2,
   User,
   Users,
-  BookOpen,
-  ShieldAlert,
 } from "lucide-react";
-import { type Patient, type User as ApiUser, type Family, type Notification } from "../../api";
+import type { Patient, User as ApiUser } from "../../api";
+import type { HubTab } from "../../components/navigation/navItems";
+import { Avatar } from "../../components/Avatar";
+import { Modal } from "../../components/Modal";
+import { PageHeader } from "../../components/PageHeader";
 
+type ProfileProps = {
+  user: ApiUser;
+  patients: Patient[];
+  setTab: (v: HubTab) => void;
+  onPatientView: (p: Patient) => Promise<void>;
+  onPatientEdit: (p: Patient) => Promise<void>;
+  onAddPatient: () => void;
+  onAddSelfPatient: () => void;
+  onGuide: () => void;
+  onDeleteAccount: () => Promise<void>;
+};
+
+/** One row in the profile's settings lists. */
+function ProfileAction({
+  icon,
+  title,
+  text,
+  onClick,
+}: {
+  icon: ReactNode;
+  title: string;
+  text: string;
+  onClick: () => void;
+}) {
+  return (
+    <button className="profile-action" onClick={onClick}>
+      <span className="profile-action-icon">{icon}</span>
+      <span className="profile-action-copy">
+        <b>{title}</b>
+        <small>{text}</small>
+      </span>
+      <ChevronRight size={18} aria-hidden="true" />
+    </button>
+  );
+}
+
+/** Row linking to a patient profile, with a separate edit shortcut. */
+function PatientRow({ p, onView, onEdit }: { p: Patient; onView: () => void; onEdit: () => void }) {
+  return (
+    <div className="patient-summary-row">
+      <button className="patient-summary-card" onClick={onView}>
+        <Avatar name={p.name} src={p.profileImageUrl} />
+        <span className="patient-summary-copy">
+          <b>{p.name || "Unnamed patient"}</b>
+          <small>
+            {p.relationship === "self" ? "My health profile" : p.relationship || "Patient"}
+            {p.ownerName ? ` · managed by ${p.ownerName}` : ""}
+          </small>
+        </span>
+        <span className="patient-open-label">
+          View <ChevronRight size={15} aria-hidden="true" />
+        </span>
+      </button>
+      <button
+        className="icon-btn patient-edit-shortcut"
+        aria-label={`Edit ${p.name || "patient"}`}
+        onClick={onEdit}
+      >
+        <Pencil size={17} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Account hub: personal info, people cared for, own health profile, settings and account deletion.
+ * "Caregiver details" previously opened the same form as "Edit personal info"; the duplicate was removed.
+ */
 export function Profile({
   user,
   patients,
@@ -22,254 +96,176 @@ export function Profile({
   onAddSelfPatient,
   onGuide,
   onDeleteAccount,
-}: {
-  user: ApiUser;
-  patients: Patient[];
-  setTab: (v: string) => void;
-  onPatientView: (p: Patient) => Promise<void>;
-  onPatientEdit: (p: Patient) => Promise<void>;
-  onAddPatient: () => void;
-  onAddSelfPatient: () => void;
-  onGuide: () => void;
-  onDeleteAccount: () => Promise<void>;
-}) {
-  const initials = (user.displayName || "?")
-    .split(" ")
-    .map((x) => x[0])
-    .slice(0, 2)
-    .join("");
-  const caredFor = patients.filter((p) => p.relationship !== "self");
+}: ProfileProps) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const caredFor = patients.filter((p) => p.relationship !== "self" && p.name);
   const ownPlans = patients.filter((p) => p.relationship === "self");
+
   return (
     <div className="page-scroll profile-page">
-      <div className="page-head">
-        <div>
-          <span className="eyebrow">YOUR ACCOUNT</span>
-          <h1>Your profile</h1>
-          <p className="muted">
-            Personal information, people you care for, and your own health details.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        kicker="Account"
+        title="Profile"
+        description="Your details, the people you care for, and settings."
+      />
+
       <section className="card profile-section">
-        <div className="section-heading">
-          <div>
-            <span className="eyebrow">PERSONAL INFO</span>
-            <h3>Personal information</h3>
-            <p className="muted">Your account and caregiver details.</p>
-          </div>
-          <User />
-        </div>
         <div className="profile-head">
-          {user.profileImageUrl ? (
-            <img className="avatar" src={user.profileImageUrl} alt="Profile" />
-          ) : (
-            <div className="avatar">{initials}</div>
-          )}
+          <Avatar name={user.displayName} src={user.profileImageUrl} size="lg" />
           <div>
             <b>{user.displayName}</b>
             <span className="muted">{user.email}</span>
-            <span className="profile-role">Caregiver account</span>
           </div>
-        </div>
-        <div className="profile-actions-grid">
-          <button className="profile-action" onClick={() => setTab("profileDetails")}>
-            <span className="profile-action-icon">
-              <User size={20} />
-            </span>
-            <span>
-              <b>Edit personal info</b>
-              <small>Update your name and profile photo</small>
-            </span>
-            <ChevronRight size={18} />
-          </button>
-          <button className="profile-action" onClick={() => setTab("careDetails")}>
-            <span className="profile-action-icon">
-              <HeartPulse size={20} />
-            </span>
-            <span>
-              <b>Caregiver details</b>
-              <small>Your details as the person providing care</small>
-            </span>
-            <ChevronRight size={18} />
+          <button className="btn soft" onClick={() => setTab("profileDetails")}>
+            <User size={16} aria-hidden="true" />
+            Edit details
           </button>
         </div>
       </section>
+
       <section className="profile-section">
         <div className="section-heading">
           <div>
-            <span className="eyebrow">CAREGIVER</span>
             <h3>People I care for</h3>
-            <p className="muted">Patient profiles you manage on behalf of someone else.</p>
+            <p className="muted">Patients you manage for someone else.</p>
           </div>
-          <button className="btn accent" onClick={onAddPatient}>
-            <Plus size={16} />
+          <button className="btn primary" onClick={onAddPatient}>
+            <Plus size={16} aria-hidden="true" />
             Add patient
           </button>
         </div>
         {caredFor.length ? (
           <div className="patient-cards">
             {caredFor.map((p) => (
-              <div className="patient-summary-row" key={p.id}>
-                <button className="patient-summary-card" onClick={() => onPatientView(p)}>
-                  <span className="avatar">
-                    {p.profileImageUrl ? (
-                      <img src={p.profileImageUrl} alt="" />
-                    ) : (
-                      (p.name || "?")
-                        .split(" ")
-                        .map((x) => x[0])
-                        .slice(0, 2)
-                        .join("")
-                    )}
-                  </span>
-                  <span className="patient-summary-copy">
-                    <b>{p.name || "Unnamed patient"}</b>
-                    <small>{p.relationship || "Patient"}</small>
-                  </span>
-                  <span className="patient-open-label">
-                    View details <ChevronRight size={15} />
-                  </span>
-                </button>
-                <button
-                  className="patient-edit-shortcut"
-                  title={"Edit " + (p.name || "patient")}
-                  aria-label={"Edit " + (p.name || "patient")}
-                  onClick={() => onPatientEdit(p)}
-                >
-                  <Pencil size={17} />
-                </button>
-              </div>
+              <PatientRow
+                key={p.id}
+                p={p}
+                onView={() => onPatientView(p)}
+                onEdit={() => onPatientEdit(p)}
+              />
             ))}
           </div>
         ) : (
           <div className="card empty-card compact">
-            <Users size={25} />
+            <Users size={24} aria-hidden="true" />
             <b>No one added yet</b>
-            <span className="muted">
-              Add a patient to manage their medicine schedule and history.
-            </span>
+            <span className="muted">Add a patient to manage their medicines and history.</span>
           </div>
         )}
       </section>
+
       <section className="profile-section">
         <div className="section-heading">
           <div>
-            <span className="eyebrow">YOUR OWN CARE</span>
             <h3>My health profile</h3>
-            <p className="muted">
-              Keep your own medical history separate from the people you care for.
-            </p>
+            <p className="muted">Keep your own medicines separate from the people you care for.</p>
           </div>
-          <HeartPulse />
         </div>
         {ownPlans.length ? (
-          ownPlans.map((p) => (
-            <div className="patient-summary-row own-health-row" key={p.id}>
-              <button className="own-health-card card" onClick={() => onPatientView(p)}>
-                <span className="own-health-avatar">
-                  {p.profileImageUrl ? <img src={p.profileImageUrl} alt="" /> : <User size={22} />}
-                </span>
-                <span className="own-health-copy">
-                  <b>{p.name || user.displayName}</b>
-                  <small>
-                    {p.medicalHistory || "Add your medical history and doctor details."}
-                  </small>
-                  {p.doctorPhotoUrl && (
-                    <span className="doctor-photo-thumb">
-                      <img src={p.doctorPhotoUrl} alt="Doctor or prescriber" />
-                    </span>
-                  )}
-                </span>
-                <span className="patient-open-label">
-                  View details <ChevronRight size={15} />
-                </span>
-              </button>
-              <button
-                className="patient-edit-shortcut"
-                title={"Edit " + (p.name || "health profile")}
-                aria-label={"Edit " + (p.name || "health profile")}
-                onClick={() => onPatientEdit(p)}
-              >
-                <Pencil size={17} />
-              </button>
-            </div>
-          ))
+          <div className="patient-cards">
+            {ownPlans.map((p) => (
+              <PatientRow
+                key={p.id}
+                p={p}
+                onView={() => onPatientView(p)}
+                onEdit={() => onPatientEdit(p)}
+              />
+            ))}
+          </div>
         ) : (
-          <div className="self-care-prompt">
+          <div className="self-care-prompt card">
+            <HeartPulse aria-hidden="true" />
             <div>
-              <b>Do you manage your own medication too?</b>
+              <b>Track your own medicines too</b>
               <p className="muted">
-                Create a personal patient profile to store your medical history and prescriber
-                photo.
+                Create a personal profile for your history, doctor and prescriptions.
               </p>
             </div>
             <button className="btn soft" onClick={onAddSelfPatient}>
-              <Plus size={16} />
-              Add my health profile
+              <Plus size={16} aria-hidden="true" />
+              Add my profile
             </button>
           </div>
         )}
       </section>
+
       <section className="card profile-section profile-tools">
-        <div className="profile-actions-grid">
-          <button className="profile-action" onClick={() => setTab("family")}>
-            <span className="profile-action-icon">
-              <Users size={20} />
-            </span>
-            <span>
-              <b>Family management</b>
-              <small>Members, invitations and consent</small>
-            </span>
-            <ChevronRight size={18} />
-          </button>
-          <button className="profile-action" onClick={() => setTab("notifications")}>
-            <span className="profile-action-icon">
-              <Bell size={20} />
-            </span>
-            <span>
-              <b>Notification settings</b>
-              <small>Reminders and browser notifications</small>
-            </span>
-            <ChevronRight size={18} />
-          </button>
-          <button className="profile-action" onClick={onGuide}>
-            <span className="profile-action-icon">
-              <BookOpen size={20} />
-            </span>
-            <span>
-              <b>How to use TENDED</b>
-              <small>Learn the basics</small>
-            </span>
-            <ChevronRight size={18} />
-          </button>
-        </div>
+        <ProfileAction
+          icon={<Users size={20} />}
+          title="Family"
+          text="Members, invitations and consent"
+          onClick={() => setTab("family")}
+        />
+        <ProfileAction
+          icon={<Bell size={20} />}
+          title="Notifications"
+          text="Reminder timing and device alerts"
+          onClick={() => setTab("notifications")}
+        />
+        <ProfileAction
+          icon={<BookOpen size={20} />}
+          title="How to use Tended"
+          text="A two-minute guide"
+          onClick={onGuide}
+        />
       </section>
+
       <section className="card delete-account-section">
         <div className="delete-account-copy">
           <span className="delete-account-icon">
-            <ShieldAlert size={20} />
+            <ShieldAlert size={20} aria-hidden="true" />
           </span>
           <div>
             <h3>Delete account</h3>
             <p className="muted">
-              Deletion is allowed only when no doses are pending, or every patient you manage has
-              another approved family caregiver. When possible, care plans are transferred so
-              reminders can continue.
+              Allowed when no doses are pending, or when every patient you manage has another
+              approved caregiver. Care plans are transferred to them so reminders continue.
             </p>
           </div>
         </div>
-        <button
-          className="btn danger"
-          onClick={() => {
-            if (confirm("Permanently delete your TENDED account? This cannot be undone."))
-              void onDeleteAccount();
-          }}
-        >
-          <Trash2 size={16} />
+        <button className="btn danger" onClick={() => setConfirmDelete(true)}>
+          <Trash2 size={16} aria-hidden="true" />
           Delete my account
         </button>
       </section>
+
+      {confirmDelete && (
+        <Modal
+          title="Delete your account?"
+          icon={<ShieldAlert size={20} />}
+          onClose={() => setConfirmDelete(false)}
+          actions={
+            <>
+              <button className="btn soft" onClick={() => setConfirmDelete(false)}>
+                Keep account
+              </button>
+              <button
+                className="btn danger"
+                disabled={confirmText !== "DELETE" || deleting}
+                onClick={async () => {
+                  setDeleting(true);
+                  await onDeleteAccount();
+                  setDeleting(false);
+                  setConfirmDelete(false);
+                }}
+              >
+                {deleting ? "Deleting…" : "Delete permanently"}
+              </button>
+            </>
+          }
+        >
+          <p className="muted">This can't be undone. Type DELETE to confirm.</p>
+          <input
+            className="input"
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            aria-label="Type DELETE to confirm"
+            autoComplete="off"
+          />
+        </Modal>
+      )}
     </div>
   );
 }

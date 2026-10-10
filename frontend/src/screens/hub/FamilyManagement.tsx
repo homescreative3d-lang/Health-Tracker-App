@@ -1,9 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell, Check, Plus, User, Users } from "lucide-react";
 import { api, type Family, type Notification } from "../../api";
 import { err } from "../../lib/errors";
+import { initials } from "../../lib/text";
 import { Field } from "../../components/Field";
 
+/**
+ * Family group management: create a group, search and invite registered users, see members
+ * and pending invitations, and answer invitations addressed to you.
+ *
+ * Not yet supported by the API (flagged in the PR): removing members, cancelling invitations
+ * and leaving a family.
+ */
 export function FamilyManagement({
   family,
   notifications,
@@ -20,6 +28,27 @@ export function FamilyManagement({
     [invited, setInvited] = useState<string[]>([]),
     [message, setMessage] = useState("");
   const active = family[0];
+  const [responding, setResponding] = useState<string | null>(null);
+
+  // Debounced, race-safe user search (previously every keystroke fired a request and
+  // slower responses could overwrite newer ones).
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 2) return setResults([]);
+    let current = true;
+    const t = window.setTimeout(() => {
+      api
+        .familySearch(term)
+        .then((r) => current && setResults(r))
+        .catch((e) => current && setMessage(err(e)));
+    }, 300);
+    return () => {
+      current = false;
+      window.clearTimeout(t);
+    };
+  }, [q]);
+
+  /** Runs the search immediately (Search button / Enter). */
   const search = async (value = q) => {
     const term = value.trim();
     if (term.length < 2) {
@@ -32,6 +61,7 @@ export function FamilyManagement({
       setMessage(err(e));
     }
   };
+  /** Creates a family owned by the current user. */
   const create = async () => {
     if (!name.trim()) return setMessage("Enter a family name.");
     try {
@@ -46,6 +76,7 @@ export function FamilyManagement({
       setBusy(false);
     }
   };
+  /** Invites a user; they gain access only after accepting. */
   const invite = async (id: string) => {
     try {
       const response = await api.inviteFamilyMember(id);
@@ -58,7 +89,9 @@ export function FamilyManagement({
       setMessage(err(e));
     }
   };
+  /** Accepts or rejects an invitation from its notification. */
   const respond = async (n: Notification, accept: boolean) => {
+    setResponding(n.id);
     try {
       const d = JSON.parse(n.dataJson || "{}");
       if (d.inviteId) await api.respondFamilyInvite(d.inviteId, accept);
@@ -67,6 +100,8 @@ export function FamilyManagement({
       setMessage(accept ? "Family invitation accepted." : "Family invitation rejected.");
     } catch (e) {
       setMessage(err(e));
+    } finally {
+      setResponding(null);
     }
   };
   const pendingCount = active?.pending?.length || 0;
@@ -75,8 +110,7 @@ export function FamilyManagement({
     <div className="card family-card">
       <div className="section-heading family-heading">
         <div>
-          <span className="eyebrow">FAMILY CARE</span>
-          <h3>Family Management</h3>
+          <h3>Your family group</h3>
           <p className="muted">Invite trusted users and share care access only after consent.</p>
         </div>
         <Users size={22} />
@@ -115,7 +149,6 @@ export function FamilyManagement({
                 value={q}
                 onChange={(e) => {
                   setQ(e.target.value);
-                  search(e.target.value);
                 }}
                 onKeyDown={(e) => e.key === "Enter" && search()}
                 placeholder="Search registered users"
@@ -135,11 +168,7 @@ export function FamilyManagement({
                       {r.profileImageUrl ? (
                         <img src={r.profileImageUrl} alt="" />
                       ) : (
-                        r.displayName
-                          .split(" ")
-                          .map((x: string) => x[0])
-                          .slice(0, 2)
-                          .join("")
+                        initials(r.displayName)
                       )}
                     </div>
                     <div>
@@ -158,7 +187,11 @@ export function FamilyManagement({
               })}
             </div>
           )}
-          {message && <div className="family-message">{message}</div>}
+          {message && (
+            <div className="family-message" role="status">
+              {message}
+            </div>
+          )}
           <div className="family-members">
             <div className="family-subhead">
               <h4>Family members</h4>
@@ -179,13 +212,7 @@ export function FamilyManagement({
                   {p.inviteeProfileImageUrl ? (
                     <img className="small-avatar" src={p.inviteeProfileImageUrl} alt="" />
                   ) : (
-                    <span className="avatar small-avatar">
-                      {(p.inviteeDisplayName || "?")
-                        .split(" ")
-                        .map((x) => x[0])
-                        .slice(0, 2)
-                        .join("")}
-                    </span>
+                    <span className="avatar small-avatar">{initials(p.inviteeDisplayName)}</span>
                   )}
                   <div>
                     <b>{p.inviteeDisplayName || "User"}</b>
@@ -211,8 +238,18 @@ export function FamilyManagement({
                 <b>{n.title}</b>
                 <p>{n.message}</p>
                 <div className="dose-actions">
-                  <button onClick={() => respond(n, false)}>Reject</button>
-                  <button className="take" onClick={() => respond(n, true)}>
+                  <button
+                    className="btn ghost sm"
+                    disabled={!!responding}
+                    onClick={() => respond(n, false)}
+                  >
+                    Decline
+                  </button>
+                  <button
+                    className="btn primary sm"
+                    disabled={!!responding}
+                    onClick={() => respond(n, true)}
+                  >
                     <Check size={14} />
                     Accept
                   </button>
