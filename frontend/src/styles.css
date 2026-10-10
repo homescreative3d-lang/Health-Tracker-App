@@ -287,3 +287,84 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .patient-edit-shortcut:hover{background:var(--mint);border-color:var(--mint2)}
 .own-health-row{margin-bottom:10px}
 @media(max-width:760px){.patient-cards{grid-template-columns:minmax(0,1fr)}}
+
+
+/* Layout hardening: prevent cards and controls from overlapping at narrow widths. */
+.app-shell,.main,.dashboard,.dashboard-main,.page-scroll,.card,.page-head,.section-heading,
+.patient-context-bar,.patient-info-workspace,.patient-info-content{min-width:0;max-width:100%}
+.dashboard-main{overflow:hidden}
+.page-scroll{overflow-x:clip}
+.card,.notice,.progress-card,.tip-card,.dose-card,.med-card,.notification-settings,.history-filters,.history-table-wrap{overflow-wrap:anywhere}
+.page-head>div,.section-heading>div,.dose-main,.med-card,.notification-item>div,.family-result>div{min-width:0}
+.page-head,.section-heading{gap:14px}
+.page-head h1,.section-heading h3,.card h3{overflow-wrap:anywhere}
+.form-grid,.medicine-grid,.history-filter-grid,.patient-edit-grid,.patient-details-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.input,select.input,textarea.input{min-width:0;max-width:100%}
+.settings-actions,.head-actions,.modal-actions,.photo-actions,.attachment-add-actions{display:flex;flex-wrap:wrap;gap:8px}
+.settings-actions .btn,.head-actions .btn,.modal-actions .btn{max-width:100%}
+.history-table-scroll{max-width:100%;overflow-x:auto}
+.history-data-table{min-width:680px}
+.patient-info-workspace{display:grid;grid-template-columns:220px minmax(0,1fr);align-items:start;gap:18px}
+.patient-info-nav{position:sticky;top:96px;display:flex;flex-direction:column;gap:6px;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:17px;min-width:0}
+.patient-info-nav-label{font-size:10px;letter-spacing:.12em;font-weight:700;color:var(--muted);padding:7px 9px 9px}
+.patient-info-nav button{display:flex;align-items:center;gap:10px;min-width:0;width:100%;padding:11px 10px;border:1px solid transparent;border-radius:11px;text-align:left;color:var(--muted);font-weight:700;transition:background .16s,border-color .16s,color .16s}
+.patient-info-nav button span{flex:1;min-width:0}
+.patient-info-nav button small{font-size:11px;padding:3px 7px;border-radius:20px;background:var(--surface2);color:var(--muted)}
+.patient-info-nav button:hover{background:var(--surface2);color:var(--primary-dark)}
+.patient-info-nav button.active{background:var(--mint);border-color:var(--mint2);color:var(--primary-dark)}
+.patient-info-content{min-width:0}
+.patient-info-content>.patient-info-section{width:100%;margin:0}
+.patient-info-content .patient-edit-footer{margin-top:14px}
+.notification-settings-message{overflow-wrap:anywhere;line-height:1.5}
+@media(max-width:900px){
+ .main{padding:24px 18px 40px}
+ .dashboard{grid-template-columns:190px minmax(0,1fr)}
+ .patient-info-workspace{grid-template-columns:190px minmax(0,1fr);gap:12px}
+ .patient-info-nav{padding:8px}
+ .patient-info-nav button{gap:7px;padding:10px 8px;font-size:13px}
+ .auth-layout{gap:28px;padding:0 12px}
+}
+@media(max-width:650px){
+ .main{padding:16px 12px 90px}
+ .topbar{height:64px;padding:0 14px}
+ .brand{font-size:19px;gap:7px}
+ .brand-mark{width:39px;height:39px}
+ .top-actions{gap:5px}
+ .help-btn{padding:8px}
+ .help-btn span{display:none}
+ .dashboard{display:block;border-radius:18px;overflow:visible;min-height:0}
+ .dashboard-main{overflow:visible;padding:0}
+ .page-head{align-items:flex-start;flex-wrap:wrap}
+ .page-head>div{flex:1 1 210px}
+ .head-actions{width:100%}
+ .form-grid,.medicine-grid,.history-filter-grid,.patient-edit-grid,.patient-details-grid{grid-template-columns:minmax(0,1fr)}
+ .role-grid{grid-template-columns:minmax(0,1fr)}
+ .auth-layout{grid-template-columns:minmax(0,1fr);margin:14px auto;gap:18px}
+ .auth-copy{padding:8px}
+ .auth-copy h1{font-size:36px}
+ .auth-card,.setup-card,.narrow-card{padding:22px;border-radius:20px}
+ .patient-info-workspace{grid-template-columns:minmax(0,1fr);gap:12px}
+ .patient-info-nav{position:static;display:flex;flex-direction:row;align-items:stretch;overflow-x:auto;gap:6px;padding:8px;scrollbar-width:thin}
+ .patient-info-nav-label{display:none}
+ .patient-info-nav button{width:auto;flex:0 0 auto;min-height:42px;white-space:nowrap;padding:9px 11px}
+ .patient-info-nav button span{flex:0 0 auto}
+ .patient-info-nav button small{display:none}
+ .patient-info-content{width:100%}
+ .patient-info-section{padding:16px}
+ .patient-info-section-head{align-items:flex-start}
+ .patient-info-section-head h3{font-size:18px}
+ .patient-info-identity{align-items:flex-start}
+ .patient-profile-photo{width:66px;height:66px;border-radius:20px}
+ .attachment-add-actions{justify-content:flex-start}
+ .patient-attachment-row{align-items:flex-start;flex-wrap:wrap}
+ .attachment-file-copy{flex-basis:calc(100% - 54px)}
+ .attachment-download{margin-left:52px}
+ .ongoing-medicine-row{flex-wrap:wrap}
+ .ongoing-medicine-row>.status-success,.ongoing-medicine-row>.status-danger{margin-left:52px}
+ .settings-actions .btn{flex:1 1 100%}
+ .history-table-wrap{padding:10px}
+ .mobile-tabs{left:8px;right:8px;bottom:8px;width:auto}
+}
+@media(prefers-reduced-motion:reduce){
+ .patient-info-nav button{transition:none}
+}
