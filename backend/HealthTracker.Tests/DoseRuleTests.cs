@@ -1,10 +1,128 @@
-using HealthTracker.Api.Data;using HealthTracker.Api.Models;using HealthTracker.Api.Services;using Microsoft.EntityFrameworkCore;using Xunit;namespace HealthTracker.Tests;
-public class DoseRuleTests{
- static (AppDbContext Db,DoseService Svc,Guid User,Guid DoseId) Setup(DateOnly date,string time,int supply=5){var o=new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;var db=new AppDbContext(o);var u=new AppUser{Email="test@example.com",DisplayName="Test",TimeZoneId="Asia/Kolkata"};var p=new Patient{UserId=u.Id,Name="Patient"};var m=new Medicine{PatientId=p.Id,Name="Medicine",Strength="10 mg",Condition="Hypertension",TimesJson=$"[\"{time}\"]",StartDate=date,SupplyCount=supply};var d=new DoseEvent{PatientId=p.Id,MedicineId=m.Id,Date=date,Time=time};db.AddRange(u,p,m,d);db.SaveChanges();return(db,new DoseService(db),u.Id,d.Id);}
- [Fact]public async Task CannotTakeBeforeScheduled(){var now=TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow,TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"));var date=DateOnly.FromDateTime(now.DateTime);var future=now.TimeOfDay.Add(TimeSpan.FromMinutes(30));var time=TimeOnly.FromTimeSpan(future).ToString("HH:mm");var x=Setup(date,time);await Assert.ThrowsAsync<InvalidOperationException>(()=>x.Svc.Take(x.User,x.DoseId));}
- [Fact]public async Task TakeWithinOneHourDecrementsSupply(){var now=TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow,TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"));var date=DateOnly.FromDateTime(now.DateTime);var time=TimeOnly.FromTimeSpan(now.TimeOfDay.Subtract(TimeSpan.FromMinutes(20))).ToString("HH:mm");var x=Setup(date,time);var d=await x.Svc.Take(x.User,x.DoseId);Assert.Equal("taken",d.Status);Assert.Equal(4,await x.Db.Medicines.Select(m=>m.SupplyCount).SingleAsync());}
- [Fact]public async Task LocksAfterOneHour(){var now=TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow,TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"));var date=DateOnly.FromDateTime(now.DateTime);var time=TimeOnly.FromTimeSpan(now.TimeOfDay.Subtract(TimeSpan.FromMinutes(70))).ToString("HH:mm");var x=Setup(date,time);await Assert.ThrowsAsync<InvalidOperationException>(()=>x.Svc.Take(x.User,x.DoseId));}
- [Fact]public async Task FamilyUserCanTake(){var now=TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow,TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"));var date=DateOnly.FromDateTime(now.DateTime);var time=TimeOnly.FromTimeSpan(now.TimeOfDay.Subtract(TimeSpan.FromMinutes(10))).ToString("HH:mm");var x=Setup(date,time);var familyUser=new AppUser{Email="family@example.com",DisplayName="Family"};var f=new Family{OwnerUserId=x.User};x.Db.AddRange(f,familyUser,new FamilyMember{FamilyId=f.Id,UserId=x.User},new FamilyMember{FamilyId=f.Id,UserId=familyUser.Id});x.Db.SaveChanges();var d=await x.Svc.Take(familyUser.Id,x.DoseId);Assert.Equal("taken",d.Status);}
- [Fact]public async Task ActionedDoseRemainsVisibleAfterMedicineTimeChanges(){var now=TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow,TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"));var date=DateOnly.FromDateTime(now.DateTime);var x=Setup(date,"08:00");var dose=await x.Db.DoseEvents.SingleAsync();dose.Status="skipped";dose.SkipReason="Out of stock";var medicine=await x.Db.Medicines.SingleAsync();medicine.TimesJson="[\"09:00\"]";await x.Db.SaveChangesAsync();var patientId=await x.Db.Patients.Select(p=>p.Id).SingleAsync();var rows=await x.Svc.Get(x.User,date,patientId);Assert.Contains(rows,d=>d.Id==x.DoseId&&d.Status=="skipped"&&d.Time=="08:00");}
- [Fact]public async Task NoSupplyCannotBeTaken(){var now=TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow,TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"));var date=DateOnly.FromDateTime(now.DateTime);var time=TimeOnly.FromTimeSpan(now.TimeOfDay.Subtract(TimeSpan.FromMinutes(10))).ToString("HH:mm");var x=Setup(date,time,0);await Assert.ThrowsAsync<InvalidOperationException>(()=>x.Svc.Take(x.User,x.DoseId));}
+using HealthTracker.Api.Data;
+using HealthTracker.Api.Models;
+using HealthTracker.Api.Services;
+using Microsoft.EntityFrameworkCore;
+using Xunit;
+
+namespace HealthTracker.Tests;
+public class DoseRuleTests
+{
+    static (AppDbContext Db, DoseService Svc, Guid User, Guid DoseId) Setup(DateOnly date, string time, int supply = 5)
+    {
+        var o = new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
+        var db = new AppDbContext(o);
+        var u = new AppUser
+        {
+            Email = "test@example.com",
+            DisplayName = "Test",
+            TimeZoneId = "Asia/Kolkata"
+        };
+        var p = new Patient
+        {
+            UserId = u.Id,
+            Name = "Patient"
+        };
+        var m = new Medicine
+        {
+            PatientId = p.Id,
+            Name = "Medicine",
+            Strength = "10 mg",
+            Condition = "Hypertension",
+            TimesJson = $"[\"{time}\"]",
+            StartDate = date,
+            SupplyCount = supply
+        };
+        var d = new DoseEvent
+        {
+            PatientId = p.Id,
+            MedicineId = m.Id,
+            Date = date,
+            Time = time
+        };
+        db.AddRange(u, p, m, d);
+        db.SaveChanges();
+        return (db, new DoseService(db), u.Id, d.Id);
+    }
+
+    [Fact]
+    public async Task CannotTakeBeforeScheduled()
+    {
+        var now = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"));
+        var date = DateOnly.FromDateTime(now.DateTime);
+        var future = now.TimeOfDay.Add(TimeSpan.FromMinutes(30));
+        var time = TimeOnly.FromTimeSpan(future).ToString("HH:mm");
+        var x = Setup(date, time);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => x.Svc.Take(x.User, x.DoseId));
+    }
+
+    [Fact]
+    public async Task TakeWithinOneHourDecrementsSupply()
+    {
+        var now = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"));
+        var date = DateOnly.FromDateTime(now.DateTime);
+        var time = TimeOnly.FromTimeSpan(now.TimeOfDay.Subtract(TimeSpan.FromMinutes(20))).ToString("HH:mm");
+        var x = Setup(date, time);
+        var d = await x.Svc.Take(x.User, x.DoseId);
+        Assert.Equal("taken", d.Status);
+        Assert.Equal(4, await x.Db.Medicines.Select(m => m.SupplyCount).SingleAsync());
+    }
+
+    [Fact]
+    public async Task LocksAfterOneHour()
+    {
+        var now = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"));
+        var date = DateOnly.FromDateTime(now.DateTime);
+        var time = TimeOnly.FromTimeSpan(now.TimeOfDay.Subtract(TimeSpan.FromMinutes(70))).ToString("HH:mm");
+        var x = Setup(date, time);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => x.Svc.Take(x.User, x.DoseId));
+    }
+
+    [Fact]
+    public async Task FamilyUserCanTake()
+    {
+        var now = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"));
+        var date = DateOnly.FromDateTime(now.DateTime);
+        var time = TimeOnly.FromTimeSpan(now.TimeOfDay.Subtract(TimeSpan.FromMinutes(10))).ToString("HH:mm");
+        var x = Setup(date, time);
+        var familyUser = new AppUser
+        {
+            Email = "family@example.com",
+            DisplayName = "Family"
+        };
+        var f = new Family
+        {
+            OwnerUserId = x.User
+        };
+        x.Db.AddRange(f, familyUser, new FamilyMember { FamilyId = f.Id, UserId = x.User }, new FamilyMember { FamilyId = f.Id, UserId = familyUser.Id });
+        x.Db.SaveChanges();
+        var d = await x.Svc.Take(familyUser.Id, x.DoseId);
+        Assert.Equal("taken", d.Status);
+    }
+
+    [Fact]
+    public async Task ActionedDoseRemainsVisibleAfterMedicineTimeChanges()
+    {
+        var now = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"));
+        var date = DateOnly.FromDateTime(now.DateTime);
+        var x = Setup(date, "08:00");
+        var dose = await x.Db.DoseEvents.SingleAsync();
+        dose.Status = "skipped";
+        dose.SkipReason = "Out of stock";
+        var medicine = await x.Db.Medicines.SingleAsync();
+        medicine.TimesJson = "[\"09:00\"]";
+        await x.Db.SaveChangesAsync();
+        var patientId = await x.Db.Patients.Select(p => p.Id).SingleAsync();
+        var rows = await x.Svc.Get(x.User, date, patientId);
+        Assert.Contains(rows, d => d.Id == x.DoseId && d.Status == "skipped" && d.Time == "08:00");
+    }
+
+    [Fact]
+    public async Task NoSupplyCannotBeTaken()
+    {
+        var now = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"));
+        var date = DateOnly.FromDateTime(now.DateTime);
+        var time = TimeOnly.FromTimeSpan(now.TimeOfDay.Subtract(TimeSpan.FromMinutes(10))).ToString("HH:mm");
+        var x = Setup(date, time, 0);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => x.Svc.Take(x.User, x.DoseId));
+    }
 }

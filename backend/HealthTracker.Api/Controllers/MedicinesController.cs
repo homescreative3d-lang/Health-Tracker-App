@@ -1,15 +1,108 @@
-using System.Security.Claims;using System.Text.Json;using HealthTracker.Api.Contracts;using HealthTracker.Api.Data;using HealthTracker.Api.Models;using Microsoft.AspNetCore.Authorization;using Microsoft.AspNetCore.Mvc;using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using System.Text.Json;
+using HealthTracker.Api.Contracts;
+using HealthTracker.Api.Data;
+using HealthTracker.Api.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
 namespace HealthTracker.Api.Controllers;
-[Authorize][ApiController][Route("api/medicines")]
-public class MedicinesController(AppDbContext db):ControllerBase
+[Authorize]
+[ApiController]
+[Route("api/medicines")]
+public class MedicinesController(AppDbContext db) : ControllerBase
 {
- Guid U=>Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
- [HttpGet]public async Task<IActionResult>Get([FromQuery]Guid? patientId){var p=await P(patientId);return Ok((await db.Medicines.Where(x=>x.PatientId==p.Id).ToListAsync()).Select(m=>Map(m,p)));}
- [HttpPost]public async Task<IActionResult>Post(MedicineRequest r,[FromQuery]Guid? patientId){var p=await P(patientId);if(!r.IsRecurring&&r.RefillThreshold!=0)return BadRequest(new{message="Refill threshold must be disabled for non-recurring medicines."});var m=new Medicine{PatientId=p.Id};Apply(m,r);db.Medicines.Add(m);await db.SaveChangesAsync();return Ok(Map(m,p));}
- [HttpPut("{id:guid}")]public async Task<IActionResult>Put(Guid id,MedicineRequest r,[FromQuery]Guid? patientId){var p=await P(patientId);var m=await db.Medicines.SingleOrDefaultAsync(x=>x.Id==id&&x.PatientId==p.Id);if(m is null)return NotFound();if(!r.IsRecurring&&r.RefillThreshold!=0)return BadRequest(new{message="Refill threshold must be disabled for non-recurring medicines."});Apply(m,r);await db.SaveChangesAsync();return Ok(Map(m,p));}
- [HttpDelete("{id:guid}")]public async Task<IActionResult>Delete(Guid id,[FromQuery]Guid? patientId){var p=await P(patientId);var m=await db.Medicines.SingleOrDefaultAsync(x=>x.Id==id&&x.PatientId==p.Id);if(m is null)return NotFound();db.Medicines.Remove(m);await db.SaveChangesAsync();return NoContent();}
- async Task<Patient>P(Guid? patientId){var ids=await AccessibleUsers();if(!patientId.HasValue)return await db.Patients.FirstOrDefaultAsync(x=>x.UserId==U)??throw new KeyNotFoundException("Patient not found.");return await db.Patients.SingleOrDefaultAsync(x=>x.Id==patientId.Value&&ids.Contains(x.UserId))??throw new UnauthorizedAccessException("You do not have access to this patient.");}
- async Task<List<Guid>>AccessibleUsers(){var ids=await db.FamilyMembers.Where(x=>x.UserId==U&&x.Status=="approved").Join(db.FamilyMembers,a=>a.FamilyId,b=>b.FamilyId,(a,b)=>b.UserId).Distinct().ToListAsync();ids.Add(U);return ids;}
- static MedicineResponse Map(Medicine m,Patient p)=>new(m.Id,p.Id.ToString(),p.Name,m.Name,m.Strength,m.Form,m.Condition,m.FrequencyPattern,JsonSerializer.Deserialize<List<string>>(m.SpecificDaysJson)??[],m.CycleEvery,m.CycleUnit,JsonSerializer.Deserialize<List<string>>(m.TimesJson)??[],m.Liquid,m.WithFood,m.StartDate.ToString("yyyy-MM-dd"),m.DurationType,m.DurationValue,m.DurationUnit,m.SupplyCount,m.RefillThreshold,m.IsRecurring,m.PauseStartDate?.ToString("yyyy-MM-dd"),m.PauseEndDate?.ToString("yyyy-MM-dd"));
- static void Apply(Medicine m,MedicineRequest r){if(string.IsNullOrWhiteSpace(r.Name)||string.IsNullOrWhiteSpace(r.Strength)||r.Times is null||r.Times.Count==0)throw new ArgumentException("Medicine name, strength and at least one dose time are required.");m.Name=r.Name.Trim();m.Strength=r.Strength.Trim();m.Form=r.Form;m.Condition=r.Condition.Trim();m.FrequencyPattern=r.FrequencyPattern;m.SpecificDaysJson=JsonSerializer.Serialize(r.SpecificDays??[]);m.CycleEvery=Math.Max(1,r.CycleEvery);m.CycleUnit=r.CycleUnit;m.TimesJson=JsonSerializer.Serialize(r.Times.Distinct());m.Liquid=r.Liquid;m.WithFood=r.WithFood;m.StartDate=DateOnly.Parse(r.StartDate);m.DurationType=r.DurationType;m.DurationValue=Math.Max(1,r.DurationValue);m.DurationUnit=r.DurationUnit;if(r.SupplyCount<1)throw new ArgumentException("Supply count is required and must be at least 1.");m.SupplyCount=r.SupplyCount;m.IsRecurring=r.IsRecurring;m.RefillThreshold=r.IsRecurring?Math.Max(0,r.RefillThreshold):0;}
+    Guid U => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+    [HttpGet]
+    public async Task<IActionResult> Get([FromQuery] Guid? patientId)
+    {
+        var p = await P(patientId);
+        return Ok((await db.Medicines.Where(x => x.PatientId == p.Id).ToListAsync()).Select(m => Map(m, p)));
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Post(MedicineRequest r, [FromQuery] Guid? patientId)
+    {
+        var p = await P(patientId);
+        if (!r.IsRecurring && r.RefillThreshold != 0)
+            return BadRequest(new { message = "Refill threshold must be disabled for non-recurring medicines." });
+        var m = new Medicine
+        {
+            PatientId = p.Id
+        };
+        Apply(m, r);
+        db.Medicines.Add(m);
+        await db.SaveChangesAsync();
+        return Ok(Map(m, p));
+    }
+
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Put(Guid id, MedicineRequest r, [FromQuery] Guid? patientId)
+    {
+        var p = await P(patientId);
+        var m = await db.Medicines.SingleOrDefaultAsync(x => x.Id == id && x.PatientId == p.Id);
+        if (m is null)
+            return NotFound();
+        if (!r.IsRecurring && r.RefillThreshold != 0)
+            return BadRequest(new { message = "Refill threshold must be disabled for non-recurring medicines." });
+        Apply(m, r);
+        await db.SaveChangesAsync();
+        return Ok(Map(m, p));
+    }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, [FromQuery] Guid? patientId)
+    {
+        var p = await P(patientId);
+        var m = await db.Medicines.SingleOrDefaultAsync(x => x.Id == id && x.PatientId == p.Id);
+        if (m is null)
+            return NotFound();
+        db.Medicines.Remove(m);
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    async Task<Patient> P(Guid? patientId)
+    {
+        var ids = await AccessibleUsers();
+        if (!patientId.HasValue)
+            return await db.Patients.FirstOrDefaultAsync(x => x.UserId == U) ?? throw new KeyNotFoundException("Patient not found.");
+        return await db.Patients.SingleOrDefaultAsync(x => x.Id == patientId.Value && ids.Contains(x.UserId)) ?? throw new UnauthorizedAccessException("You do not have access to this patient.");
+    }
+
+    async Task<List<Guid>> AccessibleUsers()
+    {
+        var ids = await db.FamilyMembers.Where(x => x.UserId == U && x.Status == "approved").Join(db.FamilyMembers, a => a.FamilyId, b => b.FamilyId, (a, b) => b.UserId).Distinct().ToListAsync();
+        ids.Add(U);
+        return ids;
+    }
+
+    static MedicineResponse Map(Medicine m, Patient p) => new(m.Id, p.Id.ToString(), p.Name, m.Name, m.Strength, m.Form, m.Condition, m.FrequencyPattern, JsonSerializer.Deserialize<List<string>>(m.SpecificDaysJson) ?? [], m.CycleEvery, m.CycleUnit, JsonSerializer.Deserialize<List<string>>(m.TimesJson) ?? [], m.Liquid, m.WithFood, m.StartDate.ToString("yyyy-MM-dd"), m.DurationType, m.DurationValue, m.DurationUnit, m.SupplyCount, m.RefillThreshold, m.IsRecurring, m.PauseStartDate?.ToString("yyyy-MM-dd"), m.PauseEndDate?.ToString("yyyy-MM-dd"));
+    static void Apply(Medicine m, MedicineRequest r)
+    {
+        if (string.IsNullOrWhiteSpace(r.Name) || string.IsNullOrWhiteSpace(r.Strength) || r.Times is null || r.Times.Count == 0)
+            throw new ArgumentException("Medicine name, strength and at least one dose time are required.");
+        m.Name = r.Name.Trim();
+        m.Strength = r.Strength.Trim();
+        m.Form = r.Form;
+        m.Condition = r.Condition.Trim();
+        m.FrequencyPattern = r.FrequencyPattern;
+        m.SpecificDaysJson = JsonSerializer.Serialize(r.SpecificDays ?? []);
+        m.CycleEvery = Math.Max(1, r.CycleEvery);
+        m.CycleUnit = r.CycleUnit;
+        m.TimesJson = JsonSerializer.Serialize(r.Times.Distinct());
+        m.Liquid = r.Liquid;
+        m.WithFood = r.WithFood;
+        m.StartDate = DateOnly.Parse(r.StartDate);
+        m.DurationType = r.DurationType;
+        m.DurationValue = Math.Max(1, r.DurationValue);
+        m.DurationUnit = r.DurationUnit;
+        if (r.SupplyCount < 1)
+            throw new ArgumentException("Supply count is required and must be at least 1.");
+        m.SupplyCount = r.SupplyCount;
+        m.IsRecurring = r.IsRecurring;
+        m.RefillThreshold = r.IsRecurring ? Math.Max(0, r.RefillThreshold) : 0;
+    }
 }
