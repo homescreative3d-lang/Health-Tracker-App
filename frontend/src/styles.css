@@ -176,3 +176,17 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .btn.danger{display:inline-flex;align-items:center;justify-content:center;gap:8px;flex-shrink:0;color:#fff;background:var(--danger);border:1px solid var(--danger)}
 .btn.danger:hover{filter:brightness(.95)}
 @media(max-width:700px){.account-dropdown{right:12px;top:59px}.delete-account-section{flex-direction:column;padding:16px;gap:16px}.delete-account-section>.btn{width:100%}.own-health-card{flex-wrap:wrap}.own-health-card>.patient-open-label{margin-left:auto}.doctor-photo-upload .photo-actions{display:flex;flex-direction:column;align-items:stretch}.doctor-photo-upload .photo-actions .btn{justify-content:center;width:100%}}
+
+
+/* Persistent selected-patient context on care screens */
+.patient-context-bar{display:flex;align-items:center;gap:12px;padding:12px 16px;margin:0 0 18px;border:1px solid #d5e9e4;border-radius:16px;background:linear-gradient(110deg,#f0faf7,#fff);box-shadow:0 4px 14px rgba(28,94,82,.045);min-width:0}
+.patient-context-avatar{width:42px;height:42px;display:grid;place-items:center;overflow:hidden;flex-shrink:0;border-radius:13px;background:#dcefe9;color:#246f61;font-weight:800}
+.patient-context-avatar img{width:100%;height:100%;object-fit:cover}
+.patient-context-copy{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.patient-context-copy small{font-size:10px;font-weight:800;letter-spacing:.09em;color:#56877c}
+.patient-context-copy b{font-size:15px;overflow-wrap:anywhere;color:var(--ink)}
+.patient-context-select{display:flex;align-items:center;gap:7px;position:relative;flex-shrink:0;border:1px solid #cfe4de;border-radius:10px;background:#fff;padding:0 10px;color:var(--primary)}
+.patient-context-select>span{font-size:12px;font-weight:700;white-space:nowrap}
+.patient-context-select select{appearance:none;max-width:190px;min-width:90px;border:0;outline:0;background:transparent;padding:10px 18px 10px 2px;font:inherit;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer}
+.patient-context-select>svg{position:absolute;right:9px;pointer-events:none}
+@media(max-width:600px){.patient-context-bar{padding:10px 11px;gap:9px;margin-bottom:14px}.patient-context-avatar{width:37px;height:37px}.patient-context-copy b{font-size:14px}.patient-context-select{gap:2px;padding:0 7px}.patient-context-select>span{display:none}.patient-context-select select{max-width:135px;min-width:70px;font-size:12px;padding:10px 16px 10px 2px}.patient-context-select>svg{right:5px}}
