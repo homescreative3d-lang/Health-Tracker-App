@@ -7,3 +7,44 @@
 @media(max-width:700px){.family-search{align-items:stretch}.family-search .field{min-width:0}.family-search-btn{align-self:flex-end}.family-result{padding:9px}.family-result .btn{padding:7px 10px}.family-card{padding:15px}.patient-switcher{margin-right:-4px}}
 .avatar-button{border:0;padding:0;overflow:hidden}.avatar-button img,.avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}.patient-photo-field{display:flex;align-items:center;gap:14px;margin-bottom:18px}.patient-avatar-large{width:82px;height:82px}.upload-btn{position:relative;overflow:hidden}.photo-actions{display:flex;gap:8px;margin-bottom:17px}.patient-list{margin-top:14px;border-top:1px solid var(--border)}.patient-list-row{width:100%;display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);text-align:left}.patient-list-row>span:nth-child(2){flex:1}.patient-list-row b,.patient-list-row small{display:block}.patient-list-row small{color:var(--muted);margin-top:2px}.small-avatar{width:38px;height:38px;font-size:13px}.notification-popover{position:fixed;right:28px;top:68px;width:min(430px,calc(100vw - 24px));max-height:70vh;overflow:auto;background:#fff;border:1px solid var(--border);border-radius:17px;box-shadow:0 22px 60px rgba(20,55,50,.18);z-index:90;padding:12px}.notification-popover-head{display:flex;justify-content:space-between;align-items:center;padding:4px 4px 10px;border-bottom:1px solid var(--border)}.notification-popover-item{display:flex;gap:10px;align-items:flex-start;padding:12px 4px;border-bottom:1px solid var(--border)}.notification-popover-item>div{flex:1;min-width:0}.notification-popover-item p{font-size:13px;color:var(--muted);margin-top:3px}.notification-popover-item small{display:block;color:var(--muted);font-size:11px;margin-top:5px}.notification-popover-item.unread{background:var(--surface2);border-radius:10px;padding:10px}.notification-popover-item .btn{min-height:34px;padding:7px 9px;font-size:12px}.notification-empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:7px;padding:34px 20px;color:var(--muted)}.notification-empty svg{color:var(--primary)}.notification-empty b{color:var(--ink)}.notification-empty span{font-size:13px;line-height:1.45}@media(max-width:700px){.notification-popover{right:10px;top:58px;width:calc(100vw - 20px)}.patient-photo-field{align-items:flex-start}.photo-actions{flex-wrap:wrap}}
 .history-medication{display:flex;align-items:center;gap:12px;min-width:0}.history-medication .dose-icon{width:36px;height:36px;border-radius:10px}.history-medication>div{min-width:0}
+
+
+/* Notification and small-screen usability fixes */
+.notification-popover{display:flex;flex-direction:column;max-height:min(72vh,640px);padding:0;overflow:hidden}
+.notification-popover-head{flex:0 0 auto;padding:14px 16px;background:#fff}
+.notification-popover-head>div{display:flex;flex-direction:column;gap:3px}
+.notification-popover-head small{font-size:12px;color:var(--muted);font-weight:500}
+.notification-popover-item{min-width:0;padding:12px 14px;gap:12px}
+.notification-popover-item.unread{background:var(--mint);border-radius:0;padding:12px 14px}
+.notification-copy{flex:1;min-width:0;overflow-wrap:anywhere}
+.notification-copy>b{display:block;line-height:1.35}
+.notification-copy p{line-height:1.45;overflow-wrap:anywhere}
+.notification-popover-item .mark-read-btn{flex:0 0 auto;align-self:center;white-space:nowrap}
+.notification-empty{overflow-wrap:anywhere}
+.notification-settings .section-heading{align-items:flex-start}
+.notification-settings .section-heading>div{min-width:0}
+.notification-settings .section-heading .muted{margin-top:6px;font-size:13px;line-height:1.45}
+.notification-settings .settings-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:16px}
+.notification-settings .settings-actions .btn{min-height:42px}
+.notification-settings .settings-actions .btn:disabled{opacity:.6;cursor:wait}
+.notification-settings-message{margin:12px 0 0;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--ink);font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.notification-item{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid var(--border)}
+.notification-item:last-child{border-bottom:0}
+.notification-item>div{min-width:0;overflow-wrap:anywhere}
+.notification-item p{margin-top:4px;line-height:1.45;color:var(--muted)}
+.notification-item small{flex:0 0 auto;color:var(--muted);font-size:11px}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid rgba(24,168,157,.35);outline-offset:2px}
+@media(max-width:520px){
+ .topbar{gap:8px;padding-left:14px;padding-right:14px}
+ .top-actions{gap:7px}
+ .help-btn{padding:9px}
+ .help-btn span{display:none}
+ .notification-popover{top:58px;right:8px;width:calc(100vw - 16px);max-height:75vh}
+ .notification-popover-item{gap:8px}
+ .notification-popover-item .mark-read-btn{font-size:11px;padding:7px 8px}
+ .notification-settings .settings-actions{display:grid;grid-template-columns:1fr}
+ .notification-settings .settings-actions .btn{width:100%;justify-content:center}
+ .notification-item{flex-direction:column;gap:5px}
+ .notification-item small{white-space:normal}
+ .form-grid{grid-template-columns:minmax(0,1fr)}
+}
