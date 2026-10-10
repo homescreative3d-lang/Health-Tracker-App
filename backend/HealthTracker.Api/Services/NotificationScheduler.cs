@@ -208,7 +208,7 @@ public class NotificationScheduler(
     private static async Task SendRefillReminderIfNeeded(
         AppDbContext db,
         IPushNotificationService push,
-        Models.User user,
+        User user,
         Patient patient,
         Medicine medicine,
         DateOnly localDate,
