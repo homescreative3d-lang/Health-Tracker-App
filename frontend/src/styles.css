@@ -213,3 +213,70 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .notification-detail-tip{display:flex;align-items:flex-start;gap:9px;margin-top:14px;padding:12px;border-radius:12px;background:var(--orange2);color:#82521f;font-size:13px;line-height:1.45}
 .notification-detail-tip svg{flex:0 0 auto}
 @media(max-width:600px){.notification-detail-modal{padding:18px;border-radius:18px}.notification-detail-head h2{font-size:20px}.notification-detail-row{gap:10px;padding:11px}.notification-detail-row>span{flex-basis:38%}.notification-detail-row>b{font-size:13px}}
+
+
+/* Patient information, animated history flow and medical attachments */
+.patient-profile-view{gap:20px}
+.patient-info-section{padding:22px;display:flex;flex-direction:column;gap:18px}
+.patient-info-section-head{display:flex;align-items:center;gap:12px;min-width:0}
+.patient-info-section-head>div{flex:1;min-width:0}
+.patient-info-section-head h3{font-size:20px}
+.patient-info-section-head p{font-size:13px;margin-top:4px;line-height:1.45}
+.patient-info-section-icon{width:42px;height:42px;display:grid;place-items:center;flex:0 0 auto;border-radius:14px;background:var(--mint);color:var(--primary-dark)}
+.patient-info-identity{display:flex;align-items:center;gap:16px;padding-bottom:18px;border-bottom:1px solid var(--border)}
+.patient-profile-photo{width:82px;height:82px;border-radius:24px;display:grid;place-items:center;overflow:hidden;background:var(--mint);color:var(--primary-dark);font-size:24px;font-weight:700;flex:0 0 auto}
+.patient-profile-photo img{width:100%;height:100%;object-fit:cover}
+.patient-info-identity>div:nth-child(2){min-width:0;display:flex;flex-direction:column;gap:6px}
+.patient-info-identity>div:nth-child(2)>b{font-size:18px}
+.patient-info-identity small{color:var(--muted);line-height:1.45}
+.patient-edit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 18px}
+.patient-edit-grid .field{min-width:0}
+.patient-edit-grid .condition-picker{min-width:0}
+.patient-edit-footer{display:flex;flex-direction:column;gap:10px}
+.medical-history-flow{position:relative;display:flex;flex-direction:column;gap:0;padding:5px 0 5px 8px}
+.medical-history-flow:before{content:"";position:absolute;left:26px;top:22px;bottom:22px;width:2px;background:linear-gradient(180deg,var(--primary),var(--mint2));border-radius:5px}
+.medical-history-node{position:relative;display:flex;align-items:flex-start;gap:14px;padding:8px 0;opacity:0;animation:historyNodeEnter .5s cubic-bezier(.2,.8,.2,1) forwards}
+.medical-history-node-dot{position:relative;z-index:1;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto;background:linear-gradient(145deg,#e0f7f0,#e5f2fc);border:2px solid #fff;box-shadow:0 0 0 1px var(--mint2);font-weight:700;color:var(--primary-dark)}
+.medical-history-node>div{min-width:0;flex:1;padding:9px 13px;background:var(--surface2);border:1px solid var(--border);border-radius:13px;transition:transform .18s,box-shadow .18s}
+.medical-history-node>div:hover{transform:translateX(4px);box-shadow:var(--shadow)}
+.medical-history-node b{display:block;overflow-wrap:anywhere}
+.medical-history-node small{display:block;color:var(--muted);font-size:12px;margin-top:4px}
+@keyframes historyNodeEnter{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+.patient-section-empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:7px;padding:22px 12px;color:var(--muted)}
+.patient-section-empty svg{color:var(--primary)}
+.patient-section-empty b{color:var(--ink)}
+.patient-section-empty span{font-size:13px;line-height:1.5;max-width:420px}
+.patient-attachments-list,.ongoing-medicine-list{display:flex;flex-direction:column}
+.patient-attachment-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);min-width:0}
+.patient-attachment-row:last-child,.ongoing-medicine-row:last-child{border-bottom:0}
+.attachment-file-icon{width:40px;height:40px;display:grid;place-items:center;flex:0 0 auto;border-radius:12px;background:var(--blue);color:var(--primary-dark)}
+.attachment-file-copy{display:flex;flex-direction:column;gap:4px;flex:1;min-width:0}
+.attachment-file-copy b{overflow-wrap:anywhere}
+.attachment-file-copy small{font-size:12px;color:var(--muted)}
+.attachment-download{flex:0 0 auto;min-height:36px;padding:7px 10px;font-size:13px;text-decoration:none}
+.attachment-add-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.medicine-count-pill{padding:5px 10px;border-radius:20px;background:var(--mint);font-weight:700;color:var(--primary-dark);font-size:13px}
+.ongoing-medicine-row{display:flex;align-items:flex-start;gap:12px;padding:14px 0;border-bottom:1px solid var(--border);min-width:0}
+.ongoing-medicine-row>.dose-icon{flex:0 0 auto}
+.ongoing-medicine-copy{display:flex;flex-direction:column;gap:4px;flex:1;min-width:0}
+.ongoing-medicine-copy>b{overflow-wrap:anywhere}
+.ongoing-medicine-copy>b span{font-weight:400;color:var(--muted)}
+.ongoing-medicine-copy small{font-size:12px;color:var(--muted);line-height:1.4}
+.ongoing-medicine-copy strong{font-size:13px;color:var(--primary-dark);line-height:1.45}
+.ongoing-medicine-row>.status-success,.ongoing-medicine-row>.status-danger{white-space:nowrap;font-size:12px}
+.patient-edit-grid .photo-actions{flex-wrap:wrap}
+.patient-info-section .doctor-photo-detail{margin-top:0}
+@media(max-width:650px){
+ .patient-info-section{padding:16px;border-radius:17px}
+ .patient-info-section-head{align-items:flex-start;flex-wrap:wrap}
+ .patient-info-section-head h3{font-size:18px}
+ .patient-info-identity{align-items:flex-start}
+ .patient-profile-photo{width:66px;height:66px;border-radius:20px}
+ .patient-edit-grid{grid-template-columns:minmax(0,1fr)}
+ .patient-info-section-head .attachment-add-actions{width:100%;justify-content:flex-start}
+ .patient-attachment-row{gap:8px}
+ .attachment-download{padding:7px 8px}
+ .ongoing-medicine-row{flex-wrap:wrap}
+ .ongoing-medicine-row>.status-success,.ongoing-medicine-row>.status-danger{margin-left:52px}
+}
+@media(prefers-reduced-motion:reduce){.medical-history-node{opacity:1;animation:none}.medical-history-node>div{transition:none}}
