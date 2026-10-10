@@ -71,6 +71,18 @@ public class Medicine
     public DateOnly? PauseStartDate { get; set; }
     /// <summary>Last paused date (inclusive); null means paused until resumed.</summary>
     public DateOnly? PauseEndDate { get; set; }
+
+    /// <summary>
+    /// First date this medicine no longer occurs because its schedule was rescheduled into a new
+    /// medicine record (history before this date stays attached to this record).
+    /// </summary>
+    public DateOnly? EndedOn { get; set; }
+
+    /// <summary>The medicine record this one replaced when its schedule was rescheduled.</summary>
+    public Guid? RescheduledFromId { get; set; }
+
+    /// <summary>JSON array of the dose times before the schedule was rescheduled (shown as "was 8:00 AM").</summary>
+    public string? PreviousTimesJson { get; set; }
 }
 
 /// <summary>One scheduled dose of a medicine on a date/time, and what happened to it.</summary>
@@ -90,6 +102,12 @@ public class DoseEvent
     /// <summary>User who last took/skipped/undid the dose.</summary>
     public Guid? ActionedByUserId { get; set; }
     public DateTimeOffset? MissedAt { get; set; }
+
+    /// <summary>Target time (<c>HH:mm</c>) when this dose was moved; pairs with <see cref="RescheduleTo"/>.</summary>
+    public string? RescheduleToTime { get; set; }
+
+    /// <summary>For a dose created by rescheduling: the original dose it replaces.</summary>
+    public Guid? RescheduledFromId { get; set; }
 }
 
 /// <summary>A sharing group; approved members can access each other's patients.</summary>

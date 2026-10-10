@@ -114,7 +114,7 @@ public class MedicinesController(AppDbContext db, IPatientAccessService access) 
     Task<Patient> P(Guid? patientId) => access.GetAccessiblePatientAsync(CurrentUserId, patientId);
 
     /// <summary>Maps an entity to its API response.</summary>
-    static MedicineResponse Map(Medicine m, Patient p) => new(m.Id, p.Id.ToString(), p.Name, m.Name, m.Strength, m.Form, m.Condition, m.FrequencyPattern, JsonSerializer.Deserialize<List<string>>(m.SpecificDaysJson) ?? [], m.CycleEvery, m.CycleUnit, JsonSerializer.Deserialize<List<string>>(m.TimesJson) ?? [], m.Liquid, m.WithFood, m.StartDate.ToString("yyyy-MM-dd"), m.DurationType, m.DurationValue, m.DurationUnit, m.SupplyCount, m.RefillThreshold, m.IsRecurring, m.PauseStartDate?.ToString("yyyy-MM-dd"), m.PauseEndDate?.ToString("yyyy-MM-dd"));
+    static MedicineResponse Map(Medicine m, Patient p) => new(m.Id, p.Id.ToString(), p.Name, m.Name, m.Strength, m.Form, m.Condition, m.FrequencyPattern, JsonSerializer.Deserialize<List<string>>(m.SpecificDaysJson) ?? [], m.CycleEvery, m.CycleUnit, JsonSerializer.Deserialize<List<string>>(m.TimesJson) ?? [], m.Liquid, m.WithFood, m.StartDate.ToString("yyyy-MM-dd"), m.DurationType, m.DurationValue, m.DurationUnit, m.SupplyCount, m.RefillThreshold, m.IsRecurring, m.PauseStartDate?.ToString("yyyy-MM-dd"), m.PauseEndDate?.ToString("yyyy-MM-dd"), m.EndedOn?.ToString("yyyy-MM-dd"), m.RescheduledFromId, string.IsNullOrWhiteSpace(m.PreviousTimesJson) ? null : JsonSerializer.Deserialize<List<string>>(m.PreviousTimesJson));
     /// <summary>
     /// Validates a request and copies it onto the entity.
     /// </summary>

@@ -99,4 +99,13 @@ public class DoseScheduleTests
         var config = new ConfigurationBuilder().Build();
         Assert.Throws<InvalidOperationException>(() => ConnectionStringResolver.Resolve(config));
     }
+
+    [Fact]
+    public void RescheduledMedicineStopsOnEndedOn()
+    {
+        var m = Med();
+        m.EndedOn = Start.AddDays(3);
+        Assert.True(DoseSchedule.Occurs(m, Start.AddDays(2)));
+        Assert.False(DoseSchedule.Occurs(m, Start.AddDays(3)));
+    }
 }

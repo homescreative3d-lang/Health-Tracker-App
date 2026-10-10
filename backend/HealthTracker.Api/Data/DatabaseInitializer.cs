@@ -53,6 +53,13 @@ public static class DatabaseInitializer
                         await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Patients\" ADD COLUMN IF NOT EXISTS \"DoctorPhotoUrl\" text;");
                         await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Patients\" ADD COLUMN IF NOT EXISTS \"AttachmentsJson\" text NOT NULL DEFAULT $$[]$$;");
                     }
+
+                    // Rescheduling support (dose-level and medicine-level). Idempotent.
+                    await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"DoseEvents\" ADD COLUMN IF NOT EXISTS \"RescheduleToTime\" text;");
+                    await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"DoseEvents\" ADD COLUMN IF NOT EXISTS \"RescheduledFromId\" uuid;");
+                    await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Medicines\" ADD COLUMN IF NOT EXISTS \"EndedOn\" date;");
+                    await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Medicines\" ADD COLUMN IF NOT EXISTS \"RescheduledFromId\" uuid;");
+                    await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Medicines\" ADD COLUMN IF NOT EXISTS \"PreviousTimesJson\" text;");
                 }
             }
             finally
