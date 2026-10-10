@@ -5,9 +5,11 @@ self.addEventListener("push",event=>{
     {action:"taken",title:"Taken"},
     {action:"skip",title:"Skip"}
   ]:[];
+  const form=(data.form||"pill").toLowerCase();
+  const icons={pill:"/medicine-pill.svg",injection:"/medicine-injection.svg",drops:"/medicine-drops.svg",syrup:"/medicine-drops.svg",inhaler:"/medicine-inhaler.svg",powder:"/medicine-powder.svg"};
   event.waitUntil(self.registration.showNotification(data.title||"TENDED",{
     body:data.body||"You have a medication update.",
-    icon:"/tended-icon.svg",
+    icon:icons[form]||"/medicine-pill.svg",
     badge:"/tended-icon.svg",
     tag:data.doseId||data.type||"tended",
     renotify:true,
