@@ -15,8 +15,26 @@ export const api={
  getDoses:(d:string,p?:string)=>request<Dose[]>("/doses?date="+d+(p?"&patientId="+p:"")),take:(id:string)=>request<Dose>("/doses/"+id+"/taken",{method:"POST"}),skip:(id:string,reason:string)=>request<Dose>("/doses/"+id+"/skip",{method:"POST",body:JSON.stringify({reason})}),
  familySearch:(q:string)=>request<FamilyUser[]>("/family/search?q="+encodeURIComponent(q)),getFamily:()=>request<Family[]>("/family"),createFamily:(name:string)=>request<any>("/family",{method:"POST",body:JSON.stringify({name})}),inviteFamilyMember:(userId:string)=>request<any>("/family/invite",{method:"POST",body:JSON.stringify({userId})}),getNotifications:()=>request<Notification[]>("/notifications"),readNotification:(id:string)=>request<any>("/notifications/"+id+"/read",{method:"POST"}),respondFamilyInvite:(id:string,accept:boolean)=>request<any>("/family/invites/"+id+"/respond",{method:"POST",body:JSON.stringify({accept})}),
  getHistory:(q:string)=>request<HistoryRow[]>("/history"+q),pauseMedicine:(id:string,startDate:string,endDate?:string)=>request<any>("/medicine-actions/"+id+"/pause",{method:"POST",body:JSON.stringify({startDate,endDate:endDate||null})}),resumeMedicine:(id:string)=>request<any>("/medicine-actions/"+id+"/resume",{method:"POST"}),
- getNotificationSettings:()=>request<any>("/notifications/settings"),saveNotificationSettings:(b:any)=>request<any>("/notifications/settings",{method:"PUT",body:JSON.stringify(b)}),subscribePush:(b:any)=>request<any>("/notifications/push/subscribe",{method:"POST",body:JSON.stringify(b)}),
+ getNotificationSettings:()=>request<any>("/notifications/settings"),saveNotificationSettings:(b:any)=>request<any>("/notifications/settings",{method:"PUT",body:JSON.stringify(b)}),subscribePush:(b:any)=>request<any>("/notifications/push/subscribe",{method:"POST",body:JSON.stringify(b)}),testPush:()=>request<{status:string;message:string}>("/notifications/push/test",{method:"POST"}),
  forgotPassword:(email:string)=>request<any>("/password/forgot",{method:"POST",body:JSON.stringify({email})},false),resetPassword:(token:string,newPassword:string)=>request<any>("/password/reset",{method:"POST",body:JSON.stringify({token,newPassword})},false)
 };
-export async function enablePush(vapidPublicKey:string){if(!("serviceWorker"in navigator)||!("PushManager"in window))throw new Error("Push notifications are not supported by this browser.");const reg=await navigator.serviceWorker.register("/sw.js");const permission=await Notification.requestPermission();if(permission!=="granted")throw new Error("Notification permission was not granted.");let sub=await reg.pushManager.getSubscription();if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:base64ToBytes(vapidPublicKey)});const json=sub.toJSON();await api.subscribePush({endpoint:json.endpoint,p256dh:json.keys?.p256dh,auth:json.keys?.auth});return true}
-function base64ToBytes(s:string){const pad="=".repeat((4-s.length%4)%4);const raw=atob((s+pad).replace(/-/g,"+").replace(/_/g,"/"));return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));}
+export async function enablePush(vapidPublicKey:string){
+ if(!("serviceWorker"in navigator)||!("PushManager"in window)||!("Notification"in window))throw new Error("Push notifications are not supported by this browser.");
+ if(!window.isSecureContext)throw new Error("Browser notifications require HTTPS (localhost is supported for development).");
+ const permission=await Notification.requestPermission();
+ if(permission!=="granted")throw new Error(permission==="denied"?"Notifications are blocked in browser settings. Allow notifications for this site and try again.":"Notification permission was not granted.");
+ const registration=await navigator.serviceWorker.register("/sw.js");
+ const reg=await navigator.serviceWorker.ready;
+ if(!reg.active)throw new Error("The notification service worker is not active yet. Refresh the page and try again.");
+ let sub=await reg.pushManager.getSubscription();
+ if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:base64ToBytes(vapidPublicKey)});
+ const json=sub.toJSON();
+ if(!json.endpoint||!json.keys?.p256dh||!json.keys?.auth)throw new Error("The browser returned an incomplete push subscription. Please try again.");
+ await api.subscribePush({endpoint:json.endpoint,p256dh:json.keys.p256dh,auth:json.keys.auth});
+ return true;
+}
+function base64ToBytes(s:string){
+ const pad="=".repeat((4-s.length%4)%4);
+ const raw=atob((s+pad).replace(/-/g,"+").replace(/_/g,"/"));
+ return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));
+}
