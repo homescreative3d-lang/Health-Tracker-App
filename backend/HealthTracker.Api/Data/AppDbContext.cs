@@ -2,6 +2,11 @@ using HealthTracker.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace HealthTracker.Api.Data;
+/// <summary>
+/// EF Core context for the Tended database. Registered with <c>AddDbContextPool</c>, so it must stay
+/// stateless beyond EF's own change tracking (no per-request fields).
+/// </summary>
+/// <param name="options">Options built by <see cref="DatabaseRegistration"/>.</param>
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
     public DbSet<AppUser> Users => Set<AppUser>();
@@ -16,6 +21,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<NotificationDelivery> NotificationDeliveries => Set<NotificationDelivery>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
 
+    /// <summary>Configures unique and lookup indexes.</summary>
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.Entity<AppUser>().HasIndex(x => x.Email).IsUnique();
