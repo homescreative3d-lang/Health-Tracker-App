@@ -1,4 +1,4 @@
-/** App wordmark + icon. The icon is the recolored `tended-icon.svg`. */
+/** App wordmark + icon (four daypart compartments with a check — see `public/tended-icon.svg`). */
 export function Brand({ onClick }: { onClick?: () => void }) {
   return (
     <a
@@ -12,7 +12,7 @@ export function Brand({ onClick }: { onClick?: () => void }) {
       aria-label="Tended home"
     >
       <img className="brand-mark" src="/tended-icon.svg" alt="" width={34} height={34} />
-      <span className="brand-name">Tended</span>
+      <span className="brand-name">tended</span>
     </a>
   );
 }
