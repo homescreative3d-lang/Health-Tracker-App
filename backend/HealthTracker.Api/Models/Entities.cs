@@ -25,6 +25,7 @@ public class Patient
     public string Doctor { get; set; } = "";
     public string MedicalHistory { get; set; } = "";
     public string? ProfileImageUrl { get; set; }
+    public string? DoctorPhotoUrl { get; set; }
 }
 public class Medicine
 {
