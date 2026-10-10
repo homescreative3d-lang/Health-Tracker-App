@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tended-local-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tended
+      POSTGRES_USER: tended
+      POSTGRES_PASSWORD: tended_local_only
+    ports:
+      - "5432:5432"
+    volumes:
+      - tended_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tended -d tended"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  tended_postgres_data:

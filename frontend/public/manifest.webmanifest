@@ -1,0 +1,10 @@
+{
+  "name": "Tended",
+  "short_name": "Tended",
+  "description": "Medicine schedules, reminders and a shared dose record for families.",
+  "start_url": "/#/today",
+  "display": "standalone",
+  "background_color": "#f6f8fb",
+  "theme_color": "#0f2a33",
+  "icons": [{ "src": "/tended-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

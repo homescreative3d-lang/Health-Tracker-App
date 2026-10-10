@@ -1,0 +1,376 @@
+/*
+ * App layout. One breakpoint system for the whole app:
+ *   phone   < 640px   — top bar + bottom tab bar (safe-area aware for Android/iOS)
+ *   tablet  640–1023  — top bar + icon rail
+ *   desktop ≥ 1024    — top bar + labeled sidebar
+ * The same <AppNav> renders in every case, so items never change order or position.
+ */
+.app-shell {
+  min-height: 100dvh;
+}
+
+/* ---------- Top bar ---------- */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  height: calc(var(--topbar-h) + var(--safe-top));
+  padding: var(--safe-top) clamp(14px, 3vw, 32px) 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: saturate(1.4) blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--ink);
+  min-height: var(--tap);
+}
+.brand-mark {
+  width: 34px;
+  height: 34px;
+}
+.brand-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.35rem;
+  letter-spacing: -0.01em;
+}
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.help-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
+  color: var(--ink-2);
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+.help-btn:hover {
+  background: var(--primary-tint);
+}
+.notification-btn {
+  position: relative;
+}
+.notification-dot {
+  position: absolute;
+  top: 5px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+  border: 2px solid #fff;
+  box-sizing: content-box;
+}
+.account-menu {
+  position: relative;
+}
+.avatar-button {
+  border-radius: 50%;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  display: grid;
+  place-items: center;
+}
+.account-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 240px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  z-index: 40;
+}
+.account-dropdown-head {
+  display: grid;
+  padding: 10px 12px 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+.account-dropdown-head small {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.account-dropdown button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--tap);
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  text-align: left;
+}
+.account-dropdown button:hover {
+  background: var(--primary-tint);
+}
+.account-dropdown-signout {
+  color: var(--danger);
+}
+
+/* ---------- Main areas ---------- */
+.main {
+  padding: clamp(16px, 4vw, 48px) clamp(14px, 4vw, 40px)
+    calc(clamp(24px, 4vw, 48px) + var(--safe-bottom));
+}
+.main.main-hub {
+  padding: 0;
+}
+.dashboard {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  min-height: calc(100dvh - var(--topbar-h) - var(--safe-top));
+}
+.dashboard-main {
+  min-width: 0;
+  padding: var(--space-6) clamp(16px, 3.5vw, 44px) var(--space-8);
+}
+.page-scroll,
+.dashboard-main > .patient-context-bar {
+  max-width: var(--content-max);
+  margin-inline: auto;
+}
+.page-scroll {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+}
+/* Grid/flex children may shrink below their content width (prevents horizontal overflow). */
+.page-scroll > *,
+.calendar-nav,
+.calendar-strip {
+  min-width: 0;
+}
+
+/* ---------- Sidebar / rail ---------- */
+.sidebar {
+  position: sticky;
+  top: calc(var(--topbar-h) + var(--safe-top));
+  height: calc(100dvh - var(--topbar-h) - var(--safe-top));
+  overflow-y: auto;
+  padding: var(--space-6) var(--space-4);
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+.side-intro {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-3) var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  background: var(--primary-tint);
+}
+.side-intro small {
+  color: var(--primary);
+  font-weight: 600;
+  font-size: var(--text-xs);
+}
+.side-intro b {
+  font-size: var(--text-lg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.side-intro .muted {
+  font-size: var(--text-sm);
+}
+.side-nav {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: var(--space-4);
+}
+.side-nav ul {
+  display: grid;
+  gap: 4px;
+}
+.nav-item {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--tap);
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+  font-weight: 600;
+  transition:
+    background var(--dur-fast),
+    color var(--dur-fast);
+}
+.nav-item:hover {
+  background: var(--primary-tint);
+  color: var(--ink);
+}
+.side-nav .nav-item.active {
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+}
+.side-nav .nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: -16px;
+  top: 10px;
+  bottom: 10px;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: var(--primary);
+}
+.guide-link {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--tap);
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+.guide-link:hover {
+  color: var(--primary);
+  background: var(--primary-tint);
+}
+
+/* ---------- Bottom tab bar (phones) ---------- */
+.mobile-tabs {
+  display: none;
+}
+
+/* Tablet: icon rail */
+@media (max-width: 1023px) {
+  .dashboard {
+    grid-template-columns: var(--rail-w) minmax(0, 1fr);
+  }
+  .sidebar {
+    padding: var(--space-4) var(--space-2);
+    align-items: stretch;
+  }
+  .side-intro {
+    display: none;
+  }
+  .nav-item {
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    min-height: 64px;
+    padding: 6px 4px;
+    font-size: var(--text-xs);
+    text-align: center;
+  }
+  .side-nav .nav-item.active::before {
+    left: -8px;
+  }
+  .guide-link span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+  .guide-link {
+    justify-content: center;
+    padding: 0;
+  }
+}
+
+/* Phone: bottom tabs, no sidebar */
+@media (max-width: 639px) {
+  :root {
+    --topbar-h: 56px;
+  }
+  .help-btn span {
+    display: none;
+  }
+  .help-btn {
+    width: var(--tap);
+    padding: 0;
+    justify-content: center;
+  }
+  .brand-name {
+    font-size: 1.2rem;
+  }
+  .dashboard {
+    display: block;
+  }
+  .sidebar {
+    display: none;
+  }
+  .dashboard-main {
+    padding: var(--space-4) var(--space-4)
+      calc(var(--tabbar-h) + var(--safe-bottom) + var(--space-6));
+  }
+  .mobile-tabs {
+    display: block;
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 30;
+    padding-bottom: var(--safe-bottom);
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -4px 16px rgba(18, 52, 59, 0.06);
+  }
+  .mobile-tabs ul {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    height: var(--tabbar-h);
+  }
+  .mobile-tabs .nav-item {
+    height: 100%;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    padding: 0;
+    border-radius: 0;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+  .mobile-tabs .nav-item.active {
+    color: var(--primary-strong);
+    background: none;
+  }
+  .mobile-tabs .nav-item svg {
+    padding: 3px 14px;
+    width: 52px;
+    height: 30px;
+    border-radius: var(--radius-pill);
+    transition: background var(--dur);
+  }
+  .mobile-tabs .nav-item.active svg {
+    background: var(--primary-soft);
+  }
+  .account-dropdown {
+    position: fixed;
+    right: 12px;
+    top: calc(var(--topbar-h) + var(--safe-top) + 6px);
+  }
+}
