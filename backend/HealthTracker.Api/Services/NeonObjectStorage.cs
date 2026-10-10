@@ -7,6 +7,7 @@ public interface INeonObjectStorage
 {
     bool IsConfigured { get; }
     Task<string> PutDataUrlAsync(string bucket,string key,string dataUrl,CancellationToken ct=default);
+    Task<(string Key,string MimeType,long Size)> PutFileDataUrlAsync(string bucket,string key,string mimeType,string dataUrl,CancellationToken ct=default);
     Task DeleteAsync(string bucket,string key,CancellationToken ct=default);
     string GetReadUrl(string bucket,string key);
 }
@@ -44,8 +45,8 @@ public sealed class NeonObjectStorage : INeonObjectStorage
             throw new ArgumentException("Image must be a valid image data URL.");
         var meta=dataUrl[5..comma];
         var mime=meta.Split(';')[0].Trim().ToLowerInvariant();
-        var allowed=new[]{"image/jpeg","image/png","image/webp","image/gif"};
-        if(!allowed.Contains(mime)) throw new ArgumentException("Only JPEG, PNG, WebP and GIF images are supported.");
+        var allowed=new[]{"image/jpeg","image/png","image/webp","image/gif","image/heic","image/heif"};
+        if(!allowed.Contains(mime)) throw new ArgumentException("Only JPEG, PNG, WebP, GIF and HEIC/HEIF images are supported.");
         var bytes=Convert.FromBase64String(dataUrl[(comma+1)..]);
         if(bytes.Length>1024*1024) throw new ArgumentException("Image must be 1 MB or smaller.");
         await using var stream=new MemoryStream(bytes);
@@ -54,6 +55,22 @@ public sealed class NeonObjectStorage : INeonObjectStorage
             BucketName=bucket, Key=key, InputStream=stream, ContentType=mime
         },ct);
         return key;
+    }
+
+    public async Task<(string Key,string MimeType,long Size)> PutFileDataUrlAsync(string bucket,string key,string mimeType,string dataUrl,CancellationToken ct=default)
+    {
+        if(!IsConfigured) throw new InvalidOperationException("Neon Object Storage is not configured.");
+        var comma=dataUrl.IndexOf(',');
+        if(comma<0 || !dataUrl[..comma].Contains(";base64",StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("The selected file could not be read.");
+        var mime=mimeType.Trim().ToLowerInvariant();
+        var allowed=new[]{"image/jpeg","image/png","image/heic","image/heif","application/pdf","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"};
+        if(!allowed.Contains(mime)) throw new ArgumentException("Supported files: JPEG, PNG, HEIC/HEIF, PDF and XLSX.");
+        var bytes=Convert.FromBase64String(dataUrl[(comma+1)..]);
+        if(bytes.Length>10*1024*1024) throw new ArgumentException("Attachments must be 10 MB or smaller.");
+        await using var stream=new MemoryStream(bytes);
+        await _s3.PutObjectAsync(new PutObjectRequest{BucketName=bucket,Key=key,InputStream=stream,ContentType=mime},ct);
+        return (key,mime,bytes.LongLength);
     }
 
     public async Task DeleteAsync(string bucket,string key,CancellationToken ct=default)
