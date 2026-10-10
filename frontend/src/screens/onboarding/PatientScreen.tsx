@@ -1,288 +1,197 @@
 import { useState } from "react";
-import { ArrowLeft, ChevronRight, Camera, FileImage } from "lucide-react";
-import { type Patient } from "../../api";
+import type { FormEvent } from "react";
+import { ArrowLeft, ChevronRight } from "lucide-react";
+import type { Patient, PatientInput } from "../../api";
 import { today } from "../../lib/dates";
-import { conditions, relationships } from "../../constants/options";
-import { Field } from "../../components/Field";
-import { InlineError } from "../../components/InlineError";
+import { relationships } from "../../constants/options";
+import { Avatar } from "../../components/Avatar";
 import { ConditionPicker } from "../../components/ConditionPicker";
+import { Field } from "../../components/Field";
+import { ImagePickerButtons } from "../../components/ImagePickerButtons";
+import { InlineError } from "../../components/InlineError";
 
-export function PatientScreen({
-  patient,
-  role,
-  onBack,
-  onSave,
-}: {
+type PatientScreenProps = {
+  /** Patient being created (empty id) or completed during onboarding. */
   patient: Patient;
-  role: string;
+  /** "self" hides the relationship question and adjusts wording. */
+  role: "self" | "caregiver";
+  /** Cancels and returns to the hub. */
   onBack: () => void;
-  onSave: (v: {
-    name: string;
-    dob: string;
-    conditions: string[];
-    notes: string;
-    relationship?: string;
-    mobile?: string;
-    doctor?: string;
-    medicalHistory?: string;
-    profileImageUrl?: string;
-    doctorPhotoUrl?: string;
-  }) => Promise<void>;
-}) {
-  const [p, setP] = useState({
-      ...patient,
-      conditions: patient.conditions || [],
-    }),
-    [error, setError] = useState("");
+  /** Saves; resolves true on success (navigation is handled by the controller). */
+  onSave: (v: PatientInput) => Promise<boolean>;
+};
+
+/** Patient setup form used for onboarding and for adding new patients. */
+export function PatientScreen({ patient, role, onBack, onSave }: PatientScreenProps) {
+  const [p, setP] = useState<Patient>({ ...patient, conditions: patient.conditions || [] });
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   const isSelf = role === "self";
-  const submit = () => {
+
+  /** Updates one field of the draft. */
+  const set = <K extends keyof Patient>(key: K, value: Patient[K]) =>
+    setP((v) => ({ ...v, [key]: value }));
+
+  /** Validates required fields and saves (busy state prevents duplicate patients). */
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
     setError("");
-    if (!p.name.trim() || p.name.trim().length < 2)
-      return setError("Please enter a valid full name.");
-    if (p.name.trim().length > 100) return setError("Name must be 100 characters or fewer.");
-    if (!isSelf && !p.relationship)
-      return setError("Please choose your relationship to the patient.");
-    if (p.dob && p.dob > today()) return setError("Date of birth cannot be in the future.");
-    onSave({
-      name: p.name.trim(),
-      dob: p.dob || "",
-      conditions: p.conditions,
-      notes: p.notes.trim(),
-      relationship: p.relationship,
-      mobile: p.mobile || "",
-      doctor: p.doctor || "",
-      medicalHistory: p.medicalHistory || "",
-      profileImageUrl: p.profileImageUrl || "",
-      doctorPhotoUrl: p.doctorPhotoUrl || "",
-    });
+    const name = p.name.trim();
+    if (name.length < 2) return setError("Enter a full name (at least 2 characters).");
+    if (name.length > 100) return setError("Name must be 100 characters or fewer.");
+    if (!isSelf && !p.relationship) return setError("Choose your relationship to the patient.");
+    if (p.dob && p.dob > today()) return setError("Date of birth can't be in the future.");
+    setBusy(true);
+    try {
+      await onSave({
+        name,
+        dob: p.dob || "",
+        conditions: p.conditions,
+        notes: (p.notes || "").trim(),
+        relationship: isSelf ? "self" : p.relationship,
+        mobile: p.mobile || "",
+        doctor: p.doctor || "",
+        medicalHistory: p.medicalHistory || "",
+        profileImageUrl: p.profileImageUrl || "",
+        doctorPhotoUrl: p.doctorPhotoUrl || "",
+      });
+    } finally {
+      setBusy(false);
+    }
   };
+
   return (
-    <section className="setup-card">
-      <button className="icon-btn back" onClick={onBack}>
+    <form className="setup-card card" onSubmit={submit} noValidate>
+      <button
+        type="button"
+        className="icon-btn back"
+        onClick={onBack}
+        aria-label="Cancel and go back"
+      >
         <ArrowLeft />
       </button>
-      <span className="eyebrow">STEP 1 · YOUR CARE PLAN</span>
-      <h2>{isSelf ? "A little about you" : "Tell us about your patient"}</h2>
-      <p className="muted lead">These details help TENDED label doses and reminders clearly.</p>
+      <span className="eyebrow">{patient.id ? "Step 2 of 2" : "New patient"}</span>
+      <h2>{isSelf ? "A little about you" : "Tell us about the person you care for"}</h2>
+      <p className="muted lead">
+        These details label doses and reminders clearly for everyone helping.
+      </p>
+
       {!isSelf && (
-        <>
-          <label className="field-label">
-            Your relationship to the patient <em>required</em>
-          </label>
+        <fieldset className="field">
+          <legend className="field-label">
+            Your relationship to them <em>required</em>
+          </legend>
           <div className="chips">
             {relationships.map((r) => (
               <button
                 type="button"
                 className={p.relationship === r ? "chip selected" : "chip"}
+                aria-pressed={p.relationship === r}
                 key={r}
-                onClick={() => setP({ ...p, relationship: r })}
+                onClick={() => set("relationship", r)}
               >
                 {r}
               </button>
             ))}
           </div>
-        </>
+        </fieldset>
       )}
+
       <div className="patient-photo-field">
-        <div className="avatar patient-avatar-large">
-          {p.profileImageUrl ? (
-            <img src={p.profileImageUrl} alt="Patient" />
-          ) : (
-            (p.name || "?")
-              .split(" ")
-              .map((x) => x[0])
-              .slice(0, 2)
-              .join("")
-          )}
-        </div>
-        <div className="photo-actions">
-          <label className="btn soft upload-btn">
-            <FileImage size={15} />
-            Gallery
-            <input
-              type="file"
-              accept=".jpg,.jpeg,.png,.heic,.heif,image/jpeg,image/png,image/heic,image/heif"
-              hidden
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (!f) return;
-                if (f.size > 1024 * 1024) {
-                  setError("Patient image must be 1 MB or smaller.");
-                  return;
-                }
-                const ext = f.name.split(".").pop()?.toLowerCase() || "";
-                const mime =
-                  f.type ||
-                  (
-                    {
-                      jpg: "image/jpeg",
-                      jpeg: "image/jpeg",
-                      png: "image/png",
-                      heic: "image/heic",
-                      heif: "image/heif",
-                    } as Record<string, string>
-                  )[ext] ||
-                  "image/jpeg";
-                const r = new FileReader();
-                r.onload = () => {
-                  let data = String(r.result);
-                  if (!data.startsWith("data:image/")) data = data.replace(/^data:[^;,]*/, mime);
-                  setP({ ...p, profileImageUrl: data });
-                };
-                r.readAsDataURL(f);
-                e.currentTarget.value = "";
-              }}
-            />
-          </label>
-          <label className="btn soft upload-btn">
-            <Camera size={15} />
-            Camera
-            <input
-              type="file"
-              accept="image/*,.heic,.heif"
-              capture="environment"
-              hidden
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (!f) return;
-                if (f.size > 1024 * 1024) {
-                  setError("Patient image must be 1 MB or smaller.");
-                  return;
-                }
-                const r = new FileReader();
-                r.onload = () => setP({ ...p, profileImageUrl: String(r.result) });
-                r.readAsDataURL(f);
-                e.currentTarget.value = "";
-              }}
-            />
-          </label>
-        </div>
+        <Avatar name={p.name} src={p.profileImageUrl} size="xl" />
+        <ImagePickerButtons
+          label="patient photo"
+          onPick={(v) => set("profileImageUrl", v)}
+          onError={setError}
+          onRemove={p.profileImageUrl ? () => set("profileImageUrl", "") : undefined}
+        />
       </div>
-      <Field label={isSelf ? "Your full name" : "Patient's full name"}>
-        <input
-          className="input"
-          value={p.name}
-          onChange={(e) => setP({ ...p, name: e.target.value })}
-          placeholder="e.g. Grace Whitfield"
-        />
-      </Field>
-      <Field label="Date of birth">
-        <input
-          className="input"
-          type="date"
-          max={today()}
-          value={p.dob || ""}
-          onChange={(e) => setP({ ...p, dob: e.target.value })}
-        />
-      </Field>
-      <Field label="Mobile number">
-        <input
-          className="input"
-          value={p.mobile || ""}
-          onChange={(e) => setP({ ...p, mobile: e.target.value })}
-          placeholder="+91 98765 43210"
-        />
-      </Field>
-      <Field label="Doctor">
-        <input
-          className="input"
-          value={p.doctor || ""}
-          onChange={(e) => setP({ ...p, doctor: e.target.value })}
-          placeholder="Doctor name / clinic"
-        />
-      </Field>
-      <Field label="Medical history">
-        <textarea
-          className="input textarea"
-          maxLength={1000}
-          value={p.medicalHistory || ""}
-          onChange={(e) => setP({ ...p, medicalHistory: e.target.value })}
-          placeholder="Relevant history"
-        />
-      </Field>
-      <Field label="Doctor / prescriber photo">
-        <div className="doctor-photo-upload">
+
+      <div className="form-grid">
+        <Field label={isSelf ? "Your full name" : "Their full name"} full>
+          <input
+            className="input"
+            value={p.name}
+            onChange={(e) => set("name", e.target.value)}
+            placeholder="e.g. Grace Whitfield"
+            autoComplete={isSelf ? "name" : "off"}
+            required
+          />
+        </Field>
+        <Field label="Date of birth" hint="optional">
+          <input
+            className="input"
+            type="date"
+            max={today()}
+            value={p.dob || ""}
+            onChange={(e) => set("dob", e.target.value)}
+          />
+        </Field>
+        <Field label="Mobile number" hint="optional">
+          <input
+            className="input"
+            type="tel"
+            inputMode="tel"
+            value={p.mobile || ""}
+            onChange={(e) => set("mobile", e.target.value)}
+            placeholder="+91 98765 43210"
+          />
+        </Field>
+        <Field label="Doctor or clinic" hint="optional" full>
+          <input
+            className="input"
+            value={p.doctor || ""}
+            onChange={(e) => set("doctor", e.target.value)}
+            placeholder="Dr. Rao, City Clinic"
+          />
+        </Field>
+        <div className="field full-field">
+          <span className="field-label">Main conditions</span>
+          <ConditionPicker selected={p.conditions} onChange={(c) => set("conditions", c)} />
+        </div>
+        <Field label="Medical history" hint="optional" full>
+          <textarea
+            className="input textarea"
+            maxLength={1000}
+            value={p.medicalHistory || ""}
+            onChange={(e) => set("medicalHistory", e.target.value)}
+            placeholder="One item per line, e.g. surgeries, allergies, past conditions"
+          />
+        </Field>
+        <Field label="Notes for other caregivers" hint="optional" full>
+          <textarea
+            className="input textarea"
+            maxLength={500}
+            value={p.notes}
+            onChange={(e) => set("notes", e.target.value)}
+            placeholder="Allergies, how they like to take medicines, anything worth knowing"
+          />
+        </Field>
+        <div className="field full-field">
+          <span className="field-label">
+            Doctor or prescription photo <em>optional</em>
+          </span>
           {p.doctorPhotoUrl && (
             <img
               className="doctor-photo-preview"
               src={p.doctorPhotoUrl}
-              alt="Doctor or prescriber"
+              alt="Doctor or prescription"
             />
           )}
-          <div className="photo-actions">
-            <label className="btn soft upload-btn">
-              <FileImage size={16} />
-              Gallery / computer
-              <input
-                type="file"
-                accept="image/*"
-                hidden
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  if (file.size > 1024 * 1024) return setError("Photo must be 1 MB or smaller.");
-                  const reader = new FileReader();
-                  reader.onload = () => setP({ ...p, doctorPhotoUrl: String(reader.result) });
-                  reader.readAsDataURL(file);
-                  e.currentTarget.value = "";
-                }}
-              />
-            </label>
-            <label className="btn soft upload-btn">
-              <Camera size={16} />
-              Use camera
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                hidden
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  if (file.size > 1024 * 1024) return setError("Photo must be 1 MB or smaller.");
-                  const reader = new FileReader();
-                  reader.onload = () => setP({ ...p, doctorPhotoUrl: String(reader.result) });
-                  reader.readAsDataURL(file);
-                  e.currentTarget.value = "";
-                }}
-              />
-            </label>
-            {p.doctorPhotoUrl && (
-              <button
-                type="button"
-                className="btn soft"
-                onClick={() => setP({ ...p, doctorPhotoUrl: "" })}
-              >
-                Remove photo
-              </button>
-            )}
-          </div>
-          <small className="field-hint">
-            Upload a prescription or doctor/prescriber photo. On mobile, Use camera opens the camera
-            when supported.
-          </small>
+          <ImagePickerButtons
+            label="doctor or prescription photo"
+            onPick={(v) => set("doctorPhotoUrl", v)}
+            onError={setError}
+            onRemove={p.doctorPhotoUrl ? () => set("doctorPhotoUrl", "") : undefined}
+          />
         </div>
-      </Field>
-      <Field label="Main conditions or diagnosis">
-        <ConditionPicker
-          selected={p.conditions}
-          onChange={(conditions) => setP({ ...p, conditions })}
-        />
-      </Field>
-      <Field label="Notes for other caregivers <span>optional</span>">
-        <textarea
-          className="input textarea"
-          maxLength={500}
-          value={p.notes}
-          onChange={(e) => setP({ ...p, notes: e.target.value })}
-          placeholder="Allergies, doctor's contact, anything worth knowing"
-        />
-      </Field>
+      </div>
+
       {error && <InlineError>{error}</InlineError>}
-      <button className="btn primary full" onClick={submit}>
-        Save and continue
-        <ChevronRight size={18} />
+      <button type="submit" className="btn primary full" disabled={busy}>
+        {busy ? "Saving…" : "Save and continue"}
+        {!busy && <ChevronRight size={18} aria-hidden="true" />}
       </button>
-    </section>
+    </form>
   );
 }

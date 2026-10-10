@@ -1,16 +1,20 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { Eye, EyeOff, Lock, Mail } from "lucide-react";
-import { api, type User as ApiUser } from "../../api";
+import { api, type AuthResult } from "../../api";
 import { Field } from "../../components/Field";
 import { InlineError } from "../../components/InlineError";
 
+/**
+ * Sign-in / sign-up screen with client-side validation matching the API rules.
+ * Submitting runs `onSuccess`, which loads the hub (or onboarding for new accounts).
+ */
 export function LoginScreen({
   onSuccess,
   onForgot,
   onError,
 }: {
-  onSuccess: (r: { user: ApiUser; token: string }, register: boolean) => Promise<void>;
+  onSuccess: (r: AuthResult, register: boolean) => Promise<void>;
   onForgot: () => void;
   onError: (m: string) => void;
 }) {
@@ -21,6 +25,7 @@ export function LoginScreen({
     [show, setShow] = useState(false),
     [busy, setBusy] = useState(false),
     [localError, setLocalError] = useState("");
+  /** Validates the form and calls the login or register endpoint. */
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setLocalError("");
@@ -49,18 +54,20 @@ export function LoginScreen({
   return (
     <section className="auth-layout">
       <div className="auth-copy">
-        <span className="eyebrow">MEDICATION MADE HEALTH COMPANION</span>
-        <h1>Feel more in control of every dose.</h1>
-        <p>Keep medicines, schedules and daily progress in one calm, simple place.</p>
-        <div className="feature-pills">
-          <span>✓ Clear schedules</span>
-          <span>✓ Refill reminders</span>
-          <span>✓ Caregiver friendly</span>
-        </div>
+        <img className="auth-mark" src="/tended-icon.svg" alt="" width={56} height={56} />
+        <h1>Every dose, on time, for everyone you care for.</h1>
+        <p>
+          Tended keeps medicine schedules, refill reminders and a shared dose record in one calm
+          place for patients and family caregivers.
+        </p>
+        <ul className="feature-pills">
+          <li>Daily schedules by time of day</li>
+          <li>Refill and missed-dose alerts</li>
+          <li>Shared with family, with consent</li>
+        </ul>
       </div>
       <form className="auth-card" onSubmit={submit}>
         <div className="auth-card-head">
-          <img className="auth-logo" src="/tended-logo.svg" alt="TENDED" />
           <div>
             <h2>{mode === "signin" ? "Welcome back" : "Create your account"}</h2>
             <p className="muted">
@@ -70,9 +77,11 @@ export function LoginScreen({
             </p>
           </div>
         </div>
-        <div className="segmented">
+        <div className="segmented" role="tablist" aria-label="Log in or sign up">
           <button
             type="button"
+            role="tab"
+            aria-selected={mode === "signin"}
             className={mode === "signin" ? "selected" : ""}
             onClick={() => {
               setMode("signin");
@@ -83,6 +92,8 @@ export function LoginScreen({
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={mode === "signup"}
             className={mode === "signup" ? "selected" : ""}
             onClick={() => {
               setMode("signup");
@@ -105,7 +116,7 @@ export function LoginScreen({
         )}
         <Field label="Email">
           <div className="icon-input">
-            <Mail />
+            <Mail aria-hidden="true" />
             <input
               className="input"
               value={email}
@@ -118,7 +129,7 @@ export function LoginScreen({
         </Field>
         <Field label="Password">
           <div className="icon-input">
-            <Lock />
+            <Lock aria-hidden="true" />
             <input
               className="input"
               value={password}
@@ -144,11 +155,11 @@ export function LoginScreen({
             </button>
           </div>
         )}
-        <button className="btn primary full" disabled={busy}>
+        <button type="submit" className="btn primary full" disabled={busy}>
           {busy ? (
             <>
-              <span className="spinner" />
-              Please wait…
+              <span className="spinner" aria-hidden="true" />
+              Signing in…
             </>
           ) : mode === "signin" ? (
             "Log in"
@@ -156,7 +167,9 @@ export function LoginScreen({
             "Create account"
           )}
         </button>
-        <p className="fine muted">Your account is protected with secure authentication.</p>
+        <p className="fine muted">
+          Tended organizes medicines; it doesn't replace advice from a doctor or pharmacist.
+        </p>
       </form>
     </section>
   );
