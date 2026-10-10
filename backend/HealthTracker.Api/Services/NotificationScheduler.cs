@@ -39,7 +39,7 @@ public class NotificationScheduler(IServiceScopeFactory scopes,ILogger<Notificat
        if(await Reserve(db,user.Id,dose.Id,"final",scheduled,ct))await Deliver(db,user.Id,p,m,dose,"Medicine due now",$"{m.Name} ({m.Strength}) for {p.Name} is due now.","dose_final",scheduled,push,ct);
       }
       if(until<=0&&dose.Status=="pending"){dose.Status="missed";dose.MissedAt=now;await db.SaveChangesAsync(ct);}
-      if(until<=0&&dose.Status=="missed")
+      if(until<=-1.0&&dose.Status=="missed")
       {
        if(await Reserve(db,user.Id,dose.Id,"missed",scheduled,ct))await Deliver(db,user.Id,p,m,dose,"Dose missed",$"{m.Name} ({m.Strength}) for {p.Name} was not marked taken at {tod}.","dose_missed",scheduled,push,ct);
       }
