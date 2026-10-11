@@ -142,7 +142,7 @@ The medical history timeline can read a photographed or uploaded prescription an
 1. **Create a key** at Google AI Studio (free tier available).
 2. **Set environment variables on the API:**
    - `GEMINI_API_KEY` (required).
-   - `Gemini__Model` (optional; default `gemini-2.5-flash`).
+   - `Gemini__Model` (optional; default `gemini-3.5-flash-lite`).
    - `Gemini__ShowDataNotice` (optional; default `true`). The notice tells users that, with free keys, Google may use submitted content to improve its services. Set it to `false` only when using a paid key.
 3. **Redeploy.** Without a key, the app offers manual entry instead.
 
