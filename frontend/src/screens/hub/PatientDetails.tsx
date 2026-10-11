@@ -4,7 +4,7 @@ import {
   ArrowLeft,
   CalendarClock,
   Camera,
-  Download,
+  Eye,
   FileImage,
   FileText,
   Paperclip,
@@ -26,6 +26,7 @@ import { InlineError } from "../../components/InlineError";
 import { MedicineFormIcon } from "../../components/MedicineFormIcon";
 import { PageHeader } from "../../components/PageHeader";
 import { Row } from "../../components/DetailRow";
+import { AttachmentPreview } from "../../components/AttachmentPreview";
 import { EmptyArt } from "../../components/art/EmptyArt";
 
 /**
@@ -69,6 +70,9 @@ export function PatientDetails({
     setEditing(startEditing);
     setError("");
   }, [patient.id, patient.name, patient.attachments, startEditing]);
+  /** Attachment open in the preview viewer (index into draft.attachments). */
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+
   /** Updates one draft field. */
   const set = (key: keyof Patient, value: any) => setDraft((v) => ({ ...v, [key]: value }));
   /**
@@ -507,30 +511,43 @@ export function PatientDetails({
                 <div className="patient-attachments-list">
                   {(draft.attachments || []).map((a, i) => (
                     <div className="patient-attachment-row" key={a.key || a.dataUrl || a.name + i}>
-                      <span className="attachment-file-icon">
-                        {a.mimeType.startsWith("image/") ? (
+                      <button
+                        type="button"
+                        className={
+                          a.mimeType.startsWith("image/")
+                            ? "attachment-thumb image"
+                            : "attachment-thumb"
+                        }
+                        onClick={() => setPreviewIndex(i)}
+                        aria-label={`Preview ${a.name}`}
+                      >
+                        {a.mimeType.startsWith("image/") && (a.url || a.dataUrl) ? (
+                          <img src={a.url || a.dataUrl} alt="" />
+                        ) : a.mimeType.startsWith("image/") ? (
                           <FileImage size={20} />
                         ) : (
                           <FileText size={20} />
                         )}
-                      </span>
-                      <div className="attachment-file-copy">
+                      </button>
+                      <div
+                        className="attachment-file-copy"
+                        onClick={() => (a.url || a.dataUrl) && setPreviewIndex(i)}
+                      >
                         <b>{a.name}</b>
                         <small>
                           {a.mimeType.split("/").pop()?.toUpperCase()}{" "}
                           {a.size ? "· " + formatSize(a.size) : ""}
                         </small>
                       </div>
-                      {a.url && (
-                        <a
+                      {(a.url || a.dataUrl) && (
+                        <button
+                          type="button"
                           className="btn soft attachment-download"
-                          href={a.url}
-                          target="_blank"
-                          rel="noreferrer"
+                          onClick={() => setPreviewIndex(i)}
                         >
-                          <Download size={15} />
-                          Open
-                        </a>
+                          <Eye size={15} aria-hidden="true" />
+                          Preview
+                        </button>
                       )}
                       {editing && (
                         <button
@@ -640,6 +657,18 @@ export function PatientDetails({
           )}
         </div>
       </div>
+      {previewIndex !== null && (draft.attachments || []).length > 0 && (
+        <AttachmentPreview
+          attachments={(draft.attachments || []).filter((x) => x.url || x.dataUrl)}
+          start={Math.max(
+            0,
+            (draft.attachments || [])
+              .filter((x) => x.url || x.dataUrl)
+              .indexOf((draft.attachments || [])[previewIndex]),
+          )}
+          onClose={() => setPreviewIndex(null)}
+        />
+      )}
     </div>
   );
 }

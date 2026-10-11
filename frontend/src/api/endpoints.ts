@@ -11,6 +11,7 @@ import type {
   NotificationSettingsData,
   Patient,
   PatientInput,
+  PushTestResult,
   User,
 } from "./types";
 
@@ -110,6 +111,25 @@ export const api = {
     request<{ id: string; name: string }>("/family", send("POST", { name })),
   /** Invites a registered user; access is shared only after they accept. */
   inviteFamilyMember: (userId: string) => request<any>("/family/invite", send("POST", { userId })),
+  /** Renames the family and/or sets its picture (data URL to upload, "" to remove, current URL to keep). */
+  updateFamily: (name: string, photoUrl: string) =>
+    request<{ id: string; name: string; photoUrl?: string | null }>(
+      "/family",
+      send("PUT", { name, photoUrl }),
+    ),
+  /** Removes a member (admin or members with the manage right). */
+  removeFamilyMember: (userId: string) =>
+    request<void>(`/family/members/${userId}`, send("DELETE")),
+  /** Grants or revokes a member's manage right (admin only). */
+  setFamilyPermissions: (userId: string, canManageMembers: boolean) =>
+    request<unknown>(`/family/members/${userId}/permissions`, send("PUT", { canManageMembers })),
+  /** Hands over the admin role (admin only). */
+  makeFamilyAdmin: (userId: string) =>
+    request<void>(`/family/members/${userId}/make-admin`, send("POST")),
+  /** Withdraws a pending invitation. */
+  cancelFamilyInvite: (id: string) => request<void>(`/family/invites/${id}`, send("DELETE")),
+  /** Leaves the family (admins must hand over the role first unless they are the last member). */
+  leaveFamily: () => request<void>("/family/leave", send("POST")),
   /** Accepts or rejects an invitation addressed to the user. */
   respondFamilyInvite: (id: string, accept: boolean) =>
     request<{ status: string }>(`/family/invites/${id}/respond`, send("POST", { accept })),
