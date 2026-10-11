@@ -158,7 +158,7 @@ public class NotificationScheduler(IServiceScopeFactory scopes, ILogger<Notifica
             }
         }
 
-        if (user.FinalNotificationEnabled && minutesUntilDose <= 0 && minutesUntilDose >= -1.0 && await Reserve(db, user.Id, dose.Id, "final", scheduledUtc, cancellationToken))
+        if (user.FinalNotificationEnabled && minutesUntilDose <= 0 && minutesUntilDose > -60.0 && await Reserve(db, user.Id, dose.Id, "final", scheduledUtc, cancellationToken))
         {
             await Deliver(db, user.Id, patient, medicine, dose, "Medicine due now", $"{medicine.Name} ({medicine.Strength}) for {patient.Name} is due now{label}.", "dose_final", scheduledUtc, push, cancellationToken);
         }
@@ -214,7 +214,16 @@ public class NotificationScheduler(IServiceScopeFactory scopes, ILogger<Notifica
         db.Notifications.Add(new AppNotification { UserId = userId, Type = type, Title = title, Message = body, DataJson = JsonSerializer.Serialize(new { doseId = dose.Id, patientId = patient.Id, medicineId = medicine.Id, medicineForm = medicine.Form, type, deliveryStatus = sent ? "sent" : "failed" }) });
         if (!sent)
         {
-            db.Notifications.Add(new AppNotification { UserId = userId, Type = "notification_failed", Title = "Browser notification not delivered", Message = $"{title}: {medicine.Name} for {patient.Name}. Enable browser notifications or check the push subscription.", DataJson = JsonSerializer.Serialize(new { doseId = dose.Id, type }) });
+            // Retries must not flood the in-app bell with the same failure every 20 seconds.
+            var failureAlreadyRecorded = await db.Notifications.AnyAsync(notification =>
+                notification.UserId == userId &&
+                notification.Type == "notification_failed" &&
+                notification.DataJson.Contains(dose.Id.ToString()) &&
+                notification.DataJson.Contains(type), cancellationToken);
+            if (!failureAlreadyRecorded)
+            {
+                db.Notifications.Add(new AppNotification { UserId = userId, Type = "notification_failed", Title = "Browser notification not delivered", Message = $"{title}: {medicine.Name} for {patient.Name}. Enable browser notifications or check the push subscription.", DataJson = JsonSerializer.Serialize(new { doseId = dose.Id, type }) });
+            }
         }
 
         await db.SaveChangesAsync(cancellationToken);
