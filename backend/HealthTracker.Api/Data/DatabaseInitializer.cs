@@ -60,6 +60,7 @@ public static class DatabaseInitializer
                     await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Medicines\" ADD COLUMN IF NOT EXISTS \"EndedOn\" date;");
                     await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Medicines\" ADD COLUMN IF NOT EXISTS \"RescheduledFromId\" uuid;");
                     await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Medicines\" ADD COLUMN IF NOT EXISTS \"PreviousTimesJson\" text;");
+                    await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Medicines\" ADD COLUMN IF NOT EXISTS \"DoseAmount\" text NOT NULL DEFAULT '';");
 
                     // Family roles, permissions and picture. Existing family creators become admins.
                     await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FamilyMembers\" ADD COLUMN IF NOT EXISTS \"Role\" text NOT NULL DEFAULT 'member';");
@@ -90,6 +91,21 @@ public static class DatabaseInitializer
                             "CreatedAt" timestamp with time zone NOT NULL,
                             "UpdatedAt" timestamp with time zone NOT NULL);
                         CREATE INDEX IF NOT EXISTS "IX_MedicalRecords_PatientId" ON "MedicalRecords" ("PatientId");
+                        CREATE TABLE IF NOT EXISTS "AuditLogs" (
+                            "Id" uuid NOT NULL CONSTRAINT "PK_AuditLogs" PRIMARY KEY,
+                            "PatientId" uuid NULL,
+                            "EntityType" text NOT NULL,
+                            "EntityId" uuid NOT NULL,
+                            "MedicineId" uuid NULL,
+                            "Action" text NOT NULL,
+                            "ActorUserId" uuid NOT NULL,
+                            "ActorName" text NOT NULL,
+                            "Reason" text NOT NULL,
+                            "Summary" text NOT NULL,
+                            "DetailsJson" text NOT NULL,
+                            "At" timestamp with time zone NOT NULL);
+                        CREATE INDEX IF NOT EXISTS "IX_AuditLogs_PatientId_At" ON "AuditLogs" ("PatientId", "At");
+                        CREATE INDEX IF NOT EXISTS "IX_AuditLogs_MedicineId" ON "AuditLogs" ("MedicineId");
                         """);
                 }
             }

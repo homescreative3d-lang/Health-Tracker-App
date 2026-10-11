@@ -41,6 +41,8 @@ public class NotificationsController(AppDbContext db, IPushNotificationService p
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> SaveSettings(NotificationSettingsRequest request)
     {
+        if (request.LeadMinutes > 0 && request.RepeatMinutes > request.LeadMinutes)
+            return BadRequest(new { message = $"Repeat interval can't be longer than the first reminder ({request.LeadMinutes} min before), or no repeat would ever be sent." });
         if (request.LeadMinutes is < 0 or > 120 || request.RepeatMinutes is < 1 or > 60)
         {
             return BadRequest(new { message = "Notification timings are invalid." });

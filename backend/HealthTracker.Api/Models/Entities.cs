@@ -72,6 +72,9 @@ public class Medicine
     /// <summary>Last paused date (inclusive); null means paused until resumed.</summary>
     public DateOnly? PauseEndDate { get; set; }
 
+    /// <summary>How much to take per dose, e.g. "½ tablet", "5 ml", "2 puffs" (required for new medicines).</summary>
+    public string DoseAmount { get; set; } = "";
+
     /// <summary>
     /// First date this medicine no longer occurs because its schedule was rescheduled into a new
     /// medicine record (history before this date stays attached to this record).
@@ -233,5 +236,32 @@ public class MedicalRecord
     public Guid CreatedByUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>
+/// Immutable audit trail entry: who did what, when, why, and what changed. Written for every
+/// dose action (take/skip/undo/reschedule) and medicine change (add/edit/delete/pause/resume/
+/// reschedule) and shown in History → Changes and on medicine/dose cards.
+/// </summary>
+public class AuditLog
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid? PatientId { get; set; }
+    /// <summary><c>dose</c> or <c>medicine</c>.</summary>
+    public string EntityType { get; set; } = "";
+    public Guid EntityId { get; set; }
+    /// <summary>Medicine involved (lets a medicine card show every change across its doses).</summary>
+    public Guid? MedicineId { get; set; }
+    /// <summary>e.g. <c>taken</c>, <c>skipped</c>, <c>undone</c>, <c>rescheduled</c>, <c>paused</c>, <c>resumed</c>, <c>created</c>, <c>updated</c>, <c>deleted</c>, <c>schedule_changed</c>.</summary>
+    public string Action { get; set; } = "";
+    public Guid ActorUserId { get; set; }
+    /// <summary>Actor's name at the time (kept even if they later rename or delete their account).</summary>
+    public string ActorName { get; set; } = "";
+    public string Reason { get; set; } = "";
+    /// <summary>Short human summary, e.g. "Moved from Fri 8:00 AM to Fri 3:00 PM".</summary>
+    public string Summary { get; set; } = "";
+    /// <summary>JSON with before/after values.</summary>
+    public string DetailsJson { get; set; } = "{}";
+    public DateTimeOffset At { get; set; } = DateTimeOffset.UtcNow;
 }
 

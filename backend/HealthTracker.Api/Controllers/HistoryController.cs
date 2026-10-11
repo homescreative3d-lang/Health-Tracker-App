@@ -66,4 +66,43 @@ public class HistoryController(AppDbContext db, IPatientAccessService access) : 
 
     /// <summary>Maps a dose time to its history filter bucket.</summary>
     static string Bucket(string time) => DoseSchedule.DayPart(time);
+
+    /// <summary>
+    /// Audit trail of changes (dose actions, reschedules with reasons, pauses, medicine edits) for
+    /// every accessible patient, newest first (max 500).
+    /// </summary>
+    /// <param name="patientIds">Comma-separated patient ids; defaults to all accessible patients.</param>
+    /// <param name="from">Earliest date (inclusive, UTC).</param>
+    /// <param name="to">Latest date (inclusive, UTC).</param>
+    /// <response code="200">Audit entries.</response>
+    [HttpGet("changes")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> Changes(string? patientIds, DateOnly? from, DateOnly? to)
+    {
+        var owners = await access.GetAccessibleOwnerIdsAsync(CurrentUserId);
+        var accessible = await db.Patients.Where(p => owners.Contains(p.UserId)).Select(p => new { p.Id, p.Name }).ToListAsync();
+        var ids = accessible.Select(p => p.Id).ToList();
+        if (!string.IsNullOrWhiteSpace(patientIds))
+        {
+            var wanted = patientIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(v => Guid.TryParse(v, out var g) ? g : Guid.Empty).ToHashSet();
+            ids = ids.Where(wanted.Contains).ToList();
+        }
+
+        var q = db.AuditLogs.Where(a => a.PatientId != null && ids.Contains(a.PatientId.Value));
+        if (from.HasValue)
+        {
+            var f = new DateTimeOffset(from.Value.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+            q = q.Where(a => a.At >= f);
+        }
+
+        if (to.HasValue)
+        {
+            var t = new DateTimeOffset(to.Value.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+            q = q.Where(a => a.At < t);
+        }
+
+        var rows = await q.OrderByDescending(a => a.At).Take(500).ToListAsync();
+        var names = accessible.ToDictionary(p => p.Id, p => p.Name);
+        return Ok(rows.Select(a => new { entry = IAuditTrail.Map(a), patientName = a.PatientId.HasValue && names.TryGetValue(a.PatientId.Value, out var n) ? n : "" }));
+    }
 }

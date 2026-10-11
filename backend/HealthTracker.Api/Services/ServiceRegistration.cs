@@ -25,6 +25,7 @@ public static class ServiceRegistration
     {
         services.AddScoped<IPasswordHasher<AppUser>, PasswordHasher<AppUser>>();
         services.AddScoped<IPatientAccessService, PatientAccessService>();
+        services.AddScoped<IAuditTrail, AuditTrail>();
         services.AddScoped<ITokenService, TokenService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<ICareTeamNotifier, CareTeamNotifier>();

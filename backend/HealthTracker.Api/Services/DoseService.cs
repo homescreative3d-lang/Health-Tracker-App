@@ -36,9 +36,10 @@ public interface IDoseService
     /// <param name="id">Dose to move.</param>
     /// <param name="date">Target date (owner's time zone).</param>
     /// <param name="time">Target time <c>HH:mm</c>; null keeps the original time.</param>
+    /// <param name="reason">Why it was moved (required; recorded in the audit trail).</param>
     /// <exception cref="InvalidOperationException">Dose already taken/skipped/moved, target in the past, or slot taken.</exception>
     /// <returns>The newly created dose.</returns>
-    Task<DoseResponse> Reschedule(Guid userId, Guid id, DateOnly date, string? time = null);
+    Task<DoseResponse> Reschedule(Guid userId, Guid id, DateOnly date, string? time = null, string? reason = null);
 
     /// <summary>Reverts a dose to pending, restoring supply when it had been taken.</summary>
     /// <exception cref="InvalidOperationException">The window has closed.</exception>
@@ -52,7 +53,8 @@ public interface IDoseService
 /// <param name="db">Pooled database context.</param>
 /// <param name="access">Patient access rules.</param>
 /// <param name="notifier">Care-team notifications (optional so unit tests can omit it).</param>
-public class DoseService(AppDbContext db, IPatientAccessService access, ICareTeamNotifier? notifier = null) : IDoseService
+/// <param name="audit">Audit trail (optional so unit tests can omit it).</param>
+public class DoseService(AppDbContext db, IPatientAccessService access, ICareTeamNotifier? notifier = null, IAuditTrail? audit = null) : IDoseService
 {
     /// <inheritdoc />
     public async Task<List<DoseResponse>> Get(Guid uid, DateOnly date, Guid? patientId)
@@ -126,7 +128,20 @@ public class DoseService(AppDbContext db, IPatientAccessService access, ICareTea
         var origins = originIds.Count == 0
             ? new Dictionary<Guid, DoseEvent>()
             : await db.DoseEvents.Where(e => originIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e);
+        // One card per dose per day: a dose moved to another time on the SAME day is represented by
+        // the moved dose (which carries the change history), not by a second "moved" card.
+        var dayString = date.ToString("yyyy-MM-dd");
+        result = result.Where(x => !(x.Status == "rescheduled" && x.RescheduleTo == dayString)).ToList();
+
+        // Change history per card: its own audit entries plus those of the dose it was moved from.
+        var historyIds = result.Select(x => x.Id).Concat(result.Where(x => x.RescheduledFromId.HasValue).Select(x => x.RescheduledFromId!.Value)).ToList();
+        var auditRows = await db.AuditLogs.Where(a => a.EntityType == "dose" && historyIds.Contains(a.EntityId)).ToListAsync();
+        List<AuditEntryResponse> HistoryFor(DoseResponse d) => auditRows
+            .Where(a => a.EntityId == d.Id || (d.RescheduledFromId.HasValue && a.EntityId == d.RescheduledFromId.Value))
+            .OrderBy(a => a.At).Select(IAuditTrail.Map).ToList();
+
         return result
+            .Select(x => x with { History = HistoryFor(x) })
             .Select(x => x.ActionedByUserId is Guid actor && actorNames.TryGetValue(actor, out var name) ? x with { ActionedByName = name } : x)
             .Select(x => x.RescheduledFromId is Guid from && origins.TryGetValue(from, out var o)
                 ? x with { RescheduledFromDate = o.Date.ToString("yyyy-MM-dd"), RescheduledFromTime = o.Time }
@@ -153,6 +168,7 @@ public class DoseService(AppDbContext db, IPatientAccessService access, ICareTea
         x.Dose.TakenAt = now;
         x.Dose.ActionedByUserId = uid;
         x.Medicine.SupplyCount--;
+        await Audit(uid, x.Dose, x.Medicine, "taken", $"{x.Medicine.Name} taken ({Slot(x.Dose.Date, x.Dose.Time)})");
         await db.SaveChangesAsync();
         return Map(x.Dose, x.Medicine, x.Patient);
     }
@@ -170,13 +186,16 @@ public class DoseService(AppDbContext db, IPatientAccessService access, ICareTea
         x.Dose.Status = "skipped";
         x.Dose.SkipReason = string.IsNullOrWhiteSpace(reason) ? "Skipped by user" : reason.Trim();
         x.Dose.ActionedByUserId = uid;
+        await Audit(uid, x.Dose, x.Medicine, "skipped", $"{x.Medicine.Name} skipped ({Slot(x.Dose.Date, x.Dose.Time)})", x.Dose.SkipReason);
         await db.SaveChangesAsync();
         return Map(x.Dose, x.Medicine, x.Patient);
     }
 
     /// <inheritdoc />
-    public async Task<DoseResponse> Reschedule(Guid uid, Guid id, DateOnly date, string? time = null)
+    public async Task<DoseResponse> Reschedule(Guid uid, Guid id, DateOnly date, string? time = null, string? reason = null)
     {
+        if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length < 3)
+            throw new InvalidOperationException("Add a short reason for rescheduling.");
         var x = await Event(uid, id);
         if (x.Dose.Status is "taken" or "skipped")
             throw new InvalidOperationException("This dose was already recorded. Undo it first to reschedule.");
@@ -206,6 +225,9 @@ public class DoseService(AppDbContext db, IPatientAccessService access, ICareTea
             RescheduledFromId = x.Dose.Id
         };
         db.DoseEvents.Add(moved);
+        var summary = $"Moved from {Slot(x.Dose.Date, x.Dose.Time)} to {Slot(date, targetTime)}";
+        await Audit(uid, x.Dose, x.Medicine, "rescheduled", summary, reason,
+            new { fromDate = x.Dose.Date.ToString("yyyy-MM-dd"), fromTime = x.Dose.Time, toDate = date.ToString("yyyy-MM-dd"), toTime = targetTime, newDoseId = moved.Id });
         await db.SaveChangesAsync();
 
         if (notifier is not null)
@@ -232,6 +254,7 @@ public class DoseService(AppDbContext db, IPatientAccessService access, ICareTea
         // Reschedules can be undone any time the moved dose is still open; take/skip only within the window.
         if (x.Dose.Status != "rescheduled" && now > scheduled.AddHours(1))
             throw new InvalidOperationException("This dose is locked after 1 hour.");
+        var previous = x.Dose.Status;
         // Undoing a reschedule removes the moved dose (only while it hasn't been actioned).
         if (x.Dose.Status == "rescheduled")
         {
@@ -253,9 +276,18 @@ public class DoseService(AppDbContext db, IPatientAccessService access, ICareTea
         x.Dose.RescheduleTo = null;
         x.Dose.MissedAt = null;
         x.Dose.ActionedByUserId = uid;
+        await Audit(uid, x.Dose, x.Medicine, "undone", $"{x.Medicine.Name} reset to pending ({Slot(x.Dose.Date, x.Dose.Time)}); was {previous}");
         await db.SaveChangesAsync();
         return Map(x.Dose, x.Medicine, x.Patient);
     }
+
+    /// <summary>Formats a dose slot for audit summaries, e.g. "Fri 10 Oct, 8:00 AM".</summary>
+    private static string Slot(DateOnly date, string time) =>
+        $"{date:ddd d MMM}, {(TimeOnly.TryParseExact(time, "HH:mm", out var t) ? t.ToString("h:mm tt") : time)}";
+
+    /// <summary>Queues an audit entry for a dose action (no-op when auditing isn't wired, e.g. in tests).</summary>
+    private Task Audit(Guid uid, DoseEvent d, Medicine m, string action, string summary, string? reason = null, object? details = null) =>
+        audit?.RecordAsync(uid, "dose", d.Id, action, summary, d.PatientId, m.Id, reason, details) ?? Task.CompletedTask;
 
     /// <summary>Marks a pending dose as missed once its scheduled time has passed.</summary>
     void ApplyCurrentState(DoseEvent d, TimeZoneInfo tz)
@@ -297,5 +329,5 @@ public class DoseService(AppDbContext db, IPatientAccessService access, ICareTea
     static TimeZoneInfo Zone(string? id) => DoseSchedule.ResolveTimeZone(id);
 
     /// <summary>Maps a dose record to its API response.</summary>
-    static DoseResponse Map(DoseEvent d, Medicine m, Patient p) => new(d.Id, m.Id, p.Id.ToString(), p.Name, m.Name, m.Strength, m.Form, m.Condition, d.Time, m.Liquid, m.WithFood, d.Status, d.TakenAt, d.SkipReason, d.RescheduleTo?.ToString("yyyy-MM-dd"), d.ActionedByUserId, null, d.RescheduleToTime, d.RescheduledFromId, null, null, d.Date.ToString("yyyy-MM-dd"));
+    static DoseResponse Map(DoseEvent d, Medicine m, Patient p) => new(d.Id, m.Id, p.Id.ToString(), p.Name, m.Name, m.Strength, m.Form, m.Condition, d.Time, m.Liquid, m.WithFood, d.Status, d.TakenAt, d.SkipReason, d.RescheduleTo?.ToString("yyyy-MM-dd"), d.ActionedByUserId, null, d.RescheduleToTime, d.RescheduledFromId, null, null, d.Date.ToString("yyyy-MM-dd"), null, m.DoseAmount);
 }
