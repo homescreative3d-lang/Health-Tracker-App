@@ -4,6 +4,7 @@ import { TopBar } from "./components/TopBar";
 import { SplashScreen } from "./components/SplashScreen";
 import { LandingScreen } from "./screens/landing/LandingScreen";
 import { Toast } from "./components/Toast";
+import { ConfirmHost } from "./components/ConfirmHost";
 import { LoginScreen } from "./screens/auth/LoginScreen";
 import { ForgotScreen } from "./screens/auth/ForgotScreen";
 import { ResetScreen } from "./screens/auth/ResetScreen";
@@ -121,6 +122,7 @@ export default function App() {
           />
         )}
         <Toast toast={app.toast} onDismiss={app.dismissToast} />
+        <ConfirmHost />
       </div>
     </CareAppContext.Provider>
   );

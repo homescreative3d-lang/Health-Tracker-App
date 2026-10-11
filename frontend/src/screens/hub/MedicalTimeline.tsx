@@ -32,6 +32,7 @@ import { err } from "../../lib/errors";
 import { readAsDataUrl, detectMime } from "../../lib/files";
 import { AttachmentPreview } from "../../components/AttachmentPreview";
 import { CameraCapture } from "../../components/CameraCapture";
+import { confirmAction } from "../../components/ConfirmHost";
 import { Field } from "../../components/Field";
 import { InlineError } from "../../components/InlineError";
 import { Modal } from "../../components/Modal";
@@ -154,7 +155,13 @@ export function MedicalTimeline({ patientId, patientName, legacyNotes }: Medical
 
   /** Deletes a record after confirmation. */
   const remove = async (r: MedicalRecord) => {
-    if (!confirm(`Delete “${r.title}” from the medical history?`)) return;
+    const ok = await confirmAction({
+      title: "Delete this history entry?",
+      message: `“${r.title}” and any attached document will be permanently removed. This can't be undone.`,
+      confirmLabel: "Delete entry",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       await api.deleteMedicalRecord(patientId, r.id);
       await load();

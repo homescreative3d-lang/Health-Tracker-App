@@ -1,5 +1,6 @@
 import { request, send } from "./client";
 import type {
+  AuditEntry,
   AuthResult,
   Dose,
   Family,
@@ -99,14 +100,19 @@ export const api = {
   deleteMedicine: (id: string, patientId?: string) =>
     request<void>(withPatient("/medicines/" + id, patientId), send("DELETE")),
   /** Pauses doses from `startDate` (optionally until `endDate`). */
-  pauseMedicine: (id: string, startDate: string, endDate?: string) =>
+  pauseMedicine: (id: string, startDate: string, endDate: string | undefined, reason: string) =>
     request<unknown>(
       `/medicine-actions/${id}/pause`,
-      send("POST", { startDate, endDate: endDate || null }),
+      send("POST", { startDate, endDate: endDate || null, reason }),
     ),
   /** Changes a medicine's dose times from a date onwards (history is kept); returns the new record. */
-  rescheduleMedicine: (id: string, effectiveDate: string, times: string[]) =>
-    request<Medicine>(`/medicine-actions/${id}/reschedule`, send("POST", { effectiveDate, times })),
+  rescheduleMedicine: (id: string, effectiveDate: string, times: string[], reason: string) =>
+    request<Medicine>(
+      `/medicine-actions/${id}/reschedule`,
+      send("POST", { effectiveDate, times, reason }),
+    ),
+  /** Full change history of a medicine across its rescheduled versions. */
+  medicineHistory: (id: string) => request<AuditEntry[]>(`/medicines/${id}/history`),
   /** Ends an active pause as of today. */
   resumeMedicine: (id: string) => request<unknown>(`/medicine-actions/${id}/resume`, send("POST")),
 
@@ -120,14 +126,17 @@ export const api = {
   skip: (id: string, reason: string) =>
     request<Dose>(`/doses/${id}/skip`, send("POST", { reason })),
   /** Moves one dose to another date/time; returns the new (moved) dose. */
-  rescheduleDose: (id: string, date: string, time?: string) =>
-    request<Dose>(`/doses/${id}/reschedule`, send("POST", { date, time })),
+  rescheduleDose: (id: string, date: string, time: string, reason: string) =>
+    request<Dose>(`/doses/${id}/reschedule`, send("POST", { date, time, reason })),
   /** Reverts a taken/skipped/rescheduled dose back to pending. */
   undo: (id: string) => request<Dose>(`/doses/${id}/undo`, send("POST")),
 
   // ---- History ----
   /** Queries dose history; `q` is a prebuilt query string beginning with `?`. */
   getHistory: (q: string) => request<HistoryRow[]>("/history" + q),
+  /** Audit trail of changes (who, what, when, why) for accessible patients. */
+  getChanges: (q: string) =>
+    request<{ entry: AuditEntry; patientName: string }[]>("/history/changes" + q),
 
   // ---- Family ----
   /** Searches registered users by name or email (min 2 characters). */

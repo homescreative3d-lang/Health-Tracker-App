@@ -17,9 +17,14 @@ type RescheduleDialogProps = {
   medicine?: Medicine | null;
   onClose: () => void;
   /** Moves one dose; resolves true on success. */
-  onRescheduleDose: (d: Dose, date: string, time: string) => Promise<boolean>;
+  onRescheduleDose: (d: Dose, date: string, time: string, reason: string) => Promise<boolean>;
   /** Changes the medicine's times from a date; resolves true on success. */
-  onRescheduleMedicine: (m: Medicine, effectiveDate: string, times: string[]) => Promise<boolean>;
+  onRescheduleMedicine: (
+    m: Medicine,
+    effectiveDate: string,
+    times: string[],
+    reason: string,
+  ) => Promise<boolean>;
 };
 
 /**
@@ -43,6 +48,7 @@ export function RescheduleDialog({
   const [effective, setEffective] = useState(today());
   const [times, setTimes] = useState<string[]>(medicine?.times ? [...medicine.times] : []);
   const [error, setError] = useState("");
+  const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const name = dose?.medName || medicine?.name || "Medicine";
   const form = dose?.form || medicine?.form || "Pill";
@@ -50,6 +56,8 @@ export function RescheduleDialog({
   /** Validates the active mode and submits it. */
   const submit = async () => {
     setError("");
+    if (reason.trim().length < 3)
+      return setError("Add a short reason. It's saved in the change history.");
     if (mode === "dose") {
       if (!dose) return;
       if (!date) return setError("Choose a date.");
@@ -57,7 +65,7 @@ export function RescheduleDialog({
       const target = new Date(`${date}T${time[0]}:00`);
       if (target.getTime() <= Date.now()) return setError("Choose a time later than now.");
       setBusy(true);
-      const ok = await onRescheduleDose(dose, date, time[0]);
+      const ok = await onRescheduleDose(dose, date, time[0], reason.trim());
       setBusy(false);
       if (ok) onClose();
     } else {
@@ -67,7 +75,7 @@ export function RescheduleDialog({
       const same = [...times].sort().join() === [...(medicine.times || [])].sort().join();
       if (same) return setError("Change at least one time to reschedule.");
       setBusy(true);
-      const ok = await onRescheduleMedicine(medicine, effective, times);
+      const ok = await onRescheduleMedicine(medicine, effective, times, reason.trim());
       setBusy(false);
       if (ok) onClose();
     }
@@ -185,6 +193,19 @@ export function RescheduleDialog({
           </p>
         </div>
       )}
+      <label className="field reason-field">
+        <span className="field-label">
+          Reason <em>required, saved in the change history</em>
+        </span>
+        <textarea
+          className="input textarea"
+          rows={2}
+          maxLength={300}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="e.g. Doctor's appointment in the morning"
+        />
+      </label>
       {error && <InlineError>{error}</InlineError>}
     </Modal>
   );

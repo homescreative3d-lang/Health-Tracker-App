@@ -16,6 +16,7 @@ import {
   syncPush,
 } from "../api";
 import { parseNotificationData, routeFor } from "../lib/notifications";
+import { confirmAction } from "../components/ConfirmHost";
 import { DAY_PARTS, dateLabel, fmtTime, part, today } from "../lib/dates";
 import { err } from "../lib/errors";
 import { HUB_TABS, type HubTab } from "../components/navigation/navItems";
@@ -400,7 +401,14 @@ export function useCareApp() {
    * @param m - Medicine to remove.
    */
   const removeMedicine = async (m: Medicine) => {
-    if (!confirm(`Remove ${m.name} from the medicine plan? Past history is kept.`)) return;
+    const ok = await confirmAction({
+      title: `Remove ${m.name}?`,
+      message:
+        "It will be taken off the plan and no further doses or reminders will be created. Past history is kept. This can't be undone.",
+      confirmLabel: "Remove medicine",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       await api.deleteMedicine(m.id, patient!.id);
       flash(`${m.name} removed`);
@@ -418,9 +426,14 @@ export function useCareApp() {
    * @param time - Target time (`HH:mm`).
    * @returns True on success (the dialog closes).
    */
-  const rescheduleDose = async (d: Dose, date: string, time: string): Promise<boolean> => {
+  const rescheduleDose = async (
+    d: Dose,
+    date: string,
+    time: string,
+    reason: string,
+  ): Promise<boolean> => {
     try {
-      await api.rescheduleDose(d.id, date, time);
+      await api.rescheduleDose(d.id, date, time, reason);
       flash(`${d.medName} moved to ${dateLabel(date)} at ${fmtTime(time)}`);
       await refreshDoses();
       setNotifications(await api.getNotifications());
@@ -442,9 +455,10 @@ export function useCareApp() {
     m: Medicine,
     effectiveDate: string,
     times: string[],
+    reason: string,
   ): Promise<boolean> => {
     try {
-      const updated = await api.rescheduleMedicine(m.id, effectiveDate, times);
+      const updated = await api.rescheduleMedicine(m.id, effectiveDate, times, reason);
       setJustChangedMedicine(updated.id);
       flash(`${m.name} rescheduled from ${dateLabel(effectiveDate)}`);
       await reloadPlan();
@@ -460,10 +474,11 @@ export function useCareApp() {
    * Pauses a medicine from a date.
    * @param id - Medicine id.
    * @param start - First paused date (`YYYY-MM-DD`).
+   * @param reason - Why it's paused (required, audited).
    */
-  const pauseMedicine = async (id: string, start: string) => {
+  const pauseMedicine = async (id: string, start: string, reason: string) => {
     try {
-      await api.pauseMedicine(id, start);
+      await api.pauseMedicine(id, start, undefined, reason);
       flash("Medicine paused from " + start);
       await reloadPlan();
     } catch (e) {
