@@ -12,12 +12,13 @@ namespace HealthTracker.Api.Controllers;
 /// </summary>
 [Authorize]
 [Route("api/notifications")]
-public class NotificationsController(AppDbContext db, IConfiguration config, IPushNotificationService push) : ApiControllerBase
+public class NotificationsController(AppDbContext db, IPushNotificationService push, VapidKeyStore keys) : ApiControllerBase
 {
     private Guid UserId => CurrentUserId;
 
     /// <summary>
-    /// Returns reminder timing settings and the server's VAPID public key (needed to subscribe to push).
+    /// Returns reminder timing settings, the server's VAPID public key (needed to subscribe to push),
+    /// whether push is configured on the server, and how many devices this user has subscribed.
     /// </summary>
     /// <response code="200">Settings.</response>
     [HttpGet("settings")]
@@ -25,7 +26,8 @@ public class NotificationsController(AppDbContext db, IConfiguration config, IPu
     public async Task<IActionResult> GetSettings()
     {
         var user = await db.Users.FindAsync(UserId);
-        return Ok(new { timeZoneId = user?.TimeZoneId ?? "Asia/Kolkata", leadMinutes = user?.NotificationLeadMinutes ?? 15, repeatMinutes = user?.NotificationRepeatMinutes ?? 5, finalNotificationEnabled = user?.FinalNotificationEnabled ?? true, vapidPublicKey = config["WebPush:PublicKey"] });
+        var devices = await db.PushSubscriptions.CountAsync(s => s.UserId == UserId);
+        return Ok(new { timeZoneId = user?.TimeZoneId ?? "Asia/Kolkata", leadMinutes = user?.NotificationLeadMinutes ?? 15, repeatMinutes = user?.NotificationRepeatMinutes ?? 5, finalNotificationEnabled = user?.FinalNotificationEnabled ?? true, vapidPublicKey = keys.IsReady ? keys.PublicKey : null, pushConfigured = keys.IsReady, keySource = keys.Source, subscribedDevices = devices });
     }
 
     /// <summary>
@@ -68,7 +70,7 @@ public class NotificationsController(AppDbContext db, IConfiguration config, IPu
         user.NotificationRepeatMinutes = request.RepeatMinutes;
         user.FinalNotificationEnabled = request.FinalNotificationEnabled;
         await db.SaveChangesAsync();
-        return Ok(new { timeZoneId = user.TimeZoneId, leadMinutes = user.NotificationLeadMinutes, repeatMinutes = user.NotificationRepeatMinutes, finalNotificationEnabled = user.FinalNotificationEnabled, vapidPublicKey = config["WebPush:PublicKey"] });
+        return Ok(new { timeZoneId = user.TimeZoneId, leadMinutes = user.NotificationLeadMinutes, repeatMinutes = user.NotificationRepeatMinutes, finalNotificationEnabled = user.FinalNotificationEnabled, vapidPublicKey = keys.IsReady ? keys.PublicKey : null, pushConfigured = keys.IsReady });
     }
 
     /// <summary>
@@ -123,10 +125,15 @@ public class NotificationsController(AppDbContext db, IConfiguration config, IPu
     }
 
     /// <summary>
-    /// Sends a test push to every device the user has subscribed.
+    /// Sends a test push to every device the user has subscribed and explains any failure.
     /// </summary>
+    /// <remarks>
+    /// <c>reason</c> values: <c>not_configured</c> (server keys missing), <c>no_subscription</c>
+    /// (enable alerts on this device), <c>keys_mismatch</c> (device subscribed with old keys; it was
+    /// removed, enable again), <c>expired</c>, <c>error</c>.
+    /// </remarks>
     /// <response code="200">Delivered to at least one device.</response>
-    /// <response code="400">No device accepted the push.</response>
+    /// <response code="400">Not delivered; see <c>reason</c> and <c>message</c>.</response>
     /// <response code="503">Web Push keys aren't configured on the server.</response>
     [HttpPost("push/test")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -134,18 +141,20 @@ public class NotificationsController(AppDbContext db, IConfiguration config, IPu
     [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     public async Task<IActionResult> SendTestPush()
     {
-        if (string.IsNullOrWhiteSpace(config["WebPush:PublicKey"]) || string.IsNullOrWhiteSpace(config["WebPush:PrivateKey"]))
+        var r = await push.SendTestAsync(UserId, HttpContext.RequestAborted);
+        var message = r.Reason switch
         {
-            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Browser push is not configured on the API. Configure WebPush:PublicKey and WebPush:PrivateKey." });
-        }
-
-        var sent = await push.SendToUsersAsync([UserId], "Tended test notification", "Browser notifications are connected to your medication reminders.", "test_notification", ct: HttpContext.RequestAborted);
-        if (!sent)
-        {
-            return BadRequest(new { message = "The API could not deliver a push notification. Enable browser notifications on this device and verify the VAPID keys and subscription." });
-        }
-
-        return Ok(new { status = "sent", message = "Test notification sent to this browser." });
+            null => $"Test notification sent to {r.Delivered} device{(r.Delivered == 1 ? "" : "s")}.",
+            "not_configured" => "Push keys could not be loaded on the server. Notifications still appear in the bell; check the server logs.",
+            "no_subscription" => "This account has no device signed up for alerts. Press “Enable alerts on this device” first.",
+            "keys_mismatch" => "This device was signed up with older server keys, so the push service rejected it. The old sign-up was removed: press “Enable alerts on this device” again.",
+            "expired" => "This device's sign-up had expired and was removed. Press “Enable alerts on this device” again.",
+            _ => "The push service returned an error. Try enabling alerts again; if it keeps failing, check the server logs."
+        };
+        var body = new { status = r.Reason is null ? "sent" : "failed", reason = r.Reason, message, r.Subscriptions, r.Delivered, r.Removed, detail = r.Detail };
+        if (r.Reason == "not_configured")
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, body);
+        return r.Reason is null ? Ok(body) : BadRequest(body);
     }
 
     /// <summary>

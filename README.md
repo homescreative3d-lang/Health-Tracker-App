@@ -124,6 +124,30 @@ Then:
 - Use `@capacitor/push-notifications` (FCM), because Web Push isn't available in Android WebViews.
 - Add the app's origin (`capacitor://localhost` / `https://localhost`) to the API CORS policy.
 
+## Push notifications
+
+Push works without any setup. On first start, the API generates a Web Push (VAPID) key pair and stores it in the `ServerSettings` table, so every instance and every restart uses the same keys. The private key never leaves the server.
+
+- **Use your own keys instead:** set `WebPush__PublicKey`, `WebPush__PrivateKey` and, optionally, `WebPush__Subject`. Configured keys always take priority.
+- **Devices:** each one enables alerts once, under Profile → Notifications → **Enable alerts on this device**. A device that subscribed with older keys is re-subscribed automatically.
+- **Android and desktop:** Chrome, Edge and Firefox work in the browser.
+- **iPhone and iPad:** iOS 16.4+ allows web push only after the user taps Share → **Add to Home Screen** and opens Tended from there. The app shows this hint on iOS.
+- **In the app:** every notification also appears in the bell, and as a browser alert while the app is open.
+- **Troubleshooting:** the settings screen shows a live checklist, and **Send test** reports the exact failure reason.
+
+## Prescription scanning (Gemini)
+
+The medical history timeline can read a photographed or uploaded prescription and pre-fill an entry. The user reviews everything before it's saved; nothing is stored automatically.
+
+1. **Create a key** at Google AI Studio (free tier available).
+2. **Set environment variables on the API:**
+   - `GEMINI_API_KEY` (required).
+   - `Gemini__Model` (optional; default `gemini-2.5-flash`).
+   - `Gemini__ShowDataNotice` (optional; default `true`). The notice tells users that, with free keys, Google may use submitted content to improve its services. Set it to `false` only when using a paid key.
+3. **Redeploy.** Without a key, the app offers manual entry instead.
+
+The key stays on the server and is sent in a request header, never in a URL. Images and extracted health data are never logged.
+
 ## Notification scheduler switch
 
 The `NotificationRuntimeConfig` table has one controlling row:

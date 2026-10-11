@@ -26,6 +26,12 @@ public record RescheduleRequest(string Date, string? Time = null, string? Reason
 public record RescheduleMedicineRequest(string EffectiveDate, List<string> Times);
 /// <summary>Name for a new family.</summary>
 public record FamilyCreateRequest(string Name);
+/// <summary>New family name and picture (data URL to upload, existing value to keep, empty to remove).</summary>
+public record FamilyUpdateRequest(string Name, string? PhotoUrl);
+
+/// <summary>Whether a member may add/remove members and edit the family.</summary>
+public record FamilyPermissionRequest(bool CanManageMembers);
+
 /// <summary>User to invite to the family.</summary>
 public record FamilyInviteRequest(Guid UserId);
 /// <summary>Answer to a family invitation.</summary>
@@ -44,3 +50,22 @@ public record ForgotPasswordRequest(string Email);
 public record ProfileUpdateRequest(string DisplayName, string? ProfileImageUrl);
 /// <summary>Reset token from the email link and the new password.</summary>
 public record ResetPasswordRequest(string Token, string NewPassword);
+
+/// <summary>A prescribed item on a medical record.</summary>
+public record MedicalRecordMedicine(string Name, string? Strength, string? Dose, string? Frequency, string? Duration, string? Instructions);
+
+/// <summary>Create/update payload for a medical history entry.</summary>
+/// <param name="Date">YYYY-MM-DD or empty when unknown.</param>
+/// <param name="Type">diagnosis, prescription, procedure, allergy, lab, vaccination or note.</param>
+/// <param name="Title">Short title shown on the timeline.</param>
+/// <param name="Details">Free-text details.</param>
+/// <param name="Doctor">Doctor / prescriber.</param>
+/// <param name="Facility">Clinic or hospital.</param>
+/// <param name="Medicines">Prescribed items (prescriptions).</param>
+/// <param name="SourceDataUrl">Optional new source image/PDF as a data URL (replaces the current one).</param>
+/// <param name="RemoveSource">True to remove the current source file.</param>
+/// <param name="AiExtracted">True when the content came from a reviewed AI scan.</param>
+public record MedicalRecordRequest(string? Date, string Type, string Title, string? Details, string? Doctor, string? Facility, List<MedicalRecordMedicine>? Medicines, string? SourceDataUrl, bool RemoveSource = false, bool AiExtracted = false);
+
+/// <summary>A prescription or medical document to scan (image or PDF data URL, max 10 MB).</summary>
+public record ExtractRequest(string DataUrl);

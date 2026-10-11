@@ -31,6 +31,8 @@ public static class ServiceRegistration
         services.AddScoped<IDoseService, DoseService>();
         services.AddScoped<IPushNotificationService, PushNotificationService>();
         services.AddSingleton<INeonObjectStorage, NeonObjectStorage>();
+        services.AddSingleton<VapidKeyStore>();
+        services.AddHttpClient<IPrescriptionExtractor, GeminiPrescriptionExtractor>(c => c.Timeout = TimeSpan.FromSeconds(60));
         services.AddHostedService<NotificationScheduler>();
         return services;
     }

@@ -115,7 +115,10 @@ public class Family
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Name { get; set; } = "My Family";
+    /// <summary>The family's admin (creator, or whoever the admin handed the role to).</summary>
     public Guid OwnerUserId { get; set; }
+    /// <summary>Object-storage key of the family picture.</summary>
+    public string? PhotoKey { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
@@ -126,6 +129,10 @@ public class FamilyMember
     public Guid FamilyId { get; set; }
     public Guid UserId { get; set; }
     public string Status { get; set; } = "approved";
+    /// <summary><c>admin</c> (one per family) or <c>member</c>.</summary>
+    public string Role { get; set; } = "member";
+    /// <summary>Granted by the admin: may add/remove members and edit the family.</summary>
+    public bool CanManageMembers { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
@@ -189,3 +196,42 @@ public class PasswordResetToken
     public DateTimeOffset ExpiresAt { get; set; }
     public bool Used { get; set; }
 }
+
+/// <summary>Server-wide key/value settings (e.g. generated Web Push VAPID keys). Never exposed by the API except public values.</summary>
+public class ServerSetting
+{
+    /// <summary>Setting name (primary key).</summary>
+    public string Key { get; set; } = "";
+    public string Value { get; set; } = "";
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>
+/// One dated entry in a patient's medical history (diagnosis, prescription, procedure, allergy,
+/// lab result or note). Entries can be typed in or extracted from a prescription image and then
+/// reviewed by the user before saving.
+/// </summary>
+public class MedicalRecord
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid PatientId { get; set; }
+    /// <summary>When it happened (may be unknown).</summary>
+    public DateOnly? Date { get; set; }
+    /// <summary><c>diagnosis</c>, <c>prescription</c>, <c>procedure</c>, <c>allergy</c>, <c>lab</c>, <c>vaccination</c> or <c>note</c>.</summary>
+    public string Type { get; set; } = "note";
+    public string Title { get; set; } = "";
+    public string Details { get; set; } = "";
+    public string Doctor { get; set; } = "";
+    public string Facility { get; set; } = "";
+    /// <summary>JSON array of prescribed items: name, strength, dose, frequency, duration, instructions.</summary>
+    public string MedicinesJson { get; set; } = "[]";
+    /// <summary>Object-storage key of the source image/PDF (e.g. the scanned prescription).</summary>
+    public string? SourceKey { get; set; }
+    public string? SourceMimeType { get; set; }
+    /// <summary>True when the content came from AI extraction (always reviewed by a person before saving).</summary>
+    public bool AiExtracted { get; set; }
+    public Guid CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+

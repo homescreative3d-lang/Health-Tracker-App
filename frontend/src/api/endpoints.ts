@@ -5,12 +5,16 @@ import type {
   Family,
   FamilyUser,
   HistoryRow,
+  MedicalRecord,
+  MedicalRecordInput,
   Medicine,
   MedicineInput,
   Notification,
   NotificationSettingsData,
   Patient,
   PatientInput,
+  PrescriptionDraft,
+  PushTestResult,
   User,
 } from "./types";
 
@@ -56,6 +60,31 @@ export const api = {
   /** Updates a patient the user can access. */
   savePatient: (b: PatientInput, id?: string) =>
     request<Patient>(id ? "/patient/" + id : "/patient", send("PUT", b)),
+
+  // ---- Medical history ----
+  /** Whether prescription scanning is enabled and whether to show the data-sharing notice. */
+  medicalAiStatus: () =>
+    request<{ enabled: boolean; showDataNotice: boolean; provider: string }>(
+      "/medical-records/ai-status",
+    ),
+  /** Lists a patient's medical records, newest first. */
+  getMedicalRecords: (patientId: string) =>
+    request<MedicalRecord[]>(`/patients/${patientId}/medical-records`),
+  /** Adds a record (optionally with its source document). */
+  createMedicalRecord: (patientId: string, b: MedicalRecordInput) =>
+    request<MedicalRecord>(`/patients/${patientId}/medical-records`, send("POST", b)),
+  /** Updates a record. */
+  updateMedicalRecord: (patientId: string, id: string, b: MedicalRecordInput) =>
+    request<MedicalRecord>(`/patients/${patientId}/medical-records/${id}`, send("PUT", b)),
+  /** Deletes a record and its source document. */
+  deleteMedicalRecord: (patientId: string, id: string) =>
+    request<void>(`/patients/${patientId}/medical-records/${id}`, send("DELETE")),
+  /** Scans a prescription image/PDF and returns an editable draft (nothing is saved). */
+  scanPrescription: (patientId: string, dataUrl: string) =>
+    request<PrescriptionDraft>(
+      `/patients/${patientId}/medical-records/extract`,
+      send("POST", { dataUrl }),
+    ),
 
   // ---- Medicines ----
   /** Lists medicines for a patient. */
@@ -110,6 +139,25 @@ export const api = {
     request<{ id: string; name: string }>("/family", send("POST", { name })),
   /** Invites a registered user; access is shared only after they accept. */
   inviteFamilyMember: (userId: string) => request<any>("/family/invite", send("POST", { userId })),
+  /** Renames the family and/or sets its picture (data URL to upload, "" to remove, current URL to keep). */
+  updateFamily: (name: string, photoUrl: string) =>
+    request<{ id: string; name: string; photoUrl?: string | null }>(
+      "/family",
+      send("PUT", { name, photoUrl }),
+    ),
+  /** Removes a member (admin or members with the manage right). */
+  removeFamilyMember: (userId: string) =>
+    request<void>(`/family/members/${userId}`, send("DELETE")),
+  /** Grants or revokes a member's manage right (admin only). */
+  setFamilyPermissions: (userId: string, canManageMembers: boolean) =>
+    request<unknown>(`/family/members/${userId}/permissions`, send("PUT", { canManageMembers })),
+  /** Hands over the admin role (admin only). */
+  makeFamilyAdmin: (userId: string) =>
+    request<void>(`/family/members/${userId}/make-admin`, send("POST")),
+  /** Withdraws a pending invitation. */
+  cancelFamilyInvite: (id: string) => request<void>(`/family/invites/${id}`, send("DELETE")),
+  /** Leaves the family (admins must hand over the role first unless they are the last member). */
+  leaveFamily: () => request<void>("/family/leave", send("POST")),
   /** Accepts or rejects an invitation addressed to the user. */
   respondFamilyInvite: (id: string, accept: boolean) =>
     request<{ status: string }>(`/family/invites/${id}/respond`, send("POST", { accept })),
