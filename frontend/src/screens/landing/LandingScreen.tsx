@@ -1,4 +1,4 @@
-import { ArrowRight, BellRing, Lock, PlayCircle } from "lucide-react";
+import { ArrowRight, BellRing, Lock, PlayCircle, Sparkles } from "lucide-react";
 import { Brand } from "../../components/Brand";
 import { AudienceTabs } from "./AudienceTabs";
 import { Faq } from "./Faq";
@@ -6,7 +6,7 @@ import { HeroCarousel } from "./HeroCarousel";
 import { FeatureArt, ShieldArt } from "./Illustrations";
 import { LandingNav } from "./LandingNav";
 import { TryItDemo } from "./TryItDemo";
-import { facts, features, heroSlides, privacyPoints, steps } from "./landingContent";
+import { facts, features, heroSlides, privacyPoints, steps, whatsNew } from "./landingContent";
 import { useInView } from "./useInView";
 
 type LandingScreenProps = {
@@ -46,7 +46,7 @@ export function LandingScreen({ onLogin, onSignup }: LandingScreenProps) {
                   <i />
                   <i />
                 </span>
-                Medicine care for the whole family
+                New: rescheduling log, medical timeline, patient view
               </span>
               <h1>Every dose, every part of the day.</h1>
               <p className="hero-lead">
@@ -222,6 +222,31 @@ export function LandingScreen({ onLogin, onSignup }: LandingScreenProps) {
         </section>
 
         {/* ---------- FAQ ---------- */}
+        <section className="landing-section whats-new" id="new" aria-labelledby="new-title">
+          <div className="landing-wrap">
+            <div className="section-intro">
+              <span className="eyebrow">What's new</span>
+              <h2 id="new-title">Fresh in Tended</h2>
+              <p>The latest improvements, shaped by families who use Tended every day.</p>
+            </div>
+            <div className="new-grid">
+              {whatsNew.map((r, i) => (
+                <article className="new-card" key={r.title} style={{ ["--i" as string]: i }}>
+                  <span className={r.tag === "New" ? "new-tag" : "new-tag improved"}>
+                    <Sparkles size={12} aria-hidden="true" /> {r.tag}
+                  </span>
+                  <h3>{r.title}</h3>
+                  <ul>
+                    {r.items.map((it) => (
+                      <li key={it}>{it}</li>
+                    ))}
+                  </ul>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section className="landing-section" id="faq" aria-labelledby="faq-title">
           <div className="landing-wrap faq-wrap">
             <div className="section-intro left">

@@ -11,7 +11,8 @@ export function formatPhone(value: string): string {
   const [code, rest] = splitPhone(value);
   if (code === "other") return value;
   const digits = rest.replace(/\D/g, "");
-  if (code === "+1" && digits.length === 10) return `+1 ${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
+  if (code === "+1" && digits.length === 10)
+    return `+1 ${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
   if (digits.length === 10) return `${code} ${digits.slice(0, 5)} ${digits.slice(5)}`;
   return `${code} ${digits.replace(/(\d{3,4})(?=\d{3,})/g, "$1 ")}`;
 }

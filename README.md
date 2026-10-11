@@ -148,6 +148,23 @@ The medical history timeline can read a photographed or uploaded prescription an
 
 The key stays on the server and is sent in a request header, never in a URL. Images and extracted health data are never logged.
 
+## Feature flags
+
+- **Default:** every feature is on.
+- **Storage:** flags live in the `FeatureFlags` table, and per-user overrides in `UserFeatureOverrides`. Missing flags are created as enabled when the API starts.
+- **Admins:** system admins are the emails listed in `Admin__Emails` (comma-separated). They manage flags in Profile → Feature flags, or through `PUT /api/admin/features/{key}` and `PUT /api/admin/features/{key}/users/{userId}`.
+- **Enforcement:** the API refuses switched-off endpoints with HTTP 403 (`RequiresFeature`), and the app hides those features.
+
+## Patient view (linked accounts)
+
+- **Linking:** if a patient record has an email and a user signs up or logs in with it, they're linked to that patient. Both sides are notified.
+- **Read-only:** a linked user sees that patient's plan, history and caregivers. The server blocks every change except account settings, notifications and, when the caregiver turns on "Can mark own doses", marking their own doses.
+- **Unlinking:** clearing or changing the email removes the link.
+
+## Guide PDF
+
+The in-app guide and `public/tended-guide.pdf` share one source: `frontend/src/content/guide.json`. After editing it, rebuild the PDF with `python3 frontend/scripts/build-guide-pdf.py` (requires Playwright + Chromium).
+
 ## Notification scheduler switch
 
 The `NotificationRuntimeConfig` table has one controlling row:

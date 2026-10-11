@@ -1,57 +1,133 @@
-import { BookOpen, HeartPulse } from "lucide-react";
+import { useMemo, useState } from "react";
+import type { LucideIcon } from "lucide-react";
+import {
+  Activity,
+  Bell,
+  BookOpen,
+  CalendarClock,
+  Download,
+  Eye,
+  History,
+  Paperclip,
+  Pause,
+  Pill,
+  Rocket,
+  Search,
+  Settings,
+  Sun,
+  User,
+  Users,
+} from "lucide-react";
+import guide from "../../content/guide.json";
 import { Modal } from "../../components/Modal";
 
-/** The four steps of the quick guide (a real sequence, so numbered). */
-const STEPS = [
-  {
-    title: "Add the person you care for",
-    text: "Or yourself. Add their conditions, doctor and documents.",
-  },
-  {
-    title: "Add each medicine",
-    text: "Enter strength, schedule and supply. Edit or pause it any time.",
-  },
-  {
-    title: "Mark doses as they happen",
-    text: "Take or Skip opens at the scheduled time and stays open for one hour.",
-  },
-  {
-    title: "Share and plan ahead",
-    text: "Invite family to help, check the calendar, and refill when reminded.",
-  },
-];
+/** Icon per guide section (keys match `icon` in content/guide.json). */
+const ICONS: Record<string, LucideIcon> = {
+  rocket: Rocket,
+  user: User,
+  pill: Pill,
+  sun: Sun,
+  "calendar-clock": CalendarClock,
+  pause: Pause,
+  history: History,
+  activity: Activity,
+  paperclip: Paperclip,
+  users: Users,
+  eye: Eye,
+  bell: Bell,
+  settings: Settings,
+};
 
-/** Short onboarding guide opened from the top bar, sidebar and profile. */
+/**
+ * The full Tended guide: every flow as numbered steps, searchable, with a printable PDF
+ * download. Content comes from `content/guide.json`, the same source used to build the PDF.
+ */
 export function GuideModal({ onClose }: { onClose: () => void }) {
+  const [active, setActive] = useState(guide.sections[0].id);
+  const [q, setQ] = useState("");
+  const term = q.trim().toLowerCase();
+  const sections = useMemo(
+    () =>
+      term
+        ? guide.sections.filter(
+            (s) =>
+              s.title.toLowerCase().includes(term) ||
+              s.steps.some((st) => st.toLowerCase().includes(term)),
+          )
+        : guide.sections,
+    [term],
+  );
+  const current = sections.find((s) => s.id === active) || sections[0];
+  const Icon = current ? ICONS[current.icon] || BookOpen : BookOpen;
+
   return (
     <Modal
-      title="How Tended works"
+      title={guide.title}
       icon={<BookOpen size={20} />}
       onClose={onClose}
       className="guide-modal"
       actions={
-        <button className="btn primary" onClick={onClose}>
-          Got it
-        </button>
+        <>
+          <a className="btn soft" href="/tended-guide.pdf" download="Tended-guide.pdf">
+            <Download size={16} aria-hidden="true" /> Download PDF
+          </a>
+          <button type="button" className="btn primary" onClick={onClose}>
+            Got it
+          </button>
+        </>
       }
     >
-      <ol className="guide-list">
-        {STEPS.map((s, i) => (
-          <li className="guide-step" key={s.title}>
-            <span aria-hidden="true">{i + 1}</span>
-            <div>
-              <b>{s.title}</b>
-              <p className="muted">{s.text}</p>
-            </div>
-          </li>
-        ))}
-      </ol>
-      <div className="guide-note">
-        <HeartPulse aria-hidden="true" />
-        <span>
-          Tended organizes medicines. It doesn't replace advice from a doctor or pharmacist.
-        </span>
+      <p className="muted guide-intro">{guide.intro}</p>
+      <div className="guide-layout">
+        <nav className="guide-nav" aria-label="Guide sections">
+          <label className="guide-search">
+            <Search size={15} aria-hidden="true" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search the guide"
+              aria-label="Search the guide"
+            />
+          </label>
+          {sections.map((s, i) => {
+            const SIcon = ICONS[s.icon] || BookOpen;
+            return (
+              <button
+                type="button"
+                key={s.id}
+                className={current?.id === s.id ? "guide-nav-item active" : "guide-nav-item"}
+                onClick={() => setActive(s.id)}
+                style={{ ["--i" as string]: i }}
+              >
+                <SIcon size={16} aria-hidden="true" />
+                <span>{s.title}</span>
+              </button>
+            );
+          })}
+          {!sections.length && <p className="muted">Nothing matches “{q}”.</p>}
+        </nav>
+        {current && (
+          <section className="guide-content" key={current.id} aria-live="polite">
+            <h3>
+              <span className="guide-content-icon">
+                <Icon size={18} aria-hidden="true" />
+              </span>
+              {current.title}
+            </h3>
+            <ol className="guide-steps">
+              {current.steps.map((step, i) => (
+                <li key={i} style={{ ["--i" as string]: i }}>
+                  <span className="guide-step-num" aria-hidden="true">
+                    {i + 1}
+                  </span>
+                  <p>{step}</p>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
       </div>
+      <p className="guide-disclaimer">{guide.disclaimer}</p>
     </Modal>
   );
 }
