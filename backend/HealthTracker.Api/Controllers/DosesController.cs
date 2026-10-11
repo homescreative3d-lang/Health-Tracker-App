@@ -84,6 +84,21 @@ public class DosesController(IDoseService doses) : ApiControllerBase
             : Task.FromResult<IActionResult>(BadRequestMessage("Enter a valid date (YYYY-MM-DD)."));
 
     /// <summary>
+    /// Stores a future scheduled dose so it can be rescheduled. Future days are computed on the fly
+    /// (<c>isVirtual: true</c>) and never written to the database until acted on.
+    /// </summary>
+    /// <param name="request">Medicine, date and time of the scheduled slot.</param>
+    /// <response code="200">The stored dose (same id as the virtual one).</response>
+    /// <response code="400">Not a scheduled slot.</response>
+    [HttpPost("materialize")]
+    [ProducesResponseType<DoseResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public Task<IActionResult> Materialize(MaterializeRequest request) =>
+        DateOnly.TryParse(request.Date, out var date)
+            ? Run(() => doses.Materialize(CurrentUserId, request.MedicineId, date, request.Time))
+            : Task.FromResult<IActionResult>(BadRequestMessage("Enter a valid date (YYYY-MM-DD)."));
+
+    /// <summary>
     /// Reverts a taken/skipped dose to pending (restores supply if it was taken).
     /// </summary>
     /// <param name="id">Dose id.</param>

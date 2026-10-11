@@ -41,6 +41,13 @@ public interface IDoseService
     /// <returns>The newly created dose.</returns>
     Task<DoseResponse> Reschedule(Guid userId, Guid id, DateOnly date, string? time = null, string? reason = null);
 
+    /// <summary>
+    /// Stores a future scheduled dose so it can be acted on (e.g. rescheduled). Future doses are
+    /// otherwise computed on the fly and never written to the database.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The medicine isn't scheduled at that date/time.</exception>
+    Task<DoseResponse> Materialize(Guid userId, Guid medicineId, DateOnly date, string time);
+
     /// <summary>Reverts a dose to pending, restoring supply when it had been taken.</summary>
     /// <exception cref="InvalidOperationException">The window has closed.</exception>
     Task<DoseResponse> Undo(Guid userId, Guid id);
@@ -78,6 +85,7 @@ public class DoseService(AppDbContext db, IPatientAccessService access, ICareTea
                 {
                     d = new DoseEvent
                     {
+                        Id = VirtualId(p.Id, m.Id, date, time),
                         PatientId = p.Id,
                         MedicineId = m.Id,
                         Date = date,
@@ -115,7 +123,10 @@ public class DoseService(AppDbContext db, IPatientAccessService access, ICareTea
                 result.Add(Map(acted, medicine, p));
         }
 
-        if (missing.Count > 0)
+        // Future days are computed on the fly and never stored: rows are created only up to today
+        // (needed for reminders and actions). A future dose is stored when someone acts on it (Materialize).
+        var isFuture = date > DoseSchedule.LocalToday(tz);
+        if (missing.Count > 0 && !isFuture)
             db.DoseEvents.AddRange(missing);
         await db.SaveChangesAsync();
         // Name who took/skipped each dose so shared caregivers can see it (was always null).
@@ -140,8 +151,9 @@ public class DoseService(AppDbContext db, IPatientAccessService access, ICareTea
             .Where(a => a.EntityId == d.Id || (d.RescheduledFromId.HasValue && a.EntityId == d.RescheduledFromId.Value))
             .OrderBy(a => a.At).Select(IAuditTrail.Map).ToList();
 
+        var virtualIds = isFuture ? missing.Select(x => x.Id).ToHashSet() : [];
         return result
-            .Select(x => x with { History = HistoryFor(x) })
+            .Select(x => x with { History = HistoryFor(x), IsVirtual = virtualIds.Contains(x.Id) })
             .Select(x => x.ActionedByUserId is Guid actor && actorNames.TryGetValue(actor, out var name) ? x with { ActionedByName = name } : x)
             .Select(x => x.RescheduledFromId is Guid from && origins.TryGetValue(from, out var o)
                 ? x with { RescheduledFromDate = o.Date.ToString("yyyy-MM-dd"), RescheduledFromTime = o.Time }
@@ -160,14 +172,16 @@ public class DoseService(AppDbContext db, IPatientAccessService access, ICareTea
             throw new InvalidOperationException("This dose cannot be taken before its scheduled time.");
         if (now > scheduled.AddHours(1))
             throw new InvalidOperationException("This dose is locked. It can only be marked taken within 1 hour of the scheduled time.");
-        if (x.Medicine.SupplyCount < 1)
-            throw new InvalidOperationException("No supply remains for this medicine.");
+        var (perDose, unit) = DoseQuantity.Parse(x.Medicine.DoseAmount, x.Medicine.Form);
+        if (x.Medicine.StockQuantity < perDose)
+            throw new InvalidOperationException($"Not enough {x.Medicine.Name} left ({DoseQuantity.Format(x.Medicine.StockQuantity, unit)}). Record a refill first.");
         if (x.Dose.Status == "taken")
             return Map(x.Dose, x.Medicine, x.Patient);
         x.Dose.Status = "taken";
         x.Dose.TakenAt = now;
         x.Dose.ActionedByUserId = uid;
-        x.Medicine.SupplyCount--;
+        x.Medicine.StockQuantity -= perDose;
+        StockPlanner.SyncDoses(x.Medicine);
         await Audit(uid, x.Dose, x.Medicine, "taken", $"{x.Medicine.Name} taken ({Slot(x.Dose.Date, x.Dose.Time)})");
         await db.SaveChangesAsync();
         return Map(x.Dose, x.Medicine, x.Patient);
@@ -269,7 +283,10 @@ public class DoseService(AppDbContext db, IPatientAccessService access, ICareTea
         // Take decrements supply; undoing a taken dose must give it back (previously it didn't,
         // so supply counts and refill reminders drifted after every undo).
         if (x.Dose.Status == "taken")
-            x.Medicine.SupplyCount++;
+        {
+            x.Medicine.StockQuantity += DoseQuantity.Parse(x.Medicine.DoseAmount, x.Medicine.Form).PerDose;
+            StockPlanner.SyncDoses(x.Medicine);
+        }
         x.Dose.Status = "pending";
         x.Dose.TakenAt = null;
         x.Dose.SkipReason = null;
@@ -279,6 +296,32 @@ public class DoseService(AppDbContext db, IPatientAccessService access, ICareTea
         await Audit(uid, x.Dose, x.Medicine, "undone", $"{x.Medicine.Name} reset to pending ({Slot(x.Dose.Date, x.Dose.Time)}); was {previous}");
         await db.SaveChangesAsync();
         return Map(x.Dose, x.Medicine, x.Patient);
+    }
+
+    /// <inheritdoc />
+    public async Task<DoseResponse> Materialize(Guid uid, Guid medicineId, DateOnly date, string time)
+    {
+        var m = await db.Medicines.FindAsync(medicineId) ?? throw new KeyNotFoundException("Medicine not found.");
+        var p = await access.GetAccessiblePatientAsync(uid, m.PatientId);
+        var existing = await db.DoseEvents.FirstOrDefaultAsync(e => e.PatientId == p.Id && e.MedicineId == m.Id && e.Date == date && e.Time == time);
+        if (existing is not null)
+            return Map(existing, m, p);
+        if (!DoseSchedule.Occurs(m, date) || !DoseSchedule.Times(m).Contains(time))
+            throw new InvalidOperationException("This medicine isn't scheduled at that time.");
+        var d = new DoseEvent { Id = VirtualId(p.Id, m.Id, date, time), PatientId = p.Id, MedicineId = m.Id, Date = date, Time = time };
+        db.DoseEvents.Add(d);
+        await db.SaveChangesAsync();
+        return Map(d, m, p);
+    }
+
+    /// <summary>
+    /// Deterministic id for a scheduled slot, so a virtual future dose keeps the same id when it is
+    /// later stored (stable React keys, no duplicates).
+    /// </summary>
+    private static Guid VirtualId(Guid patientId, Guid medicineId, DateOnly date, string time)
+    {
+        var bytes = System.Security.Cryptography.MD5.HashData(System.Text.Encoding.UTF8.GetBytes($"{patientId}|{medicineId}|{date:yyyy-MM-dd}|{time}"));
+        return new Guid(bytes);
     }
 
     /// <summary>Formats a dose slot for audit summaries, e.g. "Fri 10 Oct, 8:00 AM".</summary>

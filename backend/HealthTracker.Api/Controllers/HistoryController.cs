@@ -56,11 +56,20 @@ public class HistoryController(AppDbContext db, IPatientAccessService access) : 
             q = q.Where(x => x.d.Date >= f);
         if (t.HasValue)
             q = q.Where(x => x.d.Date <= t);
+        // History is what already happened: nothing scheduled after now (owner's time zone).
+        var horizon = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1);
+        q = q.Where(x => x.d.Date <= horizon);
         var rows = await q.OrderByDescending(x => x.d.Date).ThenByDescending(x => x.d.Time).Take(1000).ToListAsync();
         var actorIds = rows.Where(x => x.d.ActionedByUserId.HasValue).Select(x => x.d.ActionedByUserId!.Value).Distinct().ToList();
         var actors = await db.Users.Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.DisplayName);
         if (!string.IsNullOrWhiteSpace(period))
             rows = rows.Where(x => Bucket(x.d.Time) == period).ToList();
+        var ownerIds = rows.Select(x => x.p.UserId).Distinct().ToList();
+        var zones = (await db.Users.Where(u => ownerIds.Contains(u.Id)).Select(u => new { u.Id, u.TimeZoneId }).ToListAsync())
+            .ToDictionary(u => u.Id, u => DoseSchedule.ResolveTimeZone(u.TimeZoneId));
+        var now = DateTimeOffset.UtcNow;
+        rows = rows.Where(x => x.d.Status is "taken" or "skipped"
+            || DoseSchedule.ScheduledAt(x.d.Date, x.d.Time, zones.TryGetValue(x.p.UserId, out var z) ? z : DoseSchedule.ResolveTimeZone(null)) <= now).ToList();
         return Ok(rows.Select(x => new { Id = x.d.Id, PatientId = x.p.Id, PatientName = x.p.Name, MedicineId = x.m.Id, MedicineName = x.m.Name, Form = x.m.Form, Time = x.d.Time, Date = x.d.Date.ToString("yyyy-MM-dd"), Status = x.d.Status, TakenAt = x.d.TakenAt, SkipReason = x.d.SkipReason, ActionedByUserId = x.d.ActionedByUserId, ActionedByName = x.d.ActionedByUserId.HasValue && actors.TryGetValue(x.d.ActionedByUserId.Value, out var name) ? name : null }));
     }
 

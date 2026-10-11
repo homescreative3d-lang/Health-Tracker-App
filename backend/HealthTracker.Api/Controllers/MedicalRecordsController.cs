@@ -22,7 +22,8 @@ public class MedicalRecordsController(
     INeonObjectStorage storage,
     IPrescriptionExtractor extractor,
     ICareTeamNotifier notifier,
-    IConfiguration config) : ApiControllerBase
+    IConfiguration config,
+    IAiScanQuota quota) : ApiControllerBase
 {
     private static readonly string[] Types = ["diagnosis", "prescription", "procedure", "allergy", "lab", "vaccination", "note"];
     private static readonly string[] ScanTypes = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"];
@@ -32,11 +33,15 @@ public class MedicalRecordsController(
     /// Whether prescription scanning is available, and whether to show the data-sharing notice
     /// (on by default; set <c>Gemini:ShowDataNotice=false</c> when using a paid key).
     /// </summary>
-    /// <response code="200"><c>{ enabled, showDataNotice, provider }</c></response>
+    /// <response code="200"><c>{ enabled, showDataNotice, provider, limit, used, remaining, resetsAt }</c></response>
     [HttpGet("medical-records/ai-status")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public IActionResult AiStatus() =>
-        Ok(new { enabled = extractor.IsEnabled, showDataNotice = config.GetValue("Gemini:ShowDataNotice", true), provider = "Google Gemini" });
+    public async Task<IActionResult> AiStatus()
+    {
+        var q = await quota.GetAsync(CurrentUserId);
+        // The provider is deliberately not named to users ("AI service").
+        return Ok(new { enabled = extractor.IsEnabled, showDataNotice = config.GetValue("Gemini:ShowDataNotice", true), provider = "our AI service", limit = q.Limit, used = q.Used, remaining = q.Remaining, resetsAt = q.ResetsAt });
+    }
 
     /// <summary>
     /// Lists a patient's medical records, newest first (undated entries last).
@@ -66,7 +71,8 @@ public class MedicalRecordsController(
     /// <param name="patientId">Patient the document belongs to (access is checked).</param>
     /// <param name="r">The file as a data URL.</param>
     /// <response code="200">The draft: date, doctor, facility, diagnosis, notes, medicines, confidence.</response>
-    /// <response code="400">Unsupported/too large file, unreadable image, quota reached or scanning not configured.</response>
+    /// <response code="400">Unsupported/too large file, unreadable image or scanning not configured.</response>
+    /// <response code="429">Daily AI scan limit reached (default 5 per 24 hours; see ServerSettings ai.scanDailyLimit / Users.AiScanDailyLimit).</response>
     [HttpPost("patients/{patientId:guid}/medical-records/extract")]
     [RequiresFeature("prescription_scan")]
     [ProducesResponseType<PrescriptionDraft>(StatusCodes.Status200OK)]
@@ -79,12 +85,25 @@ public class MedicalRecordsController(
             return BadRequestMessage("Use a photo (JPEG, PNG, WebP, HEIC) or a PDF of the prescription.");
         if (base64.Length * 3L / 4 > MaxScanBytes)
             return BadRequestMessage("The file must be 10 MB or smaller.");
+        if (!extractor.IsEnabled)
+            return BadRequestMessage("Prescription scanning isn't set up yet. You can enter the details by hand.");
+        var q = await quota.GetAsync(CurrentUserId);
+        if (q.Remaining <= 0)
+            return StatusCode(StatusCodes.Status429TooManyRequests, new
+            {
+                message = $"You've used all {q.Limit} AI scans for the last 24 hours. Try again after {q.ResetsAt:HH:mm} UTC, or enter the details by hand.",
+                limit = q.Limit,
+                resetsAt = q.ResetsAt
+            });
         try
         {
-            return Ok(await extractor.ExtractAsync(mime, base64, HttpContext.RequestAborted));
+            var draft = await extractor.ExtractAsync(mime, base64, HttpContext.RequestAborted);
+            await quota.RecordAsync(CurrentUserId, true);
+            return Ok(draft);
         }
         catch (InvalidOperationException e)
         {
+            await quota.RecordAsync(CurrentUserId, false);
             return BadRequestMessage(e.Message);
         }
     }

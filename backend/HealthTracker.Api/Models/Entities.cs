@@ -17,6 +17,8 @@ public class AppUser
     public string? ProfileImageUrl { get; set; }
     /// <summary>Phone in E.164 format with country code, e.g. +919845012345 (optional).</summary>
     public string Phone { get; set; } = "";
+    /// <summary>Per-user override of the daily AI scan limit (null uses <c>ai.scanDailyLimit</c> in ServerSettings).</summary>
+    public int? AiScanDailyLimit { get; set; }
     /// <summary>Soft delete: the account is closed but the row is kept; signing up again with the same email reactivates it.</summary>
     public bool IsDeleted { get; set; }
     public DateTimeOffset? DeletedAt { get; set; }
@@ -85,6 +87,18 @@ public class Medicine
 
     /// <summary>How much to take per dose, e.g. "½ tablet", "5 ml", "2 puffs" (required for new medicines).</summary>
     public string DoseAmount { get; set; } = "";
+
+    /// <summary>Stock on hand in <see cref="StockUnit"/> (source of truth; <see cref="SupplyCount"/> is derived).</summary>
+    public decimal StockQuantity { get; set; }
+
+    /// <summary>Unit of stock: tablet, ml, drops, puffs, units, sachet, g… (parsed from the dose amount).</summary>
+    public string StockUnit { get; set; } = "";
+
+    /// <summary>Who prescribed it (defaults to the patient's doctor in reports).</summary>
+    public string PrescribedBy { get; set; } = "";
+
+    /// <summary>When stock was last added (first fill or refill).</summary>
+    public DateTimeOffset? LastRefillAt { get; set; }
 
     /// <summary>
     /// First date this medicine no longer occurs because its schedule was rescheduled into a new
@@ -293,5 +307,37 @@ public class UserFeatureOverride
     public string Key { get; set; } = "";
     public bool Enabled { get; set; }
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>
+/// Stock movement trail for a medicine: the first fill, every refill and manual adjustments,
+/// with who did it, when, quantity and the resulting stock. Never deleted.
+/// </summary>
+public class RefillLog
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid MedicineId { get; set; }
+    public Guid PatientId { get; set; }
+    /// <summary><c>initial</c> (first fill), <c>opening</c> (stock that existed before tracking), <c>refill</c> or <c>adjustment</c>.</summary>
+    public string Kind { get; set; } = "refill";
+    /// <summary>Quantity added (negative for downward adjustments).</summary>
+    public decimal Quantity { get; set; }
+    public string Unit { get; set; } = "";
+    public decimal StockAfter { get; set; }
+    public string Pharmacy { get; set; } = "";
+    public string Note { get; set; } = "";
+    public Guid ActorUserId { get; set; }
+    public string ActorName { get; set; } = "";
+    /// <summary>When the stock was obtained (user-supplied, defaults to now).</summary>
+    public DateTimeOffset At { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>One AI scan attempt, used to enforce the per-user daily limit.</summary>
+public class AiScanLog
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid UserId { get; set; }
+    public DateTimeOffset At { get; set; } = DateTimeOffset.UtcNow;
+    public bool Succeeded { get; set; }
 }
 
