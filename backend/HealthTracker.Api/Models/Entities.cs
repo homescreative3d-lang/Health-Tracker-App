@@ -15,6 +15,11 @@ public class AppUser
     public bool FinalNotificationEnabled { get; set; } = true;
     /// <summary>Object-storage key of the photo (not a URL; signed URLs are generated per response).</summary>
     public string? ProfileImageUrl { get; set; }
+    /// <summary>Phone in E.164 format with country code, e.g. +919845012345 (optional).</summary>
+    public string Phone { get; set; } = "";
+    /// <summary>Soft delete: the account is closed but the row is kept; signing up again with the same email reactivates it.</summary>
+    public bool IsDeleted { get; set; }
+    public DateTimeOffset? DeletedAt { get; set; }
 }
 
 /// <summary>A person whose medicines are tracked. Owned by one user; shared with that user's approved family members.</summary>
@@ -29,6 +34,12 @@ public class Patient
     public string Notes { get; set; } = "";
     public string? Relationship { get; set; }
     public string Mobile { get; set; } = "";
+    /// <summary>Optional email. When a user with this email signs in or signs up, they are linked to this patient (read-only portal).</summary>
+    public string Email { get; set; } = "";
+    /// <summary>User linked as this patient (patient portal). Linked users are read-only until unlinked.</summary>
+    public Guid? LinkedUserId { get; set; }
+    /// <summary>Set by the caregiver/admin: the linked patient may mark their own doses taken/skipped.</summary>
+    public bool CanMarkOwnDoses { get; set; }
     public string Doctor { get; set; } = "";
     public string MedicalHistory { get; set; } = "";
     /// <summary>Object-storage key of the photo (not a URL; signed URLs are generated per response).</summary>
@@ -263,5 +274,24 @@ public class AuditLog
     /// <summary>JSON with before/after values.</summary>
     public string DetailsJson { get; set; } = "{}";
     public DateTimeOffset At { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>A switchable feature (DB-driven). All features default to on.</summary>
+public class FeatureFlag
+{
+    /// <summary>Feature key, e.g. <c>prescription_scan</c> (primary key).</summary>
+    public string Key { get; set; } = "";
+    public bool Enabled { get; set; } = true;
+    public string Description { get; set; } = "";
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>Per-user override of a feature flag (wins over the global value).</summary>
+public class UserFeatureOverride
+{
+    public Guid UserId { get; set; }
+    public string Key { get; set; } = "";
+    public bool Enabled { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 

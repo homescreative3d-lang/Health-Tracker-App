@@ -23,6 +23,7 @@ namespace HealthTracker.Api.Controllers;
 /// </list>
 /// </remarks>
 [Authorize]
+[RequiresFeature("family_sharing")]
 [Route("api/family")]
 public class FamilyController(AppDbContext db, IPushNotificationService push, INeonObjectStorage storage) : ApiControllerBase
 {
@@ -83,7 +84,7 @@ public class FamilyController(AppDbContext db, IPushNotificationService push, IN
         var email = q.Trim().ToLowerInvariant();
         if (!System.Text.RegularExpressions.Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$"))
             return BadRequestMessage("Enter a complete, valid email address.");
-        var user = await db.Users.Where(x => x.Id != U && x.Email == email)
+        var user = await db.Users.Where(x => x.Id != U && x.Email == email && !x.IsDeleted)
             .Select(x => new { x.Id, x.Email, x.DisplayName, x.ProfileImageUrl })
             .FirstOrDefaultAsync();
         if (user is null)
@@ -469,7 +470,7 @@ public class FamilyController(AppDbContext db, IPushNotificationService push, IN
                     .Select(m =>
                     {
                         var u = users.First(z => z.Id == m.UserId);
-                        return new { m.Id, UserId = u.Id, u.Email, u.DisplayName, ProfileImageUrl = Photo(u.ProfileImageUrl), m.Role, m.CanManageMembers, IsMe = u.Id == U };
+                        return new { m.Id, UserId = u.Id, u.Email, u.DisplayName, u.Phone, ProfileImageUrl = Photo(u.ProfileImageUrl), m.Role, m.CanManageMembers, IsMe = u.Id == U };
                     }),
                 Pending = pending.Select(i =>
                 {

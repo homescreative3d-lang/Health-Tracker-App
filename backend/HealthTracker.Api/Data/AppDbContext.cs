@@ -23,6 +23,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ServerSetting> ServerSettings => Set<ServerSetting>();
     public DbSet<MedicalRecord> MedicalRecords => Set<MedicalRecord>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<FeatureFlag> FeatureFlags => Set<FeatureFlag>();
+    public DbSet<UserFeatureOverride> UserFeatureOverrides => Set<UserFeatureOverride>();
 
     /// <summary>Configures unique and lookup indexes.</summary>
     protected override void OnModelCreating(ModelBuilder b)
@@ -31,6 +33,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         b.Entity<MedicalRecord>().HasIndex(x => x.PatientId);
         b.Entity<AuditLog>().HasIndex(x => new { x.PatientId, x.At });
         b.Entity<AuditLog>().HasIndex(x => x.MedicineId);
+        b.Entity<FeatureFlag>().HasKey(x => x.Key);
+        b.Entity<UserFeatureOverride>().HasKey(x => new { x.UserId, x.Key });
+        b.Entity<Patient>().HasIndex(x => x.LinkedUserId);
         b.Entity<AppUser>().HasIndex(x => x.Email).IsUnique();
         b.Entity<Patient>().HasIndex(x => x.UserId);
         b.Entity<Medicine>().HasIndex(x => x.PatientId);
