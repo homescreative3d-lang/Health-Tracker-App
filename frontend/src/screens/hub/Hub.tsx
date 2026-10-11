@@ -163,6 +163,7 @@ export function Hub() {
                   family={app.family}
                   notifications={app.notifications}
                   onChange={app.refreshFamily}
+                  onRespond={app.respondInvite}
                 />
               </div>
             )}

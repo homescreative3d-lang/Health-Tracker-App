@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError,
   api,
@@ -12,7 +12,10 @@ import {
   type Patient,
   type PatientInput,
   type User,
+  showLocalNotification,
+  syncPush,
 } from "../api";
+import { parseNotificationData, routeFor } from "../lib/notifications";
 import { DAY_PARTS, dateLabel, fmtTime, part, today } from "../lib/dates";
 import { err } from "../lib/errors";
 import { HUB_TABS, type HubTab } from "../components/navigation/navItems";
@@ -38,7 +41,7 @@ export const emptyPatient = (overrides: Partial<Patient> = {}): Patient => ({
   ...overrides,
 });
 
-const NOTIFICATION_POLL_MS = 20_000;
+const NOTIFICATION_POLL_MS = 15_000;
 const DOSE_REFRESH_MS = 60_000;
 
 /**
@@ -206,20 +209,54 @@ export function useCareApp() {
     return () => window.clearInterval(timer);
   }, [user, patient?.id, refreshDoses]);
 
-  // Poll notifications while signed in.
+  // Poll notifications while signed in. Anything new appears in the bell immediately and is also
+  // surfaced to the user: as a system notification when the tab is in the background (so alerts
+  // work even before server push is configured), or as a toast when the app is in front.
+  const seenNotifications = useRef<Set<string> | null>(null);
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      seenNotifications.current = null;
+      return;
+    }
     let active = true;
     const refresh = () =>
       api
         .getNotifications()
-        .then((items) => active && setNotifications(items))
+        .then((items) => {
+          if (!active) return;
+          const seen = seenNotifications.current;
+          const fresh = seen ? items.filter((n) => !n.isRead && !seen.has(n.id)) : [];
+          seenNotifications.current = new Set(items.map((n) => n.id));
+          setNotifications(items);
+          for (const n of fresh.slice(0, 3)) {
+            if (document.hidden)
+              void showLocalNotification(n.title, n.message, n.id, routeFor(n.type));
+          }
+          if (fresh.length && !document.hidden)
+            flash(
+              fresh.length === 1 ? `New: ${fresh[0].title}` : `${fresh.length} new notifications`,
+            );
+        })
         .catch(() => {});
+    void refresh();
     const timer = window.setInterval(refresh, NOTIFICATION_POLL_MS);
+    const onFocus = () => void refresh();
+    window.addEventListener("focus", onFocus);
     return () => {
       active = false;
       window.clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  // Keep this device's push subscription healthy after sign-in (never prompts).
+  useEffect(() => {
+    if (!user) return;
+    api
+      .getNotificationSettings()
+      .then((s) => syncPush(s.vapidPublicKey))
+      .catch(() => {});
   }, [user?.id]);
 
   /** Medicines that are current (records replaced by a reschedule are hidden but kept for history). */
@@ -511,9 +548,46 @@ export function useCareApp() {
 
   /** Reloads family membership and notifications after an invite/response. */
   const refreshFamily = async () => {
-    const [f, n] = await Promise.all([api.getFamily(), api.getNotifications()]);
+    const [f, n, ps] = await Promise.all([
+      api.getFamily(),
+      api.getNotifications(),
+      api.getPatients(),
+    ]);
     setFamily(f);
     setNotifications(n);
+    setPatients(ps);
+    // If the focused patient is no longer shared with us, fall back to the first accessible one.
+    if (patient?.id && !ps.some((p) => p.id === patient.id)) {
+      const next = ps[0] || emptyPatient();
+      setPatient(next);
+      setMeds(next.id ? await api.getMedicines(next.id) : []);
+      setDoses(next.id ? await api.getDoses(selectedDate, next.id) : []);
+    }
+  };
+
+  /**
+   * Accepts or declines a family invitation straight from a notification. The inviter and the
+   * family admin are notified by the API; accepting shares the family's patients with you.
+   * @param n - The `family_invite` notification.
+   * @param accept - True to accept.
+   * @returns True on success.
+   */
+  const respondInvite = async (n: Notification, accept: boolean): Promise<boolean> => {
+    const data = parseNotificationData(n);
+    if (!data.inviteId) {
+      flash("This invitation is missing its details. Open Family to answer it.", true);
+      return false;
+    }
+    try {
+      await api.respondFamilyInvite(data.inviteId, accept);
+      await refreshFamily();
+      flash(accept ? `You joined ${data.familyName || "the family"}` : "Invitation declined");
+      return true;
+    } catch (e) {
+      fail(e);
+      await refreshFamily().catch(() => {});
+      return false;
+    }
   };
 
   /**
@@ -614,6 +688,7 @@ export function useCareApp() {
     openWizard,
     closeWizard,
     refreshFamily,
+    respondInvite,
     readNotification,
     readAllNotifications,
     openNotification,

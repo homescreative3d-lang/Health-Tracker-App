@@ -38,10 +38,27 @@ export type FamilyUser = {
   email: string;
   displayName: string;
   status?: string;
+  profileImageUrl?: string | null;
+  /** Member role: one admin per family. */
+  role?: "admin" | "member";
+  /** Granted by the admin: may add/remove members and edit the family. */
+  canManageMembers?: boolean;
+  /** True for the signed-in user's own row. */
+  isMe?: boolean;
+  /** Search results: already in a family (can't be invited). */
+  inFamily?: boolean;
 };
 export type Family = {
   id: string;
   name: string;
+  /** Signed URL of the family picture. */
+  photoUrl?: string | null;
+  /** The signed-in user's role in this family. */
+  myRole?: "admin" | "member";
+  /** The signed-in user may add/remove members and edit the family. */
+  canManage?: boolean;
+  /** The signed-in user is the admin. */
+  isAdmin?: boolean;
   members: FamilyUser[];
   pending: {
     id: string;
@@ -49,6 +66,8 @@ export type Family = {
     inviteeEmail?: string | null;
     inviteeDisplayName?: string | null;
     inviteeProfileImageUrl?: string | null;
+    invitedByName?: string | null;
+    createdAt?: string;
     status: string;
   }[];
 };
@@ -142,6 +161,20 @@ export type NotificationSettingsData = {
   repeatMinutes: number;
   finalNotificationEnabled: boolean;
   vapidPublicKey?: string | null;
+  /** Server has both VAPID keys. */
+  pushConfigured?: boolean;
+  /** Devices this account has subscribed to push. */
+  subscribedDevices?: number;
+};
+
+/** Result of a test push, with a reason when nothing was delivered. */
+export type PushTestResult = {
+  status: "sent" | "failed";
+  reason?: "not_configured" | "no_subscription" | "keys_mismatch" | "expired" | "error" | null;
+  message: string;
+  subscriptions?: number;
+  delivered?: number;
+  detail?: string | null;
 };
 
 /** Medicine payload without the server-assigned id (used for create/update). */

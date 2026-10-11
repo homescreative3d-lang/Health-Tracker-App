@@ -96,6 +96,7 @@ export default function App() {
             onRead={app.readNotification}
             onReadAll={app.readAllNotifications}
             onSelect={app.openNotification}
+            onRespond={app.respondInvite}
           />
         )}
         {app.selectedNotification && (
@@ -107,6 +108,7 @@ export default function App() {
               app.setSelectedNotification(null);
               app.setTab("family");
             }}
+            onRespond={app.respondInvite}
           />
         )}
         {app.wizard && (
