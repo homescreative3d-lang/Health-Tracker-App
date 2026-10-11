@@ -15,6 +15,13 @@ public class AppUser
     public bool FinalNotificationEnabled { get; set; } = true;
     /// <summary>Object-storage key of the photo (not a URL; signed URLs are generated per response).</summary>
     public string? ProfileImageUrl { get; set; }
+    /// <summary>Phone in E.164 format with country code, e.g. +919845012345 (optional).</summary>
+    public string Phone { get; set; } = "";
+    /// <summary>Per-user override of the daily AI scan limit (null uses <c>ai.scanDailyLimit</c> in ServerSettings).</summary>
+    public int? AiScanDailyLimit { get; set; }
+    /// <summary>Soft delete: the account is closed but the row is kept; signing up again with the same email reactivates it.</summary>
+    public bool IsDeleted { get; set; }
+    public DateTimeOffset? DeletedAt { get; set; }
 }
 
 /// <summary>A person whose medicines are tracked. Owned by one user; shared with that user's approved family members.</summary>
@@ -29,6 +36,12 @@ public class Patient
     public string Notes { get; set; } = "";
     public string? Relationship { get; set; }
     public string Mobile { get; set; } = "";
+    /// <summary>Optional email. When a user with this email signs in or signs up, they are linked to this patient (read-only portal).</summary>
+    public string Email { get; set; } = "";
+    /// <summary>User linked as this patient (patient portal). Linked users are read-only until unlinked.</summary>
+    public Guid? LinkedUserId { get; set; }
+    /// <summary>Set by the caregiver/admin: the linked patient may mark their own doses taken/skipped.</summary>
+    public bool CanMarkOwnDoses { get; set; }
     public string Doctor { get; set; } = "";
     public string MedicalHistory { get; set; } = "";
     /// <summary>Object-storage key of the photo (not a URL; signed URLs are generated per response).</summary>
@@ -71,6 +84,21 @@ public class Medicine
     public DateOnly? PauseStartDate { get; set; }
     /// <summary>Last paused date (inclusive); null means paused until resumed.</summary>
     public DateOnly? PauseEndDate { get; set; }
+
+    /// <summary>How much to take per dose, e.g. "½ tablet", "5 ml", "2 puffs" (required for new medicines).</summary>
+    public string DoseAmount { get; set; } = "";
+
+    /// <summary>Stock on hand in <see cref="StockUnit"/> (source of truth; <see cref="SupplyCount"/> is derived).</summary>
+    public decimal StockQuantity { get; set; }
+
+    /// <summary>Unit of stock: tablet, ml, drops, puffs, units, sachet, g… (parsed from the dose amount).</summary>
+    public string StockUnit { get; set; } = "";
+
+    /// <summary>Who prescribed it (defaults to the patient's doctor in reports).</summary>
+    public string PrescribedBy { get; set; } = "";
+
+    /// <summary>When stock was last added (first fill or refill).</summary>
+    public DateTimeOffset? LastRefillAt { get; set; }
 
     /// <summary>
     /// First date this medicine no longer occurs because its schedule was rescheduled into a new
@@ -233,5 +261,83 @@ public class MedicalRecord
     public Guid CreatedByUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>
+/// Immutable audit trail entry: who did what, when, why, and what changed. Written for every
+/// dose action (take/skip/undo/reschedule) and medicine change (add/edit/delete/pause/resume/
+/// reschedule) and shown in History → Changes and on medicine/dose cards.
+/// </summary>
+public class AuditLog
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid? PatientId { get; set; }
+    /// <summary><c>dose</c> or <c>medicine</c>.</summary>
+    public string EntityType { get; set; } = "";
+    public Guid EntityId { get; set; }
+    /// <summary>Medicine involved (lets a medicine card show every change across its doses).</summary>
+    public Guid? MedicineId { get; set; }
+    /// <summary>e.g. <c>taken</c>, <c>skipped</c>, <c>undone</c>, <c>rescheduled</c>, <c>paused</c>, <c>resumed</c>, <c>created</c>, <c>updated</c>, <c>deleted</c>, <c>schedule_changed</c>.</summary>
+    public string Action { get; set; } = "";
+    public Guid ActorUserId { get; set; }
+    /// <summary>Actor's name at the time (kept even if they later rename or delete their account).</summary>
+    public string ActorName { get; set; } = "";
+    public string Reason { get; set; } = "";
+    /// <summary>Short human summary, e.g. "Moved from Fri 8:00 AM to Fri 3:00 PM".</summary>
+    public string Summary { get; set; } = "";
+    /// <summary>JSON with before/after values.</summary>
+    public string DetailsJson { get; set; } = "{}";
+    public DateTimeOffset At { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>A switchable feature (DB-driven). All features default to on.</summary>
+public class FeatureFlag
+{
+    /// <summary>Feature key, e.g. <c>prescription_scan</c> (primary key).</summary>
+    public string Key { get; set; } = "";
+    public bool Enabled { get; set; } = true;
+    public string Description { get; set; } = "";
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>Per-user override of a feature flag (wins over the global value).</summary>
+public class UserFeatureOverride
+{
+    public Guid UserId { get; set; }
+    public string Key { get; set; } = "";
+    public bool Enabled { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>
+/// Stock movement trail for a medicine: the first fill, every refill and manual adjustments,
+/// with who did it, when, quantity and the resulting stock. Never deleted.
+/// </summary>
+public class RefillLog
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid MedicineId { get; set; }
+    public Guid PatientId { get; set; }
+    /// <summary><c>initial</c> (first fill), <c>opening</c> (stock that existed before tracking), <c>refill</c> or <c>adjustment</c>.</summary>
+    public string Kind { get; set; } = "refill";
+    /// <summary>Quantity added (negative for downward adjustments).</summary>
+    public decimal Quantity { get; set; }
+    public string Unit { get; set; } = "";
+    public decimal StockAfter { get; set; }
+    public string Pharmacy { get; set; } = "";
+    public string Note { get; set; } = "";
+    public Guid ActorUserId { get; set; }
+    public string ActorName { get; set; } = "";
+    /// <summary>When the stock was obtained (user-supplied, defaults to now).</summary>
+    public DateTimeOffset At { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>One AI scan attempt, used to enforce the per-user daily limit.</summary>
+public class AiScanLog
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid UserId { get; set; }
+    public DateTimeOffset At { get; set; } = DateTimeOffset.UtcNow;
+    public bool Succeeded { get; set; }
 }
 

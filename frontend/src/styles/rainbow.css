@@ -1,0 +1,97 @@
+/*
+ * #16 Flowing rainbow: every day-ribbon line in the app now flows, and key surfaces get a
+ * slim animated rainbow edge. Uses one shared gradient + keyframe; disabled automatically by
+ * the prefers-reduced-motion rule in motion.css.
+ */
+:root {
+  --ribbon-flow: linear-gradient(90deg, #f2a93b, #2fa37a, #e8735a, #5b6be0, #f2a93b);
+}
+
+/* 1. Existing ribbon lines flow left → right. */
+.topbar::after,
+.hero-ribbon,
+.side-intro::before,
+.today-hero::before,
+.profile-banner::before,
+.family-hero::before,
+.auth-copy::before,
+.mobile-tabs::before,
+.cta-band::before,
+.landing-nav.scrolled::after {
+  background: var(--ribbon-flow) 0 0 / 300% 100% !important;
+  animation: ribbon-flow 8s linear infinite;
+}
+.landing-nav.scrolled {
+  position: sticky;
+}
+.landing-nav.scrolled::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 2px;
+}
+.cta-band::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+}
+
+/* 2. Vertical rails (medical timeline) flow top → bottom. */
+.med-year > ol::before {
+  background: linear-gradient(180deg, #f2a93b, #2fa37a, #e8735a, #5b6be0, #f2a93b) 0 0 / 100% 300% !important;
+  animation:
+    rail-grow 900ms var(--ease-out) both,
+    rail-flow 6s linear 900ms infinite;
+}
+@keyframes rail-flow {
+  to {
+    background-position: 0 300%;
+  }
+}
+
+/* 3. Slim animated rainbow edge on key surfaces (masked border, no layout shift). */
+.today-hero,
+.profile-banner,
+.family-hero,
+.patient-banner,
+.auth-layout,
+.try-demo,
+.progress-card.is-complete,
+.modal {
+  position: relative;
+  isolation: isolate;
+}
+.today-hero::after,
+.profile-banner::after,
+.family-hero::after,
+.patient-banner::after,
+.auth-layout::after,
+.try-demo::after,
+.progress-card.is-complete::after,
+.modal::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  padding: 2px;
+  border-radius: inherit;
+  background: var(--ribbon-flow) 0 0 / 300% 100%;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.55;
+  animation: ribbon-flow 8s linear infinite;
+  transition: opacity var(--dur);
+}
+.today-hero:hover::after,
+.try-demo:hover::after,
+.progress-card.is-complete::after {
+  opacity: 0.95;
+}
+.modal::after {
+  opacity: 0.7;
+}

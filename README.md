@@ -142,11 +142,49 @@ The medical history timeline can read a photographed or uploaded prescription an
 1. **Create a key** at Google AI Studio (free tier available).
 2. **Set environment variables on the API:**
    - `GEMINI_API_KEY` (required).
-   - `Gemini__Model` (optional; default `gemini-2.5-flash`).
+   - `Gemini__Model` (optional; default `gemini-3.5-flash-lite`).
    - `Gemini__ShowDataNotice` (optional; default `true`). The notice tells users that, with free keys, Google may use submitted content to improve its services. Set it to `false` only when using a paid key.
 3. **Redeploy.** Without a key, the app offers manual entry instead.
 
 The key stays on the server and is sent in a request header, never in a URL. Images and extracted health data are never logged.
+
+## Feature flags
+
+- **Default:** every feature is on.
+- **Storage:** flags live in the `FeatureFlags` table, and per-user overrides in `UserFeatureOverrides`. Missing flags are created as enabled when the API starts.
+- **Admins:** system admins are the emails listed in `Admin__Emails` (comma-separated). They manage flags in Profile → Feature flags, or through `PUT /api/admin/features/{key}` and `PUT /api/admin/features/{key}/users/{userId}`.
+- **Enforcement:** the API refuses switched-off endpoints with HTTP 403 (`RequiresFeature`), and the app hides those features.
+
+## Patient view (linked accounts)
+
+- **Linking:** if a patient record has an email and a user signs up or logs in with it, they're linked to that patient. Both sides are notified.
+- **Read-only:** a linked user sees that patient's plan, history and caregivers. The server blocks every change except account settings, notifications and, when the caregiver turns on "Can mark own doses", marking their own doses.
+- **Unlinking:** clearing or changing the email removes the link.
+
+## Guide PDF
+
+The in-app guide and `public/tended-guide.pdf` share one source: `frontend/src/content/guide.json`. After editing it, rebuild the PDF with `python3 frontend/scripts/build-guide-pdf.py` (requires Playwright + Chromium).
+
+## Stock, refills and the stock planner
+
+- **How stock is kept:** stock is stored as a quantity in units (tablets, ml, puffs, units…), with the unit read from the dose amount. Taking a dose subtracts the dose amount (e.g. ½ tablet), and Undo adds it back.
+- **Refill trail:** every first fill, refill and correction is kept in `RefillLogs`. Medicines that existed before this release got an "opening stock" entry, converted once at startup.
+- **Stock planner:** `GET /api/patients/{id}/stock-plan?days=N` projects each medicine day by day, following its schedule, dose times, dose amount, pauses and course end. The app's Stock planner screen shows this report and can download it as a PDF.
+
+## Files are served through the API
+
+Photos and documents are never linked to storage directly. Links look like `/api/files/<token>`, where the token is AES-GCM encrypted and expires after 1 hour; its key is stored in `ServerSettings` as `files.tokenKey`. Set `Api__PublicUrl` if the API sits behind a proxy whose public address differs from the request host.
+
+## AI scan limit
+
+The default is 5 scans per user per rolling 24 hours. Both settings live in the database, so no redeploy is needed:
+
+- **Change the default for everyone:** `UPDATE "ServerSettings" SET "Value" = '10' WHERE "Key" = 'ai.scanDailyLimit';`
+- **Override for one user:** `UPDATE "Users" SET "AiScanDailyLimit" = 20 WHERE "Email" = 'someone@example.com';` (set it back to `NULL` to use the default).
+
+## Future doses
+
+Viewing a future day no longer writes dose rows; future doses are calculated on the fly. A future dose is stored only when someone acts on it (for example, rescheduling). History shows only what has already happened. Untouched future rows created by older versions are removed automatically at startup.
 
 ## Notification scheduler switch
 

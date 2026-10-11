@@ -4,6 +4,7 @@ import { api, enablePush, notificationPermission, type NotificationSettingsData 
 import { err } from "../../lib/errors";
 import { timeZones } from "../../constants/options";
 import { Field } from "../../components/Field";
+import { useCare } from "../../hooks/CareAppContext";
 
 const DEFAULTS: NotificationSettingsData = {
   timeZoneId: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata",
@@ -201,6 +202,7 @@ const vapidKey = (s: NotificationSettingsData) =>
  * shared one flag, so both buttons showed "Please wait…").
  */
 export function NotificationSettings() {
+  const app = useCare();
   const [s, setS] = useState<NotificationSettingsData>(DEFAULTS);
   const [loaded, setLoaded] = useState(false);
   const [msg, setMsg] = useState<{ text: string; error?: boolean } | null>(null);
@@ -272,6 +274,10 @@ export function NotificationSettings() {
         throw new Error("First reminder must be 0–120 minutes before.");
       if (s.repeatMinutes < 1 || s.repeatMinutes > 60)
         throw new Error("Repeat interval must be 1–60 minutes.");
+      if (s.leadMinutes > 0 && s.repeatMinutes > s.leadMinutes)
+        throw new Error(
+          `Repeat interval can't be longer than the first reminder (${s.leadMinutes} min).`,
+        );
       const updated = await api.saveNotificationSettings(s);
       setS((v) => ({ ...v, ...updated }));
       setSaved(true);
@@ -334,17 +340,34 @@ export function NotificationSettings() {
             step={5}
             value={s.leadMinutes}
             style={{ ["--v" as string]: `${(s.leadMinutes / 120) * 100}%` }}
-            onChange={(e) => setS({ ...s, leadMinutes: Number(e.target.value) })}
+            onChange={(e) => {
+              const lead = Number(e.target.value);
+              // Repeats only happen before the dose, so they can never be longer than the lead time.
+              setS({
+                ...s,
+                leadMinutes: lead,
+                repeatMinutes: lead > 0 ? Math.min(s.repeatMinutes, lead) : s.repeatMinutes,
+              });
+            }}
           />
         </Field>
-        <Field label={`Repeat every ${s.repeatMinutes} min`}>
+        <Field
+          label={
+            s.leadMinutes === 0
+              ? "Repeat (off: no early reminder)"
+              : `Repeat every ${Math.min(s.repeatMinutes, s.leadMinutes)} min (max ${Math.min(60, s.leadMinutes)})`
+          }
+        >
           <input
             className="range"
             type="range"
             min={1}
-            max={60}
+            max={Math.max(1, Math.min(60, s.leadMinutes || 1))}
+            disabled={s.leadMinutes === 0}
             value={s.repeatMinutes}
-            style={{ ["--v" as string]: `${((s.repeatMinutes - 1) / 59) * 100}%` }}
+            style={{
+              ["--v" as string]: `${s.leadMinutes > 1 ? ((Math.min(s.repeatMinutes, s.leadMinutes) - 1) / (Math.min(60, s.leadMinutes) - 1)) * 100 : 100}%`,
+            }}
             onChange={(e) => setS({ ...s, repeatMinutes: Number(e.target.value) })}
           />
         </Field>
@@ -362,7 +385,9 @@ export function NotificationSettings() {
         repeat={s.repeatMinutes}
         final={s.finalNotificationEnabled}
       />
-      <PushStatus settings={s} deviceSubscribed={deviceSubscribed} />
+      {app.can("push_notifications") && (
+        <PushStatus settings={s} deviceSubscribed={deviceSubscribed} />
+      )}
       <div className="settings-actions">
         <button
           className={saved ? "btn primary is-saved" : "btn primary"}

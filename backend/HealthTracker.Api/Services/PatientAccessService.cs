@@ -38,6 +38,12 @@ public interface IPatientAccessService
     /// <exception cref="KeyNotFoundException">The patient doesn't exist (mapped to 404).</exception>
     /// <exception cref="UnauthorizedAccessException">The user can't access it (mapped to 403).</exception>
     Task<Patient> GetAccessiblePatientAsync(Guid userId, Guid? patientId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Ids of every patient the user can see: patients of accessible owners plus patients the user
+    /// is linked to as the patient themself (patient portal).
+    /// </summary>
+    Task<List<Guid>> GetAccessiblePatientIdsAsync(Guid userId, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -63,10 +69,10 @@ public sealed class PatientAccessService(AppDbContext db) : IPatientAccessServic
     /// <inheritdoc />
     public async Task<bool> CanAccessPatientAsync(Guid userId, Guid patientId, CancellationToken ct = default)
     {
-        var ownerId = await db.Patients.Where(p => p.Id == patientId).Select(p => (Guid?)p.UserId).FirstOrDefaultAsync(ct);
-        if (ownerId is null)
+        var row = await db.Patients.Where(p => p.Id == patientId).Select(p => new { p.UserId, p.LinkedUserId }).FirstOrDefaultAsync(ct);
+        if (row is null)
             return false;
-        return ownerId == userId || (await GetAccessibleOwnerIdsAsync(userId, ct)).Contains(ownerId.Value);
+        return row.UserId == userId || row.LinkedUserId == userId || (await GetAccessibleOwnerIdsAsync(userId, ct)).Contains(row.UserId);
     }
 
     /// <inheritdoc />
@@ -83,8 +89,15 @@ public sealed class PatientAccessService(AppDbContext db) : IPatientAccessServic
         var patient = await db.Patients.FirstOrDefaultAsync(p => p.Id == patientId.Value, ct)
             ?? throw new KeyNotFoundException("Patient not found.");
         var owners = await GetAccessibleOwnerIdsAsync(userId, ct);
-        return owners.Contains(patient.UserId)
+        return owners.Contains(patient.UserId) || patient.LinkedUserId == userId
             ? patient
             : throw new UnauthorizedAccessException("You do not have access to this patient.");
+    }
+
+    /// <inheritdoc />
+    public async Task<List<Guid>> GetAccessiblePatientIdsAsync(Guid userId, CancellationToken ct = default)
+    {
+        var owners = await GetAccessibleOwnerIdsAsync(userId, ct);
+        return await db.Patients.Where(p => owners.Contains(p.UserId) || p.LinkedUserId == userId).Select(p => p.Id).ToListAsync(ct);
     }
 }

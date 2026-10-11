@@ -90,6 +90,79 @@ export function FeatureArt({ name }: { name: string }) {
           <rect x="30" y="52" width="24" height="5" rx="2.5" fill={C.white} opacity=".8" />
         </svg>
       );
+    case "clock":
+      return (
+        <svg {...common}>
+          <rect x="10" y="10" width="76" height="76" rx="20" fill={C.sky} />
+          <circle cx="48" cy="50" r="22" fill={C.white} stroke={C.night} strokeWidth="4" />
+          <path
+            d="M48 38v12l8 6"
+            stroke={C.night}
+            strokeWidth="4"
+            strokeLinecap="round"
+            fill="none"
+          />
+          <path
+            className="art-pulse"
+            d="M66 24l6-6M72 30h7"
+            stroke={C.morning}
+            strokeWidth="4"
+            strokeLinecap="round"
+          />
+        </svg>
+      );
+    case "scan":
+      return (
+        <svg {...common}>
+          <rect x="10" y="10" width="76" height="76" rx="20" fill={C.tealSoft} />
+          <rect
+            x="28"
+            y="22"
+            width="40"
+            height="52"
+            rx="6"
+            fill={C.white}
+            stroke={C.teal}
+            strokeWidth="3"
+          />
+          <path
+            d="M35 34h26M35 42h20M35 50h24"
+            stroke="#C9D3DD"
+            strokeWidth="3"
+            strokeLinecap="round"
+          />
+          <rect
+            className="scan-beam"
+            x="24"
+            y="44"
+            width="48"
+            height="4"
+            rx="2"
+            fill={C.afternoon}
+          />
+          <path
+            d="M20 30v-8h8M76 30v-8h-8M20 66v8h8M76 66v8h-8"
+            stroke={C.teal}
+            strokeWidth="3"
+            fill="none"
+            strokeLinecap="round"
+          />
+        </svg>
+      );
+    case "eye":
+      return (
+        <svg {...common}>
+          <rect x="10" y="10" width="76" height="76" rx="20" fill="#FDECE7" />
+          <path
+            d="M18 48c8-14 18-20 30-20s22 6 30 20c-8 14-18 20-30 20S26 62 18 48Z"
+            fill={C.white}
+            stroke={C.evening}
+            strokeWidth="3"
+          />
+          <circle cx="48" cy="48" r="9" fill={C.evening} />
+          <circle cx="51" cy="45" r="3" fill={C.white} />
+        </svg>
+      );
     default:
       return (
         <svg {...common}>

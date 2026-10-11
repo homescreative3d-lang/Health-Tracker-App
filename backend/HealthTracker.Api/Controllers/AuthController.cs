@@ -11,7 +11,7 @@ namespace HealthTracker.Api.Controllers;
 /// Account registration, sign-in and the current-user lookup.
 /// </summary>
 [Route("api/auth")]
-public class AuthController(IAuthService auth, AppDbContext db, INeonObjectStorage storage) : ApiControllerBase
+public class AuthController(IAuthService auth, AppDbContext db) : ApiControllerBase
 {
     /// <summary>
     /// Creates an account and signs the user in.
@@ -59,7 +59,7 @@ public class AuthController(IAuthService auth, AppDbContext db, INeonObjectStora
     /// <summary>
     /// Returns the signed-in user.
     /// </summary>
-    /// <response code="200">The current user, with a short-lived profile image URL.</response>
+    /// <response code="200">The current user (short-lived photo URL, phone, and patient-portal status: <c>isLinkedPatient</c>, <c>linkedPatientIds</c>, <c>canMarkOwnDoses</c>).</response>
     /// <response code="401">The token is missing, expired, or the account no longer exists.</response>
     [Authorize]
     [HttpGet("me")]
@@ -68,9 +68,8 @@ public class AuthController(IAuthService auth, AppDbContext db, INeonObjectStora
     public async Task<ActionResult<UserResponse>> Me()
     {
         var user = await db.Users.SingleOrDefaultAsync(x => x.Id == CurrentUserId);
-        if (user is null)
+        if (user is null || user.IsDeleted)
             return Unauthorized();
-        return Ok(new UserResponse(user.Id, user.Email, user.DisplayName, user.TimeZoneId,
-            string.IsNullOrWhiteSpace(user.ProfileImageUrl) ? null : storage.GetReadUrl("users", user.ProfileImageUrl)));
+        return Ok(await auth.ToResponse(user));
     }
 }

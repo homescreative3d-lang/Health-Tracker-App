@@ -56,7 +56,7 @@ export const facts = [
   { value: "4", label: "daypart compartments" },
   { value: "0–120", label: "minutes of reminder lead time" },
   { value: "1 hour", label: "window to mark each dose" },
-  { value: "3", label: "screen sizes: phone, tablet, web" },
+  { value: "Every", label: "change audited: who, when, why" },
 ];
 
 /** Feature grid. `art` selects an illustration in Illustrations.tsx. */
@@ -85,6 +85,21 @@ export const features = [
     art: "folder",
     title: "Health details in one profile",
     text: "Conditions, history, doctor, prescription photos and files (PDF, Excel, images) for each person.",
+  },
+  {
+    art: "clock",
+    title: "Reschedule with a full change log",
+    text: "Move one dose or change a whole schedule. Every change records who made it, when and why.",
+  },
+  {
+    art: "scan",
+    title: "Medical history, scanned in seconds",
+    text: "A timeline of diagnoses, prescriptions and results. Photograph a prescription and AI drafts the entry for you to check.",
+  },
+  {
+    art: "eye",
+    title: "A view for the patient too",
+    text: "Add the patient's email and they can see their own plan and caregivers, read-only unless you allow dose marking.",
   },
   {
     art: "chart",
@@ -153,6 +168,46 @@ export const privacyPoints = [
   },
 ];
 
+/** Release notes shown in the landing page's "What's new" section (newest first). */
+export const whatsNew = [
+  {
+    tag: "New",
+    title: "Rescheduling you can trust",
+    items: [
+      "Move a single dose or change a whole schedule from any date",
+      "A reason is required and saved, along with who changed what and when",
+      "One card per dose per day, with its change history built in",
+    ],
+  },
+  {
+    tag: "New",
+    title: "Medical history timeline",
+    items: [
+      "Diagnoses, prescriptions, procedures, allergies and results on one timeline",
+      "Scan a prescription: AI drafts the entry, you check every field before saving",
+      "Preview photos, PDFs and Excel reports without downloading",
+    ],
+  },
+  {
+    tag: "New",
+    title: "Patients and families, together",
+    items: [
+      "Patients can sign in to view their own plan; caregivers decide if they can mark doses",
+      "Family admins choose who can add or remove members, and approve with consent",
+      "Phone numbers with country codes, one tap to call from any phone",
+    ],
+  },
+  {
+    tag: "Improved",
+    title: "Clearer every day",
+    items: [
+      "The dose that's due now glows so it can't be missed",
+      "Skipped and missed doses are counted separately",
+      "Exact dose amounts: ½ tablet, 5 ml, 2 puffs",
+    ],
+  },
+];
+
 export const faqs = [
   {
     q: "Does Tended replace advice from my doctor?",
@@ -169,6 +224,18 @@ export const faqs = [
   {
     q: "Can I manage medicines for more than one person?",
     a: "Yes. Add yourself and anyone you care for, then switch between them from the Today screen.",
+  },
+  {
+    q: "Can the patient see their own plan?",
+    a: "Yes. Add the patient's email to their profile. When they sign in with it they see their medicines, history and caregivers in view-only mode. You decide whether they can mark their own doses.",
+  },
+  {
+    q: "How accurate is prescription scanning?",
+    a: "It is a helpful draft, not a final answer. AI can misread handwriting or doses, so Tended always asks you to check every field against the original before saving.",
+  },
+  {
+    q: "What happens when I reschedule a dose?",
+    a: "The dose moves to the new time with its own reminders, and the change is recorded with who made it, when and the reason. Everyone caring for the patient is notified.",
   },
   {
     q: "Do I need to install an app?",
