@@ -115,7 +115,10 @@ public class Family
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Name { get; set; } = "My Family";
+    /// <summary>The family's admin (creator, or whoever the admin handed the role to).</summary>
     public Guid OwnerUserId { get; set; }
+    /// <summary>Object-storage key of the family picture.</summary>
+    public string? PhotoKey { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
@@ -126,6 +129,10 @@ public class FamilyMember
     public Guid FamilyId { get; set; }
     public Guid UserId { get; set; }
     public string Status { get; set; } = "approved";
+    /// <summary><c>admin</c> (one per family) or <c>member</c>.</summary>
+    public string Role { get; set; } = "member";
+    /// <summary>Granted by the admin: may add/remove members and edit the family.</summary>
+    public bool CanManageMembers { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 

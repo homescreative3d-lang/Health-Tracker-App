@@ -60,6 +60,12 @@ public static class DatabaseInitializer
                     await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Medicines\" ADD COLUMN IF NOT EXISTS \"EndedOn\" date;");
                     await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Medicines\" ADD COLUMN IF NOT EXISTS \"RescheduledFromId\" uuid;");
                     await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Medicines\" ADD COLUMN IF NOT EXISTS \"PreviousTimesJson\" text;");
+
+                    // Family roles, permissions and picture. Existing family creators become admins.
+                    await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FamilyMembers\" ADD COLUMN IF NOT EXISTS \"Role\" text NOT NULL DEFAULT 'member';");
+                    await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FamilyMembers\" ADD COLUMN IF NOT EXISTS \"CanManageMembers\" boolean NOT NULL DEFAULT false;");
+                    await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Families\" ADD COLUMN IF NOT EXISTS \"PhotoKey\" text;");
+                    await db.Database.ExecuteSqlRawAsync("UPDATE \"FamilyMembers\" m SET \"Role\" = 'admin' FROM \"Families\" f WHERE m.\"FamilyId\" = f.\"Id\" AND m.\"UserId\" = f.\"OwnerUserId\" AND m.\"Role\" <> 'admin';");
                 }
             }
             finally
