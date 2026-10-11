@@ -4,6 +4,7 @@ import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { api, type AuthResult } from "../../api";
 import { Field } from "../../components/Field";
 import { InlineError } from "../../components/InlineError";
+import { PhoneInput, phoneValid } from "../../components/PhoneInput";
 
 /**
  * Sign-in / sign-up screen with client-side validation matching the API rules.
@@ -25,6 +26,7 @@ export function LoginScreen({
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [name, setName] = useState(""),
+    [phone, setPhone] = useState(""),
     [show, setShow] = useState(false),
     [busy, setBusy] = useState(false),
     [localError, setLocalError] = useState("");
@@ -37,6 +39,8 @@ export function LoginScreen({
     if (password.length < 8) return setLocalError("Password must be at least 8 characters.");
     if (mode === "signup" && (name.trim().length < 2 || name.trim().length > 80))
       return setLocalError("Enter your name (2–80 characters).");
+    if (mode === "signup" && !phoneValid(phone))
+      return onError("Enter your mobile number with a valid country code, or leave it empty.");
     setBusy(true);
     try {
       const r =
@@ -46,6 +50,7 @@ export function LoginScreen({
               email: em,
               password,
               displayName: name.trim(),
+              phone: phone || undefined,
             });
       await onSuccess(r, mode === "signup");
     } catch (e) {
@@ -116,6 +121,9 @@ export function LoginScreen({
               autoComplete="name"
             />
           </Field>
+        )}
+        {mode === "signup" && (
+          <PhoneInput value={phone} onChange={setPhone} label="Mobile number" />
         )}
         <Field label="Email">
           <div className="icon-input">

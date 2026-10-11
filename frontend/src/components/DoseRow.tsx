@@ -28,6 +28,8 @@ type DoseRowProps = {
   onDose: (d: Dose, action: DoseAction) => Promise<void> | void;
   /** Opens the reschedule dialog for this dose. */
   onReschedule?: (d: Dose) => void;
+  /** False for read-only viewers (linked patients without permission): hides Take/Skip/Undo. */
+  canAct?: boolean;
 };
 
 /** Status chip text, chip style and icon tone for a dose (from the patient's point of view). */
@@ -70,7 +72,7 @@ function activityClass(prev: string, next: string): string | null {
  * - Rescheduled doses are marked on both ends: "Moved to …" and "Rescheduled · from …".
  * - Each action plays its own short animation.
  */
-export function DoseRow({ d, date, onDose, onReschedule }: DoseRowProps) {
+export function DoseRow({ d, date, onDose, onReschedule, canAct = true }: DoseRowProps) {
   const now = useNow();
   const [busy, setBusy] = useState<DoseAction | null>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -82,7 +84,7 @@ export function DoseRow({ d, date, onDose, onReschedule }: DoseRowProps) {
   const status = statusOf(d, actionWindow);
   const acted = d.status === "taken" || d.status === "skipped";
   const moved = d.status === "rescheduled";
-  const dueNow = actionWindow === "open" && !acted && !moved;
+  const dueNow = actionWindow === "open" && !acted && !moved && canAct;
   const canReschedule = !acted && !moved && !!onReschedule;
   const recordedBy =
     (acted || moved) && d.actionedByName && d.actionedByName.trim() !== (d.patientName || "").trim()
@@ -198,7 +200,7 @@ export function DoseRow({ d, date, onDose, onReschedule }: DoseRowProps) {
                 </button>
               </>
             )}
-            {((actionWindow === "open" && acted) || moved) && (
+            {canAct && ((actionWindow === "open" && acted) || moved) && (
               <button
                 className="btn ghost sm undo-btn"
                 disabled={!!busy}
@@ -249,7 +251,7 @@ export function DoseRow({ d, date, onDose, onReschedule }: DoseRowProps) {
         {actionWindow === "locked" && !acted && !moved && (
           <span className="dose-hint">
             <Lock size={14} aria-hidden="true" />
-            Locked after 1 hour. You can still reschedule it.
+            Locked after 1 hour.{canReschedule ? " You can still reschedule it." : ""}
           </span>
         )}
       </div>

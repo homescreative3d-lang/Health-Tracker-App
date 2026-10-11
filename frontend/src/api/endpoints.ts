@@ -1,6 +1,7 @@
 import { request, send } from "./client";
 import type {
   AuditEntry,
+  CareTeamMember,
   AuthResult,
   Dose,
   Family,
@@ -30,7 +31,7 @@ const withPatient = (path: string, patientId?: string) =>
 export const api = {
   // ---- Authentication ----
   /** Creates an account and returns a signed-in session. */
-  register: (b: { email: string; password: string; displayName: string }) =>
+  register: (b: { email: string; password: string; displayName: string; phone?: string }) =>
     request<AuthResult>("/auth/register", send("POST", b), false),
   /** Signs in with email and password. */
   login: (b: { email: string; password: string }) =>
@@ -46,7 +47,7 @@ export const api = {
 
   // ---- Account ----
   /** Updates display name and profile photo (data URL, existing key, or empty to remove). */
-  updateProfile: (b: { displayName: string; profileImageUrl: string }) =>
+  updateProfile: (b: { displayName: string; profileImageUrl: string; phone?: string }) =>
     request<User>("/account/profile", send("PUT", b)),
   /** Permanently deletes the account, transferring patients to a caregiver when possible. */
   deleteAccount: () => request<{ message: string }>("/account", send("DELETE")),
@@ -61,6 +62,36 @@ export const api = {
   /** Updates a patient the user can access. */
   savePatient: (b: PatientInput, id?: string) =>
     request<Patient>(id ? "/patient/" + id : "/patient", send("PUT", b)),
+
+  /** Lets (or stops) a linked patient marking their own doses. */
+  setPatientPortal: (id: string, canMarkOwnDoses: boolean) =>
+    request<{ id: string; canMarkOwnDoses: boolean }>(
+      `/patient/${id}/portal`,
+      send("PUT", { canMarkOwnDoses }),
+    ),
+  /** Everyone caring for a patient, with contact details. */
+  careTeam: (id: string) => request<CareTeamMember[]>(`/patient/${id}/care-team`),
+
+  // ---- Feature flags ----
+  /** Effective feature flags for the signed-in user. */
+  getFeatures: () =>
+    request<{ features: Record<string, boolean>; isSystemAdmin: boolean }>("/features"),
+  /** All flags with overrides (system admins). */
+  adminFeatures: () =>
+    request<
+      {
+        key: string;
+        description: string;
+        enabled: boolean;
+        overrides: { userId: string; email: string; enabled: boolean }[];
+      }[]
+    >("/admin/features"),
+  /** Turns a feature on/off for everyone (system admins). */
+  setFeature: (key: string, enabled: boolean) =>
+    request<void>(`/admin/features/${key}`, send("PUT", { enabled })),
+  /** Sets or clears (null) a per-user override (system admins). */
+  setUserFeature: (key: string, userId: string, enabled: boolean | null) =>
+    request<void>(`/admin/features/${key}/users/${userId}`, send("PUT", { enabled })),
 
   // ---- Medical history ----
   /** Whether prescription scanning is enabled and whether to show the data-sharing notice. */

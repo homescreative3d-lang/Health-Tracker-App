@@ -13,7 +13,13 @@ import {
   User,
   X,
 } from "lucide-react";
-import type { Medicine, Patient, PatientAttachment, PatientInput } from "../../api";
+import {
+  api,
+  type Medicine,
+  type Patient,
+  type PatientAttachment,
+  type PatientInput,
+} from "../../api";
 import { addDays, fmtTime, today } from "../../lib/dates";
 import { err } from "../../lib/errors";
 import { readAttachmentFile } from "../../lib/files";
@@ -26,6 +32,10 @@ import { InlineError } from "../../components/InlineError";
 import { MedicineFormIcon } from "../../components/MedicineFormIcon";
 import { PageHeader } from "../../components/PageHeader";
 import { Row } from "../../components/DetailRow";
+import { PhoneInput, phoneValid } from "../../components/PhoneInput";
+import { PhoneLink } from "../../components/PhoneLink";
+import { CareTeamCard } from "../../components/CareTeamCard";
+import { useCare } from "../../hooks/CareAppContext";
 import { AttachmentPreview } from "../../components/AttachmentPreview";
 import { CameraCapture } from "../../components/CameraCapture";
 import { MedicalTimeline } from "./MedicalTimeline";
@@ -43,7 +53,10 @@ export function PatientDetails({
   onBack,
   onSave,
   onAddPatient,
+  readOnly = false,
 }: {
+  /** Linked patient (view-only): no editing. */
+  readOnly?: boolean;
   patient: Patient;
   meds: Medicine[];
   startEditing?: boolean;
@@ -72,6 +85,7 @@ export function PatientDetails({
     setEditing(startEditing);
     setError("");
   }, [patient.id, patient.name, patient.attachments, startEditing]);
+  const app = useCare();
   /** In-app camera for attachments, with the device camera as fallback. */
   const [attachCamera, setAttachCamera] = useState(false);
   const attachDeviceCamera = useRef<HTMLInputElement>(null);
@@ -109,6 +123,14 @@ export function PatientDetails({
       setError("Date of birth cannot be in the future.");
       return;
     }
+    if (!phoneValid(draft.mobile || "")) {
+      setError("Enter the mobile number with a valid country code.");
+      return;
+    }
+    if (draft.email && !/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(draft.email.trim())) {
+      setError("Enter a valid email for the patient, or leave it empty.");
+      return;
+    }
     setBusy(true);
     try {
       const saved = await onSave({
@@ -118,6 +140,7 @@ export function PatientDetails({
         notes: draft.notes || "",
         relationship: draft.relationship || "",
         mobile: draft.mobile || "",
+        email: (draft.email || "").trim(),
         doctor: draft.doctor || "",
         medicalHistory: draft.medicalHistory || "",
         profileImageUrl: draft.profileImageUrl || "",
@@ -201,7 +224,7 @@ export function PatientDetails({
               <ArrowLeft size={16} aria-hidden="true" />
               Back
             </button>
-            {!editing && (
+            {!editing && !readOnly && (
               <button className="btn primary" onClick={() => setEditing(true)}>
                 <Pencil size={16} aria-hidden="true" />
                 Edit patient
@@ -256,14 +279,16 @@ export function PatientDetails({
             <Activity size={17} />
             <span>Medical history</span>
           </button>
-          <button
-            type="button"
-            className={activeSection === "attachments" ? "active" : ""}
-            onClick={() => setActiveSection("attachments")}
-          >
-            <Paperclip size={17} />
-            <span>Attachments</span>
-          </button>
+          {app.can("attachments") && (
+            <button
+              type="button"
+              className={activeSection === "attachments" ? "active" : ""}
+              onClick={() => setActiveSection("attachments")}
+            >
+              <Paperclip size={17} />
+              <span>Attachments</span>
+            </button>
+          )}
           <button
             type="button"
             className={activeSection === "medicines" ? "active" : ""}
@@ -332,12 +357,23 @@ export function PatientDetails({
                       onChange={(e) => set("dob", e.target.value)}
                     />
                   </Field>
-                  <Field label="Mobile number">
+                  <PhoneInput
+                    label="Mobile number"
+                    value={draft.mobile || ""}
+                    onChange={(v) => set("mobile", v)}
+                  />
+                  <Field label="Patient's email" hint="optional">
                     <input
                       className="input"
-                      value={draft.mobile || ""}
-                      onChange={(e) => set("mobile", e.target.value)}
+                      type="email"
+                      value={draft.email || ""}
+                      onChange={(e) => set("email", e.target.value)}
+                      placeholder="patient@example.com"
                     />
+                    <small className="field-hint">
+                      If the patient signs in with this email, they get a read-only view of this
+                      plan. Clear it to remove their access.
+                    </small>
                   </Field>
                   <Field label="Relationship to patient">
                     <select
@@ -404,7 +440,20 @@ export function PatientDetails({
               ) : (
                 <div className="patient-details-grid">
                   <Row label="Date of birth" value={draft.dob || "Not set"} />
-                  <Row label="Mobile" value={draft.mobile || "Not set"} />
+                  <div className="detail-row">
+                    <span className="muted">Mobile</span>
+                    {draft.mobile ? <PhoneLink phone={draft.mobile} /> : <b>Not set</b>}
+                  </div>
+                  <div className="detail-row">
+                    <span className="muted">Email</span>
+                    {draft.email ? (
+                      <a className="mail-link" href={`mailto:${draft.email}`}>
+                        {draft.email}
+                      </a>
+                    ) : (
+                      <b>Not set</b>
+                    )}
+                  </div>
                   <Row
                     label="Relationship"
                     value={draft.relationship === "self" ? "Self" : draft.relationship || "Not set"}
@@ -417,6 +466,38 @@ export function PatientDetails({
                   <Row label="Care notes" value={draft.notes || "No notes added"} />
                 </div>
               )}
+              {!editing && patient.isLinked && !readOnly && app.can("patient_portal") && (
+                <div className="portal-card">
+                  <div>
+                    <b>{patient.linkedUserName || "The patient"} can view this plan</b>
+                    <small>
+                      Signed in with {patient.email}. Clear the email to remove their access.
+                    </small>
+                  </div>
+                  <label className="toggle">
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      checked={!!patient.canMarkOwnDoses}
+                      onChange={async (e) => {
+                        const on = e.target.checked;
+                        try {
+                          await api.setPatientPortal(patient.id, on);
+                          patient.canMarkOwnDoses = on;
+                          setDraft((v) => ({ ...v }));
+                        } catch (x) {
+                          setError(err(x));
+                        }
+                      }}
+                    />
+                    <span className="toggle-track" aria-hidden="true">
+                      <span className="toggle-thumb" />
+                    </span>
+                    <span className="toggle-label">Can mark own doses</span>
+                  </label>
+                </div>
+              )}
+              {!editing && patient.id && <CareTeamCard patientId={patient.id} />}
             </section>
           )}
           {activeSection === "history" && (
@@ -434,6 +515,7 @@ export function PatientDetails({
               </div>
               {patient.id ? (
                 <MedicalTimeline
+                  readOnly={readOnly}
                   patientId={patient.id}
                   patientName={draft.name || patient.name}
                   legacyNotes={historyNodes.map((text) => ({
@@ -450,7 +532,7 @@ export function PatientDetails({
               )}
             </section>
           )}
-          {activeSection === "attachments" && (
+          {activeSection === "attachments" && app.can("attachments") && (
             <section className="card patient-info-section">
               <div className="patient-info-section-head">
                 <span className="patient-info-section-icon">

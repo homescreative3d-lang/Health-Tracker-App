@@ -11,6 +11,7 @@ import {
   type Notification,
   type Patient,
   type PatientInput,
+  type FeatureKey,
   type User,
   showLocalNotification,
   syncPush,
@@ -79,6 +80,11 @@ export function useCareApp() {
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const [onboardingRole, setOnboardingRole] = useState<"self" | "caregiver">("caregiver");
   const { toast, flash, dismiss } = useToast();
+  const [features, setFeatures] = useState<Record<string, boolean>>({});
+  const [isSystemAdmin, setIsSystemAdmin] = useState(false);
+
+  /** True unless the feature is switched off for this user (everything defaults to on). */
+  const can = useCallback((key: FeatureKey) => features[key] !== false, [features]);
 
   /** Clears every piece of signed-in state (used by sign-out, account deletion and expired sessions). */
   const resetSession = useCallback(() => {
@@ -153,14 +159,24 @@ export function useCareApp() {
         api.getFamily(),
         api.getNotifications(),
       ]);
-      const chosen = ps[0] || emptyPatient();
+      // Linked patients (read-only portal) open on their own record; the empty placeholder
+      // profile created at sign-up is hidden from them.
+      const visible = u.isLinkedPatient ? ps.filter((p) => p.isMyPatientProfile || p.name) : ps;
+      const chosen = visible.find((p) => p.isMyPatientProfile) || visible[0] || emptyPatient();
+      api
+        .getFeatures()
+        .then((f) => {
+          setFeatures(f.features);
+          setIsSystemAdmin(f.isSystemAdmin);
+        })
+        .catch(() => {});
       const day = today();
       const [nextMeds, nextDoses] = chosen.id
         ? await Promise.all([api.getMedicines(chosen.id), api.getDoses(day, chosen.id)])
         : [[], []];
       setUser(u);
       setPatient(chosen);
-      setPatients(ps);
+      setPatients(visible);
       setFamily(f);
       setNotifications(n);
       setMeds(nextMeds);
@@ -233,6 +249,13 @@ export function useCareApp() {
             if (document.hidden)
               void showLocalNotification(n.title, n.message, n.id, routeFor(n.type));
           }
+          if (fresh.some((n) => n.type.startsWith("patient_")))
+            void Promise.all([api.me(), api.getPatients()]).then(([me, ps]) => {
+              setUser(me);
+              setPatients(
+                me.isLinkedPatient ? ps.filter((p) => p.isMyPatientProfile || p.name) : ps,
+              );
+            });
           if (fresh.length && !document.hidden)
             flash(
               fresh.length === 1 ? `New: ${fresh[0].title}` : `${fresh.length} new notifications`,
@@ -285,7 +308,7 @@ export function useCareApp() {
     try {
       await loadSession(r.user);
       setTab("today");
-      if (isRegister) setScreen("role");
+      if (isRegister && !r.user.isLinkedPatient) setScreen("role");
     } catch (e) {
       resetSession();
       throw e;
@@ -649,8 +672,24 @@ export function useCareApp() {
     }
   };
 
+  /** Linked patients see everything but can't change anything. */
+  const readOnly = !!user?.isLinkedPatient;
+
+  /**
+   * Whether the signed-in user may take/skip/undo doses for a patient: caregivers always; linked
+   * patients only on their own record and only when their caregiver allowed it.
+   * @param p - Patient whose doses are shown.
+   */
+  const canActOnDoses = (p: Patient | null) =>
+    !readOnly || (!!p?.isMyPatientProfile && !!p?.canMarkOwnDoses);
+
   return {
     // state
+    features,
+    can,
+    isSystemAdmin,
+    readOnly,
+    canActOnDoses,
     screen,
     setScreen,
     authMode,

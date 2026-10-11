@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { CalendarClock, History, PauseCircle, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { MedicineHistoryDialog } from "../modals/MedicineHistoryDialog";
+import { useCare } from "../../hooks/CareAppContext";
 import { PauseDialog } from "../modals/PauseDialog";
 import type { Medicine } from "../../api";
 import { dateLabel, fmtTime } from "../../lib/dates";
@@ -29,6 +30,8 @@ type MedicinesProps = {
   highlightId?: string | null;
   /** Pauses a medicine (reason + double confirmation in the dialog). */
   onPause: (id: string, start: string, reason: string) => Promise<void>;
+  /** Linked patient (view-only): hides every editing control. */
+  readOnly?: boolean;
 };
 
 /**
@@ -72,7 +75,9 @@ export function Medicines({
   onReschedule,
   highlightId,
   onPause,
+  readOnly = false,
 }: MedicinesProps) {
+  const app = useCare();
   const [historyFor, setHistoryFor] = useState<Medicine | null>(null);
   const [pauseFor, setPauseFor] = useState<Medicine | null>(null);
   const active = meds.filter((m) => !isPausedOn(m)).length;
@@ -83,7 +88,8 @@ export function Medicines({
         title="Medicine cabinet"
         description={`${plural(active, "active medicine")}${meds.length > active ? ` · ${meds.length - active} paused` : ""}`}
         actions={
-          hasPatient && (
+          hasPatient &&
+          !readOnly && (
             <button className="btn primary" onClick={onAdd}>
               <Plus size={17} aria-hidden="true" />
               Add medicine
@@ -139,13 +145,15 @@ export function Medicines({
                       <CalendarClock size={12} aria-hidden="true" />
                       Rescheduled
                     </span>
-                    <button
-                      type="button"
-                      className="btn ghost sm history-btn"
-                      onClick={() => setHistoryFor(m)}
-                    >
-                      <History size={13} aria-hidden="true" /> Change history
-                    </button>
+                    {app.can("change_history") && (
+                      <button
+                        type="button"
+                        className="btn ghost sm history-btn"
+                        onClick={() => setHistoryFor(m)}
+                      >
+                        <History size={13} aria-hidden="true" /> Change history
+                      </button>
+                    )}
                     <small>
                       Since {dateLabel(m.startDate)}
                       {m.previousTimes?.length
@@ -169,42 +177,46 @@ export function Medicines({
                   supply={m.supplyCount}
                   threshold={m.isRecurring ? m.refillThreshold : 0}
                 />
-                <div className="med-actions">
-                  {paused ? (
-                    <button className="btn soft" onClick={() => onResume(m)}>
-                      <Play size={15} aria-hidden="true" />
-                      Resume
+                {!readOnly && (
+                  <div className="med-actions">
+                    {paused ? (
+                      <button className="btn soft" onClick={() => onResume(m)}>
+                        <Play size={15} aria-hidden="true" />
+                        Resume
+                      </button>
+                    ) : (
+                      <>
+                        <button className="btn soft" onClick={() => onEdit(m)}>
+                          <Pencil size={15} aria-hidden="true" />
+                          Edit
+                        </button>
+                        {app.can("rescheduling") && (
+                          <button className="btn soft" onClick={() => onReschedule(m)}>
+                            <CalendarClock size={15} aria-hidden="true" />
+                            Reschedule
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="btn soft icon-only"
+                          onClick={() => setPauseFor(m)}
+                          aria-label={`Pause ${m.name}`}
+                          title="Pause"
+                        >
+                          <PauseCircle size={16} aria-hidden="true" />
+                        </button>
+                      </>
+                    )}
+                    <button
+                      className="btn danger-ghost icon-only"
+                      onClick={() => onDelete(m)}
+                      aria-label={`Delete ${m.name}`}
+                      title="Delete"
+                    >
+                      <Trash2 size={16} aria-hidden="true" />
                     </button>
-                  ) : (
-                    <>
-                      <button className="btn soft" onClick={() => onEdit(m)}>
-                        <Pencil size={15} aria-hidden="true" />
-                        Edit
-                      </button>
-                      <button className="btn soft" onClick={() => onReschedule(m)}>
-                        <CalendarClock size={15} aria-hidden="true" />
-                        Reschedule
-                      </button>
-                      <button
-                        type="button"
-                        className="btn soft icon-only"
-                        onClick={() => setPauseFor(m)}
-                        aria-label={`Pause ${m.name}`}
-                        title="Pause"
-                      >
-                        <PauseCircle size={16} aria-hidden="true" />
-                      </button>
-                    </>
-                  )}
-                  <button
-                    className="btn danger-ghost icon-only"
-                    onClick={() => onDelete(m)}
-                    aria-label={`Delete ${m.name}`}
-                    title="Delete"
-                  >
-                    <Trash2 size={16} aria-hidden="true" />
-                  </button>
-                </div>
+                  </div>
+                )}
               </article>
             );
           })}
