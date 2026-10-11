@@ -1,6 +1,19 @@
 import { useState } from "react";
-import { CalendarClock, History, PauseCircle, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import {
+  CalendarClock,
+  History,
+  PauseCircle,
+  Pencil,
+  Play,
+  Plus,
+  Trash2,
+  PackagePlus,
+  Receipt,
+  PackageSearch,
+} from "lucide-react";
 import { MedicineHistoryDialog } from "../modals/MedicineHistoryDialog";
+import { RefillDialog, RefillHistoryDialog } from "../modals/RefillDialogs";
+import { formatQty, parseDose } from "../../lib/doseQuantity";
 import { useCare } from "../../hooks/CareAppContext";
 import { PauseDialog } from "../modals/PauseDialog";
 import type { Medicine } from "../../api";
@@ -28,36 +41,66 @@ type MedicinesProps = {
   onReschedule: (m: Medicine) => void;
   /** Medicine just added or rescheduled: its card pops in and glows briefly. */
   highlightId?: string | null;
+  /** Opens the stock planner. */
+  onOpenPlanner: () => void;
+  /** Records a refill. */
+  onRefill: (
+    m: Medicine,
+    b: { quantity: number; date?: string; pharmacy?: string; note?: string },
+  ) => Promise<boolean>;
   /** Pauses a medicine (reason + double confirmation in the dialog). */
   onPause: (id: string, start: string, reason: string) => Promise<void>;
   /** Linked patient (view-only): hides every editing control. */
   readOnly?: boolean;
 };
 
+/** Label + tone for a stock status (thresholds from the server's stock projection). */
+const STOCK_LABEL: Record<string, string> = {
+  out: "Out of stock",
+  critical: "Critical",
+  low: "Low",
+  ok: "In stock",
+};
+
 /**
- * Supply level bar. The scale is relative to the refill threshold (full = 4× threshold,
- * min 30 doses) because the original pack size isn't stored; a marker shows the threshold.
+ * Stock on hand in units and doses, labelled Out of stock / Critical / Low / In stock, with an
+ * animated bar (scale: 4× the refill threshold, min 30 doses) and a marker at the threshold.
  */
-function SupplyGauge({ supply, threshold }: { supply: number; threshold: number }) {
-  const scale = Math.max(30, threshold * 4, supply);
-  const pct = Math.max(2, Math.min(100, (supply / scale) * 100));
-  const low = threshold > 0 && supply <= threshold;
+function StockGauge({ m }: { m: Medicine }) {
+  const { perDose, unit } = parseDose(m.doseAmount, m.form);
+  const qty = m.stockQuantity ?? m.supplyCount * perDose;
+  const doses = Math.floor(qty / perDose);
+  const threshold = m.isRecurring ? m.refillThreshold : 0;
+  const scale = Math.max(30, threshold * 4, doses);
+  const status = m.stockStatus || (doses < 1 ? "out" : doses <= threshold ? "low" : "ok");
   return (
-    <div className={low ? "supply-gauge low" : "supply-gauge"}>
+    <div className={`supply-gauge stock-${status}`}>
       <div className="supply-gauge-head">
-        <span>{plural(supply, "dose")} left</span>
-        {low ? <b>Refill soon</b> : threshold > 0 && <small>Refill at {threshold}</small>}
+        <span className={`stock-label s-${status}`}>{STOCK_LABEL[status]}</span>
+        <span className="stock-qty">
+          <b>{formatQty(qty, unit)}</b> · {doses} dose{doses === 1 ? "" : "s"}
+          {m.daysLeft != null ? ` · ≈ ${m.daysLeft} day${m.daysLeft === 1 ? "" : "s"}` : ""}
+        </span>
       </div>
       <div
         className="supply-track"
         role="img"
-        aria-label={`${supply} doses left${low ? ", refill soon" : ""}`}
+        aria-label={`${formatQty(qty, unit)} left, ${STOCK_LABEL[status]}`}
       >
-        <span className="supply-fill" style={{ width: `${pct}%` }} />
+        <span
+          className="supply-fill"
+          style={{ width: `${Math.max(2, Math.min(100, (doses / scale) * 100))}%` }}
+        />
         {threshold > 0 && (
           <span className="supply-marker" style={{ left: `${(threshold / scale) * 100}%` }} />
         )}
       </div>
+      <small className="stock-meta">
+        {m.runOutDate ? `Runs out ${dateLabel(m.runOutDate)}` : "Covers the schedule ahead"}
+        {m.lastRefillAt
+          ? ` · last filled ${new Date(m.lastRefillAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`
+          : ""}
+      </small>
     </div>
   );
 }
@@ -75,11 +118,15 @@ export function Medicines({
   onReschedule,
   highlightId,
   onPause,
+  onRefill,
+  onOpenPlanner,
   readOnly = false,
 }: MedicinesProps) {
   const app = useCare();
   const [historyFor, setHistoryFor] = useState<Medicine | null>(null);
   const [pauseFor, setPauseFor] = useState<Medicine | null>(null);
+  const [refillFor, setRefillFor] = useState<Medicine | null>(null);
+  const [trailFor, setTrailFor] = useState<Medicine | null>(null);
   const active = meds.filter((m) => !isPausedOn(m)).length;
   return (
     <div className="page-scroll">
@@ -90,10 +137,17 @@ export function Medicines({
         actions={
           hasPatient &&
           !readOnly && (
-            <button className="btn primary" onClick={onAdd}>
-              <Plus size={17} aria-hidden="true" />
-              Add medicine
-            </button>
+            <>
+              <button type="button" className="btn soft" onClick={onOpenPlanner}>
+                <PackageSearch size={16} aria-hidden="true" /> Stock planner
+              </button>
+              {!readOnly && (
+                <button className="btn primary" onClick={onAdd}>
+                  <Plus size={17} aria-hidden="true" />
+                  Add medicine
+                </button>
+              )}
+            </>
           )
         }
       />
@@ -173,10 +227,14 @@ export function Medicines({
                   <span>{m.times.map(fmtTime).join(", ")}</span>
                   {m.withFood && <span>With food</span>}
                 </div>
-                <SupplyGauge
-                  supply={m.supplyCount}
-                  threshold={m.isRecurring ? m.refillThreshold : 0}
-                />
+                <StockGauge m={m} />
+                <button
+                  type="button"
+                  className="text-btn stock-trail-btn"
+                  onClick={() => setTrailFor(m)}
+                >
+                  <Receipt size={14} aria-hidden="true" /> Stock history
+                </button>
                 {!readOnly && (
                   <div className="med-actions">
                     {paused ? (
@@ -186,6 +244,14 @@ export function Medicines({
                       </button>
                     ) : (
                       <>
+                        <button
+                          type="button"
+                          className="btn primary"
+                          onClick={() => setRefillFor(m)}
+                        >
+                          <PackagePlus size={15} aria-hidden="true" />
+                          Refill
+                        </button>
                         <button className="btn soft" onClick={() => onEdit(m)}>
                           <Pencil size={15} aria-hidden="true" />
                           Edit
@@ -228,6 +294,10 @@ export function Medicines({
       {pauseFor && (
         <PauseDialog medicine={pauseFor} onClose={() => setPauseFor(null)} onPause={onPause} />
       )}
+      {refillFor && (
+        <RefillDialog medicine={refillFor} onClose={() => setRefillFor(null)} onRefill={onRefill} />
+      )}
+      {trailFor && <RefillHistoryDialog medicine={trailFor} onClose={() => setTrailFor(null)} />}
     </div>
   );
 }

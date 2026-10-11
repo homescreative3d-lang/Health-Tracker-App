@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { Clock3, History as HistoryIcon, ListTree, Table2 } from "lucide-react";
-import { AuditList } from "../modals/MedicineHistoryDialog";
 import { useCare } from "../../hooks/CareAppContext";
-import { api, type AuditEntry, type HistoryRow, type Patient } from "../../api";
+import { api, type HistoryRow, type Patient } from "../../api";
 import { dateLabel, fmtTime, part } from "../../lib/dates";
 import { err } from "../../lib/errors";
 import { initials } from "../../lib/text";
@@ -88,29 +87,8 @@ export function History({ patients, patient }: { patients: Patient[]; patient: P
     setSelected(patient.id ? [patient.id] : []);
   }, [patient.id]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<"timeline" | "table" | "changes">("timeline");
-  const [changes, setChanges] = useState<{ entry: AuditEntry; patientName: string }[] | null>(null);
-  // Audit trail for the Changes view (same patient/date filters).
-  useEffect(() => {
-    if (view !== "changes") return;
-    const q = new URLSearchParams();
-    if (selected.length) q.set("patientIds", selected.join(","));
-    if (from) q.set("from", from);
-    if (to) q.set("to", to);
-    let active = true;
-    setChanges(null);
-    api
-      .getChanges("?" + q.toString())
-      .then((r) => active && setChanges(r))
-      .catch((e) => {
-        if (!active) return;
-        setChanges([]);
-        setError(err(e));
-      });
-    return () => {
-      active = false;
-    };
-  }, [view, selected, from, to]);
+  const [view, setView] = useState<"timeline" | "table">("timeline");
+
   const counts = {
     taken: rows.filter((r) => r.status === "taken").length,
     skipped: rows.filter((r) => r.status === "skipped").length,
@@ -246,10 +224,7 @@ export function History({ patients, patient }: { patients: Patient[]; patient: P
           </span>
         </div>
         <div className="view-toggle" role="radiogroup" aria-label="History view">
-          {(app.can("change_history")
-            ? (["timeline", "table", "changes"] as const)
-            : (["timeline", "table"] as const)
-          ).map((v) => (
+          {(["timeline", "table"] as const).map((v) => (
             <button
               key={v}
               role="radio"
@@ -289,93 +264,74 @@ export function History({ patients, patient }: { patients: Patient[]; patient: P
         </div>
       )}
       {error && <InlineError>{error}</InlineError>}
-      {view === "changes" ? (
-        <div className="card history-changes">
-          <div className="notice info">
-            <HistoryIcon size={18} aria-hidden="true" />
-            <p>
-              Every change is recorded: who made it, when, and the reason they gave (reschedules and
-              pauses).
-            </p>
-          </div>
-          {changes === null ? (
-            <div className="preview-loading" role="status">
-              Loading changes…
-            </div>
-          ) : (
-            <AuditList entries={changes} showPatient />
-          )}
-        </div>
-      ) : (
-        <div className="card history-table-wrap" aria-busy={loading}>
-          {loading && !rows.length ? (
-            <SkeletonList rows={4} label="Loading history" />
-          ) : rows.length && view === "timeline" ? (
-            <HistoryTimeline rows={rows} />
-          ) : rows.length ? (
-            <div className="history-table-scroll">
-              <table className="history-data-table">
-                <thead>
-                  <tr>
-                    <th>Patient</th>
-                    <th>Medicine</th>
-                    <th>Scheduled</th>
-                    <th>Status</th>
-                    <th>Recorded by</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r) => (
-                    <tr key={r.id}>
-                      <td data-label="Patient">
-                        <div className="history-patient-cell">
-                          <span className="history-avatar">{initials(r.patientName)}</span>
-                          <b>{r.patientName || "Unknown patient"}</b>
-                        </div>
-                      </td>
-                      <td data-label="Medicine">
-                        <div className="history-medication">
-                          <span className="dose-icon">
-                            <MedicineFormIcon form={r.form} size={17} />
-                          </span>
-                          <div>
-                            <b>{r.medicineName}</b>
-                            <small>{r.form || "Medicine"}</small>
-                          </div>
-                        </div>
-                      </td>
-                      <td data-label="Scheduled">
-                        <b>{r.date}</b>
-                        <small>{fmtTime(r.time)}</small>
-                      </td>
-                      <td data-label="Status">
-                        <span className={`history-status ${statusClass(r.status)}`}>
-                          {r.status === "taken"
-                            ? "Taken"
-                            : r.status === "skipped"
-                              ? "Skipped"
-                              : r.status === "missed"
-                                ? "Missed"
-                                : r.status}
+      <div className="card history-table-wrap" aria-busy={loading}>
+        {loading && !rows.length ? (
+          <SkeletonList rows={4} label="Loading history" />
+        ) : rows.length && view === "timeline" ? (
+          <HistoryTimeline rows={rows} />
+        ) : rows.length ? (
+          <div className="history-table-scroll">
+            <table className="history-data-table">
+              <thead>
+                <tr>
+                  <th>Patient</th>
+                  <th>Medicine</th>
+                  <th>Scheduled</th>
+                  <th>Status</th>
+                  <th>Recorded by</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id}>
+                    <td data-label="Patient">
+                      <div className="history-patient-cell">
+                        <span className="history-avatar">{initials(r.patientName)}</span>
+                        <b>{r.patientName || "Unknown patient"}</b>
+                      </div>
+                    </td>
+                    <td data-label="Medicine">
+                      <div className="history-medication">
+                        <span className="dose-icon">
+                          <MedicineFormIcon form={r.form} size={17} />
                         </span>
-                      </td>
-                      <td data-label="Recorded by">{r.actionedByName || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="history-empty">
-              <EmptyArt kind="history" />
-              <b>No history records found</b>
-              <span className="muted">
-                Try adjusting your filters or check back after scheduled doses.
-              </span>
-            </div>
-          )}
-        </div>
-      )}
+                        <div>
+                          <b>{r.medicineName}</b>
+                          <small>{r.form || "Medicine"}</small>
+                        </div>
+                      </div>
+                    </td>
+                    <td data-label="Scheduled">
+                      <b>{r.date}</b>
+                      <small>{fmtTime(r.time)}</small>
+                    </td>
+                    <td data-label="Status">
+                      <span className={`history-status ${statusClass(r.status)}`}>
+                        {r.status === "taken"
+                          ? "Taken"
+                          : r.status === "skipped"
+                            ? "Skipped"
+                            : r.status === "missed"
+                              ? "Missed"
+                              : r.status}
+                      </span>
+                    </td>
+                    <td data-label="Recorded by">{r.actionedByName || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="history-empty">
+            <EmptyArt kind="history" />
+            <b>No history records found</b>
+            <span className="muted">
+              Try adjusting your filters or check back after scheduled doses.
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

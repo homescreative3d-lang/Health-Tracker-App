@@ -18,25 +18,36 @@ type AppNavProps = {
  * which variant is visible so positions never drift between screens.
  */
 export function AppNav({ tab, onNavigate, variant, footer }: AppNavProps) {
-  const current = activeNav(tab);
+  const base = activeNav(tab);
+  // The phone bar has no Stock/Activity tabs: highlight their parents instead.
+  const current =
+    variant === "bottom"
+      ? base === "stock"
+        ? "medicines"
+        : base === "activity"
+          ? "profile"
+          : base
+      : base;
   return (
     <nav
       className={variant === "side" ? "side-nav" : "mobile-tabs"}
       aria-label={variant === "side" ? "Main" : "Main (bottom)"}
     >
       <ul>
-        {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
-          <li key={id}>
-            <button
-              className={current === id ? "nav-item active" : "nav-item"}
-              aria-current={current === id ? "page" : undefined}
-              onClick={() => onNavigate(id)}
-            >
-              <Icon size={variant === "side" ? 20 : 22} aria-hidden="true" />
-              <span>{label}</span>
-            </button>
-          </li>
-        ))}
+        {NAV_ITEMS.filter((n) => variant === "side" || n.mobile).map(
+          ({ id, label, icon: Icon }) => (
+            <li key={id}>
+              <button
+                className={current === id ? "nav-item active" : "nav-item"}
+                aria-current={current === id ? "page" : undefined}
+                onClick={() => onNavigate(id)}
+              >
+                <Icon size={variant === "side" ? 20 : 22} aria-hidden="true" />
+                <span>{label}</span>
+              </button>
+            </li>
+          ),
+        )}
       </ul>
       {footer}
     </nav>

@@ -12,6 +12,8 @@ import { Today } from "./Today";
 import { Calendar } from "./Calendar";
 import { Medicines } from "./Medicines";
 import { History } from "./History";
+import { StockPlanner } from "./StockPlanner";
+import { ActivityLog } from "./ActivityLog";
 import { Profile } from "./Profile";
 import { AccountDetails } from "./AccountDetails";
 import { PatientDetails } from "./PatientDetails";
@@ -123,6 +125,7 @@ export function Hub() {
               )}
               {tab === "medicines" && (
                 <Medicines
+                  onOpenPlanner={() => setTab("stock")}
                   meds={meds}
                   hasPatient={!!patient.id}
                   onAdd={() => app.openWizard()}
@@ -133,13 +136,21 @@ export function Hub() {
                   onReschedule={(m) => setResched({ dose: null, medicine: m })}
                   readOnly={ro}
                   highlightId={app.justChangedMedicine}
+                  onRefill={app.refillMedicine}
                   onPause={app.pauseMedicine}
                   loading={app.planLoading}
                 />
               )}
               {tab === "history" && <History patients={patients} patient={patient} />}
+              {tab === "stock" && (
+                <StockPlanner patients={patients.filter((p) => p.id)} patient={patient} />
+              )}
+              {tab === "activity" && app.can("change_history") && (
+                <ActivityLog patients={patients.filter((p) => p.id)} patient={patient} />
+              )}
               {tab === "profile" && (
                 <Profile
+                  onOpenActivity={() => setTab("activity")}
                   user={user}
                   patients={patients}
                   setTab={setTab}

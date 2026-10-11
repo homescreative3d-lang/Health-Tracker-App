@@ -165,6 +165,27 @@ The key stays on the server and is sent in a request header, never in a URL. Ima
 
 The in-app guide and `public/tended-guide.pdf` share one source: `frontend/src/content/guide.json`. After editing it, rebuild the PDF with `python3 frontend/scripts/build-guide-pdf.py` (requires Playwright + Chromium).
 
+## Stock, refills and the stock planner
+
+- **How stock is kept:** stock is stored as a quantity in units (tablets, ml, puffs, units…), with the unit read from the dose amount. Taking a dose subtracts the dose amount (e.g. ½ tablet), and Undo adds it back.
+- **Refill trail:** every first fill, refill and correction is kept in `RefillLogs`. Medicines that existed before this release got an "opening stock" entry, converted once at startup.
+- **Stock planner:** `GET /api/patients/{id}/stock-plan?days=N` projects each medicine day by day, following its schedule, dose times, dose amount, pauses and course end. The app's Stock planner screen shows this report and can download it as a PDF.
+
+## Files are served through the API
+
+Photos and documents are never linked to storage directly. Links look like `/api/files/<token>`, where the token is AES-GCM encrypted and expires after 1 hour; its key is stored in `ServerSettings` as `files.tokenKey`. Set `Api__PublicUrl` if the API sits behind a proxy whose public address differs from the request host.
+
+## AI scan limit
+
+The default is 5 scans per user per rolling 24 hours. Both settings live in the database, so no redeploy is needed:
+
+- **Change the default for everyone:** `UPDATE "ServerSettings" SET "Value" = '10' WHERE "Key" = 'ai.scanDailyLimit';`
+- **Override for one user:** `UPDATE "Users" SET "AiScanDailyLimit" = 20 WHERE "Email" = 'someone@example.com';` (set it back to `NULL` to use the default).
+
+## Future doses
+
+Viewing a future day no longer writes dose rows; future doses are calculated on the fly. A future dose is stored only when someone acts on it (for example, rescheduling). History shows only what has already happened. Untouched future rows created by older versions are removed automatically at startup.
+
 ## Notification scheduler switch
 
 The `NotificationRuntimeConfig` table has one controlling row:
