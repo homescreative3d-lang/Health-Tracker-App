@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import { X } from "lucide-react";
 
@@ -71,7 +72,9 @@ export function Modal({
     };
   }, [onClose]);
 
-  return (
+  // Rendered in a portal at <body> so dialogs opened from inside a <form> (e.g. the camera in
+  // the profile form) can never submit that form, and always stack above the page.
+  return createPortal(
     <div
       className="modal-backdrop"
       role="presentation"
@@ -91,13 +94,19 @@ export function Modal({
             {kicker && <span className="eyebrow">{kicker}</span>}
             <h2 id={titleId}>{title}</h2>
           </div>
-          <button className="icon-btn modal-close" onClick={onClose} aria-label="Close">
+          <button
+            type="button"
+            className="icon-btn modal-close"
+            onClick={onClose}
+            aria-label="Close"
+          >
             <X size={20} />
           </button>
         </header>
         <div className="modal-body">{children}</div>
         {actions && <footer className="modal-actions">{actions}</footer>}
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

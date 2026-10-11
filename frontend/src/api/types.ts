@@ -194,3 +194,63 @@ export type PatientInput = {
   doctorPhotoUrl?: string;
   attachments?: PatientAttachment[];
 };
+
+/** Kinds of medical history entries. */
+export type MedicalRecordType =
+  "diagnosis" | "prescription" | "procedure" | "allergy" | "lab" | "vaccination" | "note";
+
+/** A prescribed item on a medical record. */
+export type RecordMedicine = {
+  name: string;
+  strength?: string;
+  dose?: string;
+  frequency?: string;
+  duration?: string;
+  instructions?: string;
+};
+
+/** A dated medical history entry. */
+export type MedicalRecord = {
+  id: string;
+  patientId: string;
+  /** `YYYY-MM-DD`, or null when unknown. */
+  date: string | null;
+  type: MedicalRecordType;
+  title: string;
+  details: string;
+  doctor: string;
+  facility: string;
+  medicines: RecordMedicine[];
+  /** Signed URL of the source document (e.g. the scanned prescription). */
+  sourceUrl?: string | null;
+  sourceMimeType?: string | null;
+  /** Content came from a reviewed AI scan. */
+  aiExtracted: boolean;
+  createdAt: string;
+};
+
+/** Payload for creating/updating a record. */
+export type MedicalRecordInput = {
+  date: string;
+  type: MedicalRecordType;
+  title: string;
+  details: string;
+  doctor: string;
+  facility: string;
+  medicines: RecordMedicine[];
+  sourceDataUrl?: string;
+  removeSource?: boolean;
+  aiExtracted?: boolean;
+};
+
+/** Draft read from a prescription by the AI scanner (never saved automatically). */
+export type PrescriptionDraft = {
+  date: string;
+  doctor: string;
+  facility: string;
+  diagnosis: string;
+  notes: string;
+  medicines: RecordMedicine[];
+  confidence: "high" | "medium" | "low";
+  isPrescription: boolean;
+};
