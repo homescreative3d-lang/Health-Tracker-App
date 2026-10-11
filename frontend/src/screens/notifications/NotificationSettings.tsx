@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { BellRing, Check, Send } from "lucide-react";
-import { api, enablePush, type NotificationSettingsData } from "../../api";
+import { BellRing, Check, Send, X } from "lucide-react";
+import { api, enablePush, notificationPermission, type NotificationSettingsData } from "../../api";
 import { err } from "../../lib/errors";
 import { timeZones } from "../../constants/options";
 import { Field } from "../../components/Field";
@@ -86,6 +86,107 @@ function ReminderTimeline({
   );
 }
 
+type Health = "ok" | "warn" | "bad";
+
+/** One line of the delivery checklist. */
+function StatusLine({ state, title, text }: { state: Health; title: string; text: string }) {
+  return (
+    <li className={`push-check ${state}`}>
+      <span className="push-check-dot" aria-hidden="true">
+        {state === "ok" ? (
+          <Check size={13} strokeWidth={3} />
+        ) : state === "warn" ? (
+          "!"
+        ) : (
+          <X size={13} strokeWidth={3} />
+        )}
+      </span>
+      <span>
+        <b>{title}</b>
+        <small>{text}</small>
+      </span>
+    </li>
+  );
+}
+
+/**
+ * Live checklist of everything browser notifications depend on, so a failed delivery can be
+ * traced to the exact missing piece: server keys, browser permission, this device's
+ * subscription, and how many devices the account has.
+ */
+function PushStatus({
+  settings,
+  deviceSubscribed,
+}: {
+  settings: NotificationSettingsData;
+  deviceSubscribed: boolean | null;
+}) {
+  const permission = notificationPermission();
+  const configured = settings.pushConfigured ?? !!settings.vapidPublicKey;
+  return (
+    <div className="push-status">
+      <ul>
+        <StatusLine
+          state={configured ? "ok" : "bad"}
+          title="Server push keys"
+          text={
+            configured
+              ? "Configured"
+              : "Missing: browser alerts can't be sent until an admin adds them (see the guide below)."
+          }
+        />
+        <StatusLine
+          state={permission === "granted" ? "ok" : permission === "denied" ? "bad" : "warn"}
+          title="Browser permission"
+          text={
+            permission === "granted"
+              ? "Allowed for this site"
+              : permission === "denied"
+                ? "Blocked: allow notifications in the browser's site settings (lock icon in the address bar)."
+                : permission === "unsupported"
+                  ? "This browser doesn't support notifications."
+                  : "Not asked yet: press “Enable alerts on this device”."
+          }
+        />
+        <StatusLine
+          state={deviceSubscribed ? "ok" : "warn"}
+          title="This device"
+          text={deviceSubscribed ? "Signed up for alerts" : "Not signed up yet"}
+        />
+        <StatusLine
+          state={(settings.subscribedDevices ?? 0) > 0 ? "ok" : "warn"}
+          title="Devices on your account"
+          text={`${settings.subscribedDevices ?? 0} device${settings.subscribedDevices === 1 ? "" : "s"} will receive alerts`}
+        />
+      </ul>
+      <p className="push-note">
+        Every notification also appears in the bell, and the app shows it as a browser alert while
+        it's open, even before push is fully set up.
+      </p>
+      {!configured && (
+        <details className="push-guide">
+          <summary>Set up push on the server (admin, about 2 minutes)</summary>
+          <ol>
+            <li>
+              On any computer with Node.js, run <code>npx web-push generate-vapid-keys</code>.
+            </li>
+            <li>
+              In your backend host (e.g. Render → Environment), add <code>WebPush__PublicKey</code>,{" "}
+              <code>WebPush__PrivateKey</code> and <code>WebPush__Subject</code> (e.g.{" "}
+              <code>mailto:you@yourdomain.com</code>).
+            </li>
+            <li>Redeploy the API, reload this page and press “Enable alerts on this device”.</li>
+          </ol>
+          <p>
+            Keep the private key secret. If you ever change the keys, each device simply re-enables
+            once.
+          </p>
+        </details>
+      )}
+    </div>
+  );
+}
+
 /** Resolves the VAPID public key from the API, falling back to the build-time env var. */
 const vapidKey = (s: NotificationSettingsData) =>
   (s.vapidPublicKey || import.meta.env.VITE_VAPID_PUBLIC_KEY || "").trim();
@@ -101,6 +202,31 @@ export function NotificationSettings() {
   const [msg, setMsg] = useState<{ text: string; error?: boolean } | null>(null);
   const [busy, setBusy] = useState<"save" | "enable" | "test" | null>(null);
   const [saved, setSaved] = useState(false);
+  const [deviceSubscribed, setDeviceSubscribed] = useState<boolean | null>(null);
+
+  /** Checks whether this browser currently holds a push subscription. */
+  const checkDevice = async () => {
+    try {
+      if (!("serviceWorker" in navigator)) return setDeviceSubscribed(false);
+      const reg = await navigator.serviceWorker.getRegistration();
+      setDeviceSubscribed(!!(await reg?.pushManager.getSubscription()));
+    } catch {
+      setDeviceSubscribed(false);
+    }
+  };
+  useEffect(() => {
+    void checkDevice();
+  }, []);
+
+  /** Reloads settings (device counts, key status) after enabling/testing. */
+  const reloadSettings = async () => {
+    try {
+      setS(await api.getNotificationSettings());
+    } catch {
+      /* keep current */
+    }
+    await checkDevice();
+  };
   const zones = timeZones.some((z) => z.id === s.timeZoneId)
     ? timeZones
     : [{ id: s.timeZoneId, label: s.timeZoneId }, ...timeZones];
@@ -158,14 +284,19 @@ export function NotificationSettings() {
           "Device alerts aren't configured on the server yet. Ask your administrator to add Web Push keys.",
         );
       await enablePush(key);
+      await reloadSettings();
       return "This device will now receive alerts. Send a test to confirm.";
     });
 
   /** Sends a test push to every subscribed device. */
   const test = () =>
     run("test", async () => {
-      if (!vapidKey(s)) throw new Error("Device alerts aren't configured on the server yet.");
-      return (await api.testPush()).message || "Test notification sent.";
+      try {
+        const r = await api.testPush();
+        return r.message || "Test notification sent.";
+      } finally {
+        await reloadSettings();
+      }
     });
 
   return (
@@ -227,6 +358,7 @@ export function NotificationSettings() {
         repeat={s.repeatMinutes}
         final={s.finalNotificationEnabled}
       />
+      <PushStatus settings={s} deviceSubscribed={deviceSubscribed} />
       <div className="settings-actions">
         <button
           className={saved ? "btn primary is-saved" : "btn primary"}

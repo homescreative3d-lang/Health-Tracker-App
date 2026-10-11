@@ -1,5 +1,5 @@
-import { useRef } from "react";
-import { Bell, CheckCheck, ChevronRight, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { Bell, Check, CheckCheck, ChevronRight, X } from "lucide-react";
 import type { Notification, Patient } from "../../api";
 import { parseNotificationData } from "../../lib/notifications";
 import { useDismiss } from "../../hooks/useDismiss";
@@ -13,7 +13,38 @@ type NotificationPopoverProps = {
   onReadAll: () => Promise<void>;
   /** Opens the detail dialog for a notification. */
   onSelect: (n: Notification) => void;
+  /** Accepts/declines a family invitation; resolves true on success. */
+  onRespond: (n: Notification, accept: boolean) => Promise<boolean>;
 };
+
+/** Inline Accept / Decline for an unanswered family invitation. */
+function InviteActions({
+  n,
+  onRespond,
+}: {
+  n: Notification;
+  onRespond: (n: Notification, accept: boolean) => Promise<boolean>;
+}) {
+  const [busy, setBusy] = useState<"yes" | "no" | null>(null);
+  /** Sends the answer with a busy state on the pressed button. */
+  const answer = async (accept: boolean) => {
+    setBusy(accept ? "yes" : "no");
+    await onRespond(n, accept);
+    setBusy(null);
+  };
+  return (
+    <div className="invite-actions">
+      <button className="btn soft sm" disabled={!!busy} onClick={() => answer(false)}>
+        <X size={14} aria-hidden="true" />
+        {busy === "no" ? "Declining…" : "Decline"}
+      </button>
+      <button className="btn primary sm" disabled={!!busy} onClick={() => answer(true)}>
+        <Check size={14} aria-hidden="true" />
+        {busy === "yes" ? "Joining…" : "Accept"}
+      </button>
+    </div>
+  );
+}
 
 /**
  * Notification panel anchored under the bell (full-width sheet on phones).
@@ -26,6 +57,7 @@ export function NotificationPopover({
   onRead,
   onReadAll,
   onSelect,
+  onRespond,
 }: NotificationPopoverProps) {
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(ref, onClose);
@@ -75,10 +107,17 @@ export function NotificationPopover({
                   </span>
                   <ChevronRight size={16} aria-hidden="true" />
                 </button>
-                {!n.isRead && (
-                  <button className="btn ghost sm mark-read-btn" onClick={() => void onRead(n.id)}>
-                    Mark read
-                  </button>
+                {n.type === "family_invite" && !n.isRead ? (
+                  <InviteActions n={n} onRespond={onRespond} />
+                ) : (
+                  !n.isRead && (
+                    <button
+                      className="btn ghost sm mark-read-btn"
+                      onClick={() => void onRead(n.id)}
+                    >
+                      Mark read
+                    </button>
+                  )
                 )}
               </div>
             );
