@@ -77,6 +77,14 @@ public class GeminiExtractorTests
     }
 
     [Fact]
+    public async Task MissingModelReturnsActionableConfigurationMessage()
+    {
+        var (x, _) = Make(HttpStatusCode.NotFound, """{"error":{"message":"model not found"}}""");
+        var e = await Assert.ThrowsAsync<InvalidOperationException>(() => x.ExtractAsync("image/png", "AAAA"));
+        Assert.Contains("Gemini__Model", e.Message);
+    }
+
+    [Fact]
     public async Task GarbageResponseIsHandled()
     {
         var (x, _) = Make(HttpStatusCode.OK, "{\"candidates\":[]}");
