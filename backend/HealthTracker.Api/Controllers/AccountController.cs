@@ -99,7 +99,11 @@ public class AccountController(AppDbContext db, INeonObjectStorage storage) : Ap
         {
             var other = await db.FamilyMembers.Where(m => m.FamilyId == family.Id && m.UserId != userId && m.Status == "approved").Select(m => (Guid?)m.UserId).FirstOrDefaultAsync();
             if (other.HasValue)
+            {
                 family.OwnerUserId = other.Value;
+                var heir = await db.FamilyMembers.FirstAsync(m => m.FamilyId == family.Id && m.UserId == other.Value);
+                heir.Role = "admin";
+            }
             else
             {
                 db.FamilyInvites.RemoveRange(db.FamilyInvites.Where(i => i.FamilyId == family.Id));
