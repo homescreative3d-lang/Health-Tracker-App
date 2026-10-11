@@ -12,18 +12,18 @@ public record PatientAttachmentRequest(string Name, string MimeType, string? Dat
 /// <summary>Patient create/update payload. Images are base64 data URLs (new), storage keys (keep) or empty (remove).</summary>
 public record PatientRequest(string Name, string? Dob, List<string> Conditions, string Notes, string? Relationship, string Mobile = "", string Doctor = "", string MedicalHistory = "", string ProfileImageUrl = "", string DoctorPhotoUrl = "", List<PatientAttachmentRequest>? Attachments = null);
 /// <summary>Medicine create/update payload. Dates are <c>YYYY-MM-DD</c>; times are <c>HH:mm</c>.</summary>
-public record MedicineRequest(string Name, string Strength, string Form, string Condition, string FrequencyPattern, List<string> SpecificDays, int CycleEvery, string CycleUnit, List<string> Times, string Liquid, bool WithFood, string StartDate, string DurationType, int DurationValue, string DurationUnit, int SupplyCount, int RefillThreshold, bool IsRecurring = true);
+public record MedicineRequest(string Name, string Strength, string Form, string Condition, string FrequencyPattern, List<string> SpecificDays, int CycleEvery, string CycleUnit, List<string> Times, string Liquid, bool WithFood, string StartDate, string DurationType, int DurationValue, string DurationUnit, int SupplyCount, int RefillThreshold, bool IsRecurring = true, string? DoseAmount = null);
 /// <summary>A medicine with its schedule, supply and pause range.</summary>
-public record MedicineResponse(Guid Id, string PatientId, string PatientName, string Name, string Strength, string Form, string Condition, string FrequencyPattern, List<string> SpecificDays, int CycleEvery, string CycleUnit, List<string> Times, string Liquid, bool WithFood, string StartDate, string DurationType, int DurationValue, string DurationUnit, int SupplyCount, int RefillThreshold, bool IsRecurring, string? PauseStartDate, string? PauseEndDate, string? EndedOn = null, Guid? RescheduledFromId = null, List<string>? PreviousTimes = null);
+public record MedicineResponse(Guid Id, string PatientId, string PatientName, string Name, string Strength, string Form, string Condition, string FrequencyPattern, List<string> SpecificDays, int CycleEvery, string CycleUnit, List<string> Times, string Liquid, bool WithFood, string StartDate, string DurationType, int DurationValue, string DurationUnit, int SupplyCount, int RefillThreshold, bool IsRecurring, string? PauseStartDate, string? PauseEndDate, string? EndedOn = null, Guid? RescheduledFromId = null, List<string>? PreviousTimes = null, string DoseAmount = "");
 /// <summary>One dose for a day, with status and who actioned it.</summary>
-public record DoseResponse(Guid Id, Guid MedicineId, string PatientId, string PatientName, string MedName, string Strength, string Form, string Condition, string Time, string Liquid, bool WithFood, string Status, DateTimeOffset? TakenAt, string? SkipReason, string? RescheduleTo, Guid? ActionedByUserId, string? ActionedByName, string? RescheduleToTime = null, Guid? RescheduledFromId = null, string? RescheduledFromDate = null, string? RescheduledFromTime = null, string? Date = null);
+public record DoseResponse(Guid Id, Guid MedicineId, string PatientId, string PatientName, string MedName, string Strength, string Form, string Condition, string Time, string Liquid, bool WithFood, string Status, DateTimeOffset? TakenAt, string? SkipReason, string? RescheduleTo, Guid? ActionedByUserId, string? ActionedByName, string? RescheduleToTime = null, Guid? RescheduledFromId = null, string? RescheduledFromDate = null, string? RescheduledFromTime = null, string? Date = null, List<AuditEntryResponse>? History = null, string DoseAmount = "");
 /// <summary>Reason for skipping a dose.</summary>
 public record ReasonRequest(string Reason);
 /// <summary>Where to move one dose: date (<c>YYYY-MM-DD</c>) and time (<c>HH:mm</c>, defaults to the original time).</summary>
 public record RescheduleRequest(string Date, string? Time = null, string? Reason = null);
 
 /// <summary>New dose times for a medicine, effective from a date (<c>YYYY-MM-DD</c>) onwards.</summary>
-public record RescheduleMedicineRequest(string EffectiveDate, List<string> Times);
+public record RescheduleMedicineRequest(string EffectiveDate, List<string> Times, string? Reason = null);
 /// <summary>Name for a new family.</summary>
 public record FamilyCreateRequest(string Name);
 /// <summary>New family name and picture (data URL to upload, existing value to keep, empty to remove).</summary>
@@ -43,7 +43,7 @@ public record NotificationSettingsRequest(string TimeZoneId, int LeadMinutes, in
 /// <summary>A dose history row.</summary>
 public record HistoryResponse(Guid Id, string PatientId, string PatientName, string MedicineId, string MedicineName, string Time, string Date, string Status, DateTimeOffset? TakenAt, string? SkipReason, Guid? ActionedByUserId, string? ActionedByName);
 /// <summary>Pause range; omit <c>EndDate</c> to pause until resumed.</summary>
-public record PauseMedicineRequest(string StartDate, string? EndDate);
+public record PauseMedicineRequest(string StartDate, string? EndDate, string? Reason = null);
 /// <summary>Email to send a reset link to.</summary>
 public record ForgotPasswordRequest(string Email);
 /// <summary>Display name and photo for the signed-in user.</summary>
@@ -69,3 +69,6 @@ public record MedicalRecordRequest(string? Date, string Type, string Title, stri
 
 /// <summary>A prescription or medical document to scan (image or PDF data URL, max 10 MB).</summary>
 public record ExtractRequest(string DataUrl);
+
+/// <summary>An audit trail entry as shown to users.</summary>
+public record AuditEntryResponse(Guid Id, string EntityType, Guid EntityId, Guid? MedicineId, Guid? PatientId, string Action, string ActorName, string Reason, string Summary, DateTimeOffset At);

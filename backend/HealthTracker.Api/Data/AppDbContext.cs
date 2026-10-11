@@ -22,12 +22,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<ServerSetting> ServerSettings => Set<ServerSetting>();
     public DbSet<MedicalRecord> MedicalRecords => Set<MedicalRecord>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     /// <summary>Configures unique and lookup indexes.</summary>
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.Entity<ServerSetting>().HasKey(x => x.Key);
         b.Entity<MedicalRecord>().HasIndex(x => x.PatientId);
+        b.Entity<AuditLog>().HasIndex(x => new { x.PatientId, x.At });
+        b.Entity<AuditLog>().HasIndex(x => x.MedicineId);
         b.Entity<AppUser>().HasIndex(x => x.Email).IsUnique();
         b.Entity<Patient>().HasIndex(x => x.UserId);
         b.Entity<Medicine>().HasIndex(x => x.PatientId);

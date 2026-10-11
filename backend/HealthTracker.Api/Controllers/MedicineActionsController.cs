@@ -14,13 +14,13 @@ namespace HealthTracker.Api.Controllers;
 /// </summary>
 [Authorize]
 [Route("api/medicine-actions")]
-public class MedicineActionsController(AppDbContext db, IPatientAccessService access, ICareTeamNotifier notifier) : ApiControllerBase
+public class MedicineActionsController(AppDbContext db, IPatientAccessService access, ICareTeamNotifier notifier, IAuditTrail audit) : ApiControllerBase
 {
     /// <summary>
     /// Pauses a medicine from a start date, optionally until an end date (inclusive).
     /// </summary>
     /// <param name="id">Medicine id.</param>
-    /// <param name="request">Dates in <c>YYYY-MM-DD</c>; omit <c>endDate</c> to pause until resumed.</param>
+    /// <param name="request">Dates in <c>YYYY-MM-DD</c> (omit <c>endDate</c> to pause until resumed) and a required reason (audited).</param>
     /// <response code="200">The new pause range.</response>
     /// <response code="400">A date is invalid or the end is before the start (previously a malformed end date returned 500).</response>
     /// <response code="403">No access to the medicine's patient.</response>
@@ -37,6 +37,8 @@ public class MedicineActionsController(AppDbContext db, IPatientAccessService ac
             return NotFound();
         if (!await access.CanAccessPatientAsync(CurrentUserId, medicine.PatientId))
             return Forbid();
+        if (string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length < 3)
+            return BadRequestMessage("Tell us briefly why this medicine is being paused.");
         if (!DateOnly.TryParse(request.StartDate, out var start))
             return BadRequestMessage("Invalid pause date.");
         DateOnly? end = null;
@@ -49,6 +51,9 @@ public class MedicineActionsController(AppDbContext db, IPatientAccessService ac
 
         medicine.PauseStartDate = start;
         medicine.PauseEndDate = end;
+        await audit.RecordAsync(CurrentUserId, "medicine", medicine.Id, "paused",
+            $"{medicine.Name} paused from {start:ddd d MMM}{(end.HasValue ? $" to {end:ddd d MMM}" : " until resumed")}",
+            medicine.PatientId, medicine.Id, request.Reason, new { start = start.ToString("yyyy-MM-dd"), end = end?.ToString("yyyy-MM-dd") });
         await db.SaveChangesAsync();
         return Ok(new { medicine.Id, medicine.PauseStartDate, medicine.PauseEndDate });
     }
@@ -72,6 +77,7 @@ public class MedicineActionsController(AppDbContext db, IPatientAccessService ac
         if (!await access.CanAccessPatientAsync(CurrentUserId, medicine.PatientId))
             return Forbid();
         medicine.PauseEndDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        await audit.RecordAsync(CurrentUserId, "medicine", medicine.Id, "resumed", $"{medicine.Name} resumed", medicine.PatientId, medicine.Id);
         await db.SaveChangesAsync();
         return Ok(new { medicine.Id, medicine.PauseStartDate, medicine.PauseEndDate });
     }
@@ -106,6 +112,8 @@ public class MedicineActionsController(AppDbContext db, IPatientAccessService ac
             return Forbid();
         if (old.EndedOn.HasValue)
             return BadRequestMessage("This medicine was already rescheduled. Edit the current version instead.");
+        if (string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length < 3)
+            return BadRequestMessage("Add a short reason for changing the schedule.");
         if (!DateOnly.TryParse(request.EffectiveDate, out var effective))
             return BadRequestMessage("Choose a valid start date for the new schedule.");
         var owner = await db.Users.FindAsync(patient.UserId);
@@ -152,6 +160,7 @@ public class MedicineActionsController(AppDbContext db, IPatientAccessService ac
             SupplyCount = old.SupplyCount,
             RefillThreshold = old.RefillThreshold,
             IsRecurring = old.IsRecurring,
+            DoseAmount = old.DoseAmount,
             PauseStartDate = old.PauseStartDate,
             PauseEndDate = old.PauseEndDate,
             RescheduledFromId = old.Id,
@@ -159,6 +168,10 @@ public class MedicineActionsController(AppDbContext db, IPatientAccessService ac
         };
         old.EndedOn = effective;
         db.Medicines.Add(replacement);
+        string Fmt(IEnumerable<string> ts) => string.Join(", ", ts.Select(t => TimeOnly.ParseExact(t, "HH:mm").ToString("h:mm tt")));
+        await audit.RecordAsync(CurrentUserId, "medicine", replacement.Id, "schedule_changed",
+            $"{old.Name}: times changed from {Fmt(oldTimes)} to {Fmt(times)} starting {effective:ddd d MMM}",
+            old.PatientId, replacement.Id, request.Reason, new { previousMedicineId = old.Id, oldTimes, times, effectiveDate = effective.ToString("yyyy-MM-dd") });
         await db.SaveChangesAsync();
 
         await notifier.NotifyAsync(patient, "schedule_changed", "Medicine schedule changed",
@@ -170,6 +183,6 @@ public class MedicineActionsController(AppDbContext db, IPatientAccessService ac
             replacement.CycleEvery, replacement.CycleUnit, times, replacement.Liquid, replacement.WithFood, replacement.StartDate.ToString("yyyy-MM-dd"),
             replacement.DurationType, replacement.DurationValue, replacement.DurationUnit, replacement.SupplyCount, replacement.RefillThreshold,
             replacement.IsRecurring, replacement.PauseStartDate?.ToString("yyyy-MM-dd"), replacement.PauseEndDate?.ToString("yyyy-MM-dd"),
-            null, old.Id, oldTimes));
+            null, old.Id, oldTimes, replacement.DoseAmount));
     }
 }

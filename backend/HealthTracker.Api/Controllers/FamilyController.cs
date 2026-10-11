@@ -66,26 +66,30 @@ public class FamilyController(AppDbContext db, IPushNotificationService push, IN
             .Select(m => m.UserId).ToListAsync();
 
     /// <summary>
-    /// Finds registered users by partial name or email (case-insensitive, max 20).
+    /// Looks up one registered user by their exact email address.
     /// </summary>
-    /// <remarks>Each result says whether the user is already in a family (they can't be invited).</remarks>
-    /// <param name="q">Search text, at least 2 characters.</param>
-    /// <response code="200">Matching users, excluding the caller.</response>
+    /// <remarks>
+    /// Exact match only (case-insensitive): partial or name searches were removed so the user
+    /// directory can't be browsed. The result says whether the person is already in a family.
+    /// </remarks>
+    /// <param name="q">A complete email address.</param>
+    /// <response code="200">Zero or one matching user (never the caller).</response>
+    /// <response code="400">Not a valid email address.</response>
     [HttpGet("search")]
     [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Search([FromQuery] string q = "")
     {
-        q = q.Trim();
-        if (q.Length < 2)
-            return Ok(Array.Empty<object>());
-        var users = await db.Users
-            .Where(x => x.Id != U && (EF.Functions.ILike(x.Email, "%" + q + "%") || EF.Functions.ILike(x.DisplayName, "%" + q + "%")))
-            .OrderBy(x => x.DisplayName).Take(20)
+        var email = q.Trim().ToLowerInvariant();
+        if (!System.Text.RegularExpressions.Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$"))
+            return BadRequestMessage("Enter a complete, valid email address.");
+        var user = await db.Users.Where(x => x.Id != U && x.Email == email)
             .Select(x => new { x.Id, x.Email, x.DisplayName, x.ProfileImageUrl })
-            .ToListAsync();
-        var ids = users.Select(u => u.Id).ToList();
-        var inFamily = await db.FamilyMembers.Where(m => ids.Contains(m.UserId) && m.Status == "approved").Select(m => m.UserId).ToListAsync();
-        return Ok(users.Select(x => new { x.Id, x.Email, x.DisplayName, ProfileImageUrl = Photo(x.ProfileImageUrl), InFamily = inFamily.Contains(x.Id) }));
+            .FirstOrDefaultAsync();
+        if (user is null)
+            return Ok(Array.Empty<object>());
+        var inFamily = await db.FamilyMembers.AnyAsync(m => m.UserId == user.Id && m.Status == "approved");
+        return Ok(new[] { new { user.Id, user.Email, user.DisplayName, ProfileImageUrl = Photo(user.ProfileImageUrl), InFamily = inFamily } });
     }
 
     /// <summary>

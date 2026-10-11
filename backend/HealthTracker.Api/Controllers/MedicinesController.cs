@@ -17,7 +17,7 @@ namespace HealthTracker.Api.Controllers;
 /// </remarks>
 [Authorize]
 [Route("api/medicines")]
-public class MedicinesController(AppDbContext db, IPatientAccessService access) : ApiControllerBase
+public class MedicinesController(AppDbContext db, IPatientAccessService access, IAuditTrail audit) : ApiControllerBase
 {
 
     /// <summary>
@@ -58,6 +58,7 @@ public class MedicinesController(AppDbContext db, IPatientAccessService access) 
         };
         Apply(m, r);
         db.Medicines.Add(m);
+        await audit.RecordAsync(CurrentUserId, "medicine", m.Id, "created", $"{m.Name} {m.Strength} added to the plan", p.Id, m.Id);
         await db.SaveChangesAsync();
         return Ok(Map(m, p));
     }
@@ -83,7 +84,10 @@ public class MedicinesController(AppDbContext db, IPatientAccessService access) 
             return NotFound();
         if (!r.IsRecurring && r.RefillThreshold != 0)
             return BadRequest(new { message = "Refill threshold must be disabled for non-recurring medicines." });
+        var before = new { m.Name, m.Strength, m.Form, m.TimesJson, m.FrequencyPattern, m.SupplyCount, m.DoseAmount };
         Apply(m, r);
+        await audit.RecordAsync(CurrentUserId, "medicine", m.Id, "updated", $"{m.Name} details edited", p.Id, m.Id, null,
+            new { before, after = new { m.Name, m.Strength, m.Form, m.TimesJson, m.FrequencyPattern, m.SupplyCount, m.DoseAmount } });
         await db.SaveChangesAsync();
         return Ok(Map(m, p));
     }
@@ -105,8 +109,39 @@ public class MedicinesController(AppDbContext db, IPatientAccessService access) 
         if (m is null)
             return NotFound();
         db.Medicines.Remove(m);
+        await audit.RecordAsync(CurrentUserId, "medicine", m.Id, "deleted", $"{m.Name} {m.Strength} removed from the plan", p.Id, m.Id);
         await db.SaveChangesAsync();
         return NoContent();
+    }
+
+    /// <summary>
+    /// Full change history of a medicine across all its rescheduled versions: schedule changes,
+    /// pauses, edits and every dose action (who, when, why).
+    /// </summary>
+    /// <param name="id">Any version of the medicine.</param>
+    /// <response code="200">Audit entries, newest first.</response>
+    /// <response code="404">Medicine not found or not accessible.</response>
+    [HttpGet("{id:guid}/history")]
+    [ProducesResponseType<List<AuditEntryResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> History(Guid id)
+    {
+        var m = await db.Medicines.FindAsync(id);
+        if (m is null || !await access.CanAccessPatientAsync(CurrentUserId, m.PatientId))
+            return NotFound();
+        // Walk the reschedule chain backwards and forwards.
+        var ids = new HashSet<Guid> { m.Id };
+        var cursor = m;
+        while (cursor?.RescheduledFromId is Guid prev && ids.Add(prev))
+            cursor = await db.Medicines.FindAsync(prev);
+        var frontier = new List<Guid> { m.Id };
+        while (frontier.Count > 0)
+        {
+            var next = await db.Medicines.Where(x => x.RescheduledFromId != null && frontier.Contains(x.RescheduledFromId.Value)).Select(x => x.Id).ToListAsync();
+            frontier = next.Where(ids.Add).ToList();
+        }
+        var rows = await db.AuditLogs.Where(a => a.MedicineId != null && ids.Contains(a.MedicineId.Value)).OrderByDescending(a => a.At).Take(300).ToListAsync();
+        return Ok(rows.Select(IAuditTrail.Map));
     }
 
     /// <summary>Loads the requested patient after checking access.</summary>
@@ -114,7 +149,7 @@ public class MedicinesController(AppDbContext db, IPatientAccessService access) 
     Task<Patient> P(Guid? patientId) => access.GetAccessiblePatientAsync(CurrentUserId, patientId);
 
     /// <summary>Maps an entity to its API response.</summary>
-    static MedicineResponse Map(Medicine m, Patient p) => new(m.Id, p.Id.ToString(), p.Name, m.Name, m.Strength, m.Form, m.Condition, m.FrequencyPattern, JsonSerializer.Deserialize<List<string>>(m.SpecificDaysJson) ?? [], m.CycleEvery, m.CycleUnit, JsonSerializer.Deserialize<List<string>>(m.TimesJson) ?? [], m.Liquid, m.WithFood, m.StartDate.ToString("yyyy-MM-dd"), m.DurationType, m.DurationValue, m.DurationUnit, m.SupplyCount, m.RefillThreshold, m.IsRecurring, m.PauseStartDate?.ToString("yyyy-MM-dd"), m.PauseEndDate?.ToString("yyyy-MM-dd"), m.EndedOn?.ToString("yyyy-MM-dd"), m.RescheduledFromId, string.IsNullOrWhiteSpace(m.PreviousTimesJson) ? null : JsonSerializer.Deserialize<List<string>>(m.PreviousTimesJson));
+    static MedicineResponse Map(Medicine m, Patient p) => new(m.Id, p.Id.ToString(), p.Name, m.Name, m.Strength, m.Form, m.Condition, m.FrequencyPattern, JsonSerializer.Deserialize<List<string>>(m.SpecificDaysJson) ?? [], m.CycleEvery, m.CycleUnit, JsonSerializer.Deserialize<List<string>>(m.TimesJson) ?? [], m.Liquid, m.WithFood, m.StartDate.ToString("yyyy-MM-dd"), m.DurationType, m.DurationValue, m.DurationUnit, m.SupplyCount, m.RefillThreshold, m.IsRecurring, m.PauseStartDate?.ToString("yyyy-MM-dd"), m.PauseEndDate?.ToString("yyyy-MM-dd"), m.EndedOn?.ToString("yyyy-MM-dd"), m.RescheduledFromId, string.IsNullOrWhiteSpace(m.PreviousTimesJson) ? null : JsonSerializer.Deserialize<List<string>>(m.PreviousTimesJson), m.DoseAmount);
     /// <summary>
     /// Validates a request and copies it onto the entity.
     /// </summary>
@@ -141,6 +176,12 @@ public class MedicinesController(AppDbContext db, IPatientAccessService access) 
             : throw new ArgumentException("Enter a valid start date (YYYY-MM-DD).");
         if (r.Times.Any(t => !TimeOnly.TryParseExact(t, "HH:mm", out _)))
             throw new ArgumentException("Dose times must use the HH:mm format, e.g. 08:00.");
+        var amount = (r.DoseAmount ?? "").Trim();
+        if (amount.Length == 0)
+            throw new ArgumentException("Enter how much to take per dose (e.g. ½ tablet or 5 ml).");
+        if (amount.Length > 60)
+            throw new ArgumentException("Keep the dose amount short (60 characters max).");
+        m.DoseAmount = amount;
         m.DurationType = r.DurationType;
         m.DurationValue = Math.Max(1, r.DurationValue);
         m.DurationUnit = r.DurationUnit;
