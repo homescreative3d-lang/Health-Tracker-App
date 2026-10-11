@@ -41,9 +41,9 @@ public interface IPushNotificationService
 public record PushTestResult(bool Configured, int Subscriptions, int Delivered, int Removed, string? Reason, string? Detail);
 
 /// <summary>
-/// VAPID Web Push implementation configured by <c>WebPush:PublicKey</c>, <c>WebPush:PrivateKey</c> and <c>WebPush:Subject</c>.
+/// VAPID Web Push implementation. Keys come from <see cref="VapidKeyStore"/> (configured or auto-generated).
 /// </summary>
-public class PushNotificationService(AppDbContext db, IConfiguration config, ILogger<PushNotificationService> log) : IPushNotificationService
+public class PushNotificationService(AppDbContext db, ILogger<PushNotificationService> log, VapidKeyStore keys) : IPushNotificationService
 {
     /// <inheritdoc />
     public async Task<bool> SendToUsersAsync(IEnumerable<Guid> userIds, string title, string body, string type, Guid? doseId = null, CancellationToken ct = default, string? medicineForm = null)
@@ -71,16 +71,14 @@ public class PushNotificationService(AppDbContext db, IConfiguration config, ILo
     /// </summary>
     private async Task<PushTestResult> SendCoreAsync(Guid uid, string title, string body, string type, Guid? doseId, string? medicineForm, CancellationToken ct)
     {
-        var pub = config["WebPush:PublicKey"];
-        var priv = config["WebPush:PrivateKey"];
-        if (string.IsNullOrWhiteSpace(pub) || string.IsNullOrWhiteSpace(priv))
-            return new PushTestResult(false, 0, 0, 0, "not_configured", "WebPush:PublicKey and WebPush:PrivateKey are not set on the server.");
+        if (!keys.IsReady)
+            return new PushTestResult(false, 0, 0, 0, "not_configured", "Push keys could not be loaded or generated at startup; check the server logs.");
         var subs = await db.PushSubscriptions.Where(x => x.UserId == uid).ToListAsync(ct);
         if (subs.Count == 0)
             return new PushTestResult(true, 0, 0, 0, "no_subscription", null);
 
         var client = new WebPushClient();
-        var vapid = new VapidDetails(config["WebPush:Subject"] ?? "mailto:notifications@tended.app", pub, priv);
+        var vapid = new VapidDetails(keys.Subject, keys.PublicKey, keys.PrivateKey);
         var payload = JsonSerializer.Serialize(new { title, body, type, doseId, url = "/", form = medicineForm });
         int delivered = 0, removed = 0;
         string? reason = null, detail = null;
