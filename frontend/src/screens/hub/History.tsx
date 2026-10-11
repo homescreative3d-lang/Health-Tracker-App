@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Clock3, History as HistoryIcon, ListTree, Table2 } from "lucide-react";
 import { AuditList } from "../modals/MedicineHistoryDialog";
+import { useCare } from "../../hooks/CareAppContext";
 import { api, type AuditEntry, type HistoryRow, type Patient } from "../../api";
 import { dateLabel, fmtTime, part } from "../../lib/dates";
 import { err } from "../../lib/errors";
@@ -76,6 +77,7 @@ function HistoryTimeline({ rows }: { rows: HistoryRow[] }) {
  * The table collapses into stacked cards on phones.
  */
 export function History({ patients, patient }: { patients: Patient[]; patient: Patient }) {
+  const app = useCare();
   const [rows, setRows] = useState<HistoryRow[]>([]),
     [selected, setSelected] = useState<string[]>(patient.id ? [patient.id] : []),
     [medicine, setMedicine] = useState(""),
@@ -244,7 +246,10 @@ export function History({ patients, patient }: { patients: Patient[]; patient: P
           </span>
         </div>
         <div className="view-toggle" role="radiogroup" aria-label="History view">
-          {(["timeline", "table", "changes"] as const).map((v) => (
+          {(app.can("change_history")
+            ? (["timeline", "table", "changes"] as const)
+            : (["timeline", "table"] as const)
+          ).map((v) => (
             <button
               key={v}
               role="radio"

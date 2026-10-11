@@ -21,6 +21,7 @@ import { Field } from "../../components/Field";
 import { ImagePickerButtons } from "../../components/ImagePickerButtons";
 import { InlineError } from "../../components/InlineError";
 import { LogoMark } from "../../components/LogoMark";
+import { PhoneLink } from "../../components/PhoneLink";
 import { Modal } from "../../components/Modal";
 import { EmptyArt } from "../../components/art/EmptyArt";
 
@@ -447,6 +448,7 @@ export function FamilyManagement({
                           {m.isMe && <span className="you-tag">You</span>}
                         </b>
                         <span>{m.email}</span>
+                        <PhoneLink phone={m.phone} />
                         <div className="member-tags">
                           {isAdmin && (
                             <span className="role-tag admin">

@@ -18,7 +18,9 @@ type CalendarProps = {
   onPause: (id: string, start: string, reason: string) => Promise<void>;
   onDose: (d: Dose, a: DoseAction) => Promise<void>;
   /** Opens the reschedule dialog for a dose. */
-  onReschedule: (d: Dose) => void;
+  onReschedule?: (d: Dose) => void;
+  canAct?: boolean;
+  readOnly?: boolean;
 };
 
 /**
@@ -33,6 +35,8 @@ export function Calendar({
   onPause,
   onDose,
   onReschedule,
+  canAct = true,
+  readOnly = false,
 }: CalendarProps) {
   const [pauseId, setPauseId] = useState("");
   const [pausing, setPausing] = useState(false);
@@ -139,6 +143,7 @@ export function Calendar({
                   date={selectedDate}
                   onDose={onDose}
                   onReschedule={onReschedule}
+                  canAct={canAct}
                 />
               ))}
             </DoseGroup>
@@ -154,39 +159,43 @@ export function Calendar({
         </div>
       )}
 
-      <div className="pause-panel card">
-        <div className="pause-panel-copy">
-          <span className="pause-panel-icon">
-            <PauseCircle size={20} aria-hidden="true" />
-          </span>
-          <div>
-            <b>Pause a medicine</b>
-            <p className="muted">
-              Stops doses from {selectedDate === today() ? "today" : dateLabel(selectedDate)} until
-              you resume it from Medicines.
-            </p>
+      {!readOnly && (
+        <div className="pause-panel card">
+          <div className="pause-panel-copy">
+            <span className="pause-panel-icon">
+              <PauseCircle size={20} aria-hidden="true" />
+            </span>
+            <div>
+              <b>Pause a medicine</b>
+              <p className="muted">
+                Stops doses from {selectedDate === today() ? "today" : dateLabel(selectedDate)}{" "}
+                until you resume it from Medicines.
+              </p>
+            </div>
+          </div>
+          <div className="pause-controls">
+            <select
+              className="input"
+              aria-label="Medicine to pause"
+              value={pauseId}
+              onChange={(e) => setPauseId(e.target.value)}
+              disabled={!pausable.length}
+            >
+              <option value="">
+                {pausable.length ? "Choose medicine" : "No active medicines"}
+              </option>
+              {pausable.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+            <button className="btn soft" disabled={!pauseId} onClick={pause}>
+              Pause…
+            </button>
           </div>
         </div>
-        <div className="pause-controls">
-          <select
-            className="input"
-            aria-label="Medicine to pause"
-            value={pauseId}
-            onChange={(e) => setPauseId(e.target.value)}
-            disabled={!pausable.length}
-          >
-            <option value="">{pausable.length ? "Choose medicine" : "No active medicines"}</option>
-            {pausable.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-          <button className="btn soft" disabled={!pauseId} onClick={pause}>
-            Pause…
-          </button>
-        </div>
-      </div>
+      )}
       {pausing && pauseTarget && (
         <PauseDialog
           medicine={pauseTarget}

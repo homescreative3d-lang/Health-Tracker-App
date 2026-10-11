@@ -6,6 +6,13 @@ export type User = {
   displayName: string;
   timeZoneId?: string;
   profileImageUrl?: string | null;
+  /** Phone in E.164 format (+countrycode…), may be empty. */
+  phone?: string;
+  /** Signed in as a patient linked to a caregiver's patient record (read-only portal). */
+  isLinkedPatient?: boolean;
+  linkedPatientIds?: string[];
+  /** The caregiver allows this linked patient to mark their own doses. */
+  canMarkOwnDoses?: boolean;
 };
 export type PatientAttachment = {
   name: string;
@@ -31,6 +38,16 @@ export type Patient = {
   userId?: string;
   ownerName?: string;
   ownerEmail?: string;
+  /** Optional email; a user signing in with it is linked as this patient (read-only). */
+  email?: string;
+  /** Linked patient may mark their own doses. */
+  canMarkOwnDoses?: boolean;
+  /** A user account is linked to this patient. */
+  isLinked?: boolean;
+  linkedUserName?: string | null;
+  /** This record is the signed-in user's own (they are the linked patient). */
+  isMyPatientProfile?: boolean;
+  ownerPhone?: string;
 };
 export type FamilyUser = {
   id: string;
@@ -47,6 +64,7 @@ export type FamilyUser = {
   isMe?: boolean;
   /** Search results: already in a family (can't be invited). */
   inFamily?: boolean;
+  phone?: string;
 };
 export type Family = {
   id: string;
@@ -213,6 +231,7 @@ export type PatientInput = {
   profileImageUrl?: string;
   doctorPhotoUrl?: string;
   attachments?: PatientAttachment[];
+  email?: string;
 };
 
 /** Kinds of medical history entries. */
@@ -274,3 +293,28 @@ export type PrescriptionDraft = {
   confidence: "high" | "medium" | "low";
   isPrescription: boolean;
 };
+
+/** A person on a patient's care team (owner + approved family). */
+export type CareTeamMember = {
+  id: string;
+  displayName: string;
+  email: string;
+  phone: string;
+  profileImageUrl?: string | null;
+  isPrimary: boolean;
+  familyRole?: "admin" | "member" | null;
+  canManage: boolean;
+};
+
+/** Feature keys (all on by default). */
+export type FeatureKey =
+  | "medical_history"
+  | "prescription_scan"
+  | "family_sharing"
+  | "rescheduling"
+  | "change_history"
+  | "push_notifications"
+  | "patient_portal"
+  | "attachments"
+  | "in_app_camera"
+  | "phone_calls";

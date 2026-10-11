@@ -4,6 +4,7 @@ import { api, enablePush, notificationPermission, type NotificationSettingsData 
 import { err } from "../../lib/errors";
 import { timeZones } from "../../constants/options";
 import { Field } from "../../components/Field";
+import { useCare } from "../../hooks/CareAppContext";
 
 const DEFAULTS: NotificationSettingsData = {
   timeZoneId: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata",
@@ -201,6 +202,7 @@ const vapidKey = (s: NotificationSettingsData) =>
  * shared one flag, so both buttons showed "Please wait…").
  */
 export function NotificationSettings() {
+  const app = useCare();
   const [s, setS] = useState<NotificationSettingsData>(DEFAULTS);
   const [loaded, setLoaded] = useState(false);
   const [msg, setMsg] = useState<{ text: string; error?: boolean } | null>(null);
@@ -383,7 +385,9 @@ export function NotificationSettings() {
         repeat={s.repeatMinutes}
         final={s.finalNotificationEnabled}
       />
-      <PushStatus settings={s} deviceSubscribed={deviceSubscribed} />
+      {app.can("push_notifications") && (
+        <PushStatus settings={s} deviceSubscribed={deviceSubscribed} />
+      )}
       <div className="settings-actions">
         <button
           className={saved ? "btn primary is-saved" : "btn primary"}

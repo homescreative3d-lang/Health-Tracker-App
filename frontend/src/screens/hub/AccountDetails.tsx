@@ -7,6 +7,7 @@ import { Field } from "../../components/Field";
 import { ImagePickerButtons } from "../../components/ImagePickerButtons";
 import { InlineError } from "../../components/InlineError";
 import { PageHeader } from "../../components/PageHeader";
+import { PhoneInput, phoneValid } from "../../components/PhoneInput";
 
 type AccountDetailsProps = {
   user: User;
@@ -19,9 +20,13 @@ type AccountDetailsProps = {
 export function AccountDetails({ user, onBack, onSave }: AccountDetailsProps) {
   const [displayName, setDisplayName] = useState(user.displayName);
   const [image, setImage] = useState(user.profileImageUrl || "");
+  const [phone, setPhone] = useState(user.phone || "");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const dirty = displayName !== user.displayName || image !== (user.profileImageUrl || "");
+  const dirty =
+    displayName !== user.displayName ||
+    image !== (user.profileImageUrl || "") ||
+    phone !== (user.phone || "");
 
   /** Validates and saves the profile. */
   const save = async () => {
@@ -32,7 +37,13 @@ export function AccountDetails({ user, onBack, onSave }: AccountDetailsProps) {
     }
     setBusy(true);
     try {
-      onSave(await api.updateProfile({ displayName: displayName.trim(), profileImageUrl: image }));
+      if (!phoneValid(phone)) {
+        setError("Enter your phone with a valid country code.");
+        return;
+      }
+      onSave(
+        await api.updateProfile({ displayName: displayName.trim(), profileImageUrl: image, phone }),
+      );
     } catch (e) {
       setError(err(e));
     } finally {
@@ -85,6 +96,7 @@ export function AccountDetails({ user, onBack, onSave }: AccountDetailsProps) {
             onRemove={image ? () => setImage("") : undefined}
           />
         </div>
+        <PhoneInput value={phone} onChange={setPhone} />
         <Field label="Email address">
           <input className="input" value={user.email} readOnly aria-readonly="true" />
           <small className="field-hint">Email can't be changed here.</small>

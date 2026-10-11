@@ -12,6 +12,7 @@ import { doseWindow } from "../../lib/doseWindow";
 import { useNow } from "../../hooks/useNow";
 import { EmptyArt } from "../../components/art/EmptyArt";
 import { Celebration } from "../../components/art/Celebration";
+import { CareTeamCard } from "../../components/CareTeamCard";
 import { SkeletonList } from "../../components/Skeleton";
 
 type TodayProps = {
@@ -25,7 +26,11 @@ type TodayProps = {
   date: string;
   onDose: (d: Dose, a: DoseAction) => Promise<void>;
   /** Opens the reschedule dialog for a dose. */
-  onReschedule: (d: Dose) => void;
+  onReschedule?: (d: Dose) => void;
+  /** Take/Skip/Undo allowed for this viewer. */
+  canAct?: boolean;
+  /** Linked patient (view-only): hides plan-editing controls and shows the care team. */
+  readOnly?: boolean;
   onAdd: () => void;
   onAddPatient: () => void;
   onPatientInfo: () => void;
@@ -52,6 +57,8 @@ export function Today({
   date,
   onDose,
   onReschedule,
+  canAct = true,
+  readOnly = false,
   onAdd,
   onAddPatient,
   onPatientInfo,
@@ -215,15 +222,18 @@ export function Today({
                       date={date}
                       onDose={onDose}
                       onReschedule={onReschedule}
+                      canAct={canAct}
                     />
                   ))}
                 </DoseGroup>
               ),
           )}
-          <button className="btn soft full add-btn" onClick={onAdd}>
-            <Plus size={18} aria-hidden="true" />
-            Add another medicine
-          </button>
+          {!readOnly && (
+            <button className="btn soft full add-btn" onClick={onAdd}>
+              <Plus size={18} aria-hidden="true" />
+              Add another medicine
+            </button>
+          )}
         </>
       )}
 
@@ -244,13 +254,16 @@ export function Today({
                 ? "Check the calendar for upcoming doses."
                 : "Add the first medicine and Tended will build the daily schedule."}
           </span>
-          <button className="btn primary" onClick={patient.id ? onAdd : onAddPatient}>
-            <Plus size={18} aria-hidden="true" />
-            {patient.id ? "Add medicine" : "Add patient"}
-          </button>
+          {!readOnly && (
+            <button className="btn primary" onClick={patient.id ? onAdd : onAddPatient}>
+              <Plus size={18} aria-hidden="true" />
+              {patient.id ? "Add medicine" : "Add patient"}
+            </button>
+          )}
         </div>
       )}
 
+      {readOnly && patient.id && <CareTeamCard patientId={patient.id} title="Your caregivers" />}
       <div className="tip-card">
         <HeartPulse aria-hidden="true" />
         <div>
