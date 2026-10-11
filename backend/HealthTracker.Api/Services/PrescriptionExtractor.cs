@@ -44,7 +44,7 @@ public interface IPrescriptionExtractor
 
 /// <summary>
 /// Google Gemini implementation (works with free or paid API keys). Configure <c>GEMINI_API_KEY</c>
-/// (or <c>Gemini:ApiKey</c>); optional <c>Gemini:Model</c> (default <c>gemini-2.5-flash</c>).
+/// (or <c>Gemini:ApiKey</c>); optional <c>Gemini:Model</c> (default <c>gemini-3.5-flash-lite</c>).
 /// The key is sent in the <c>x-goog-api-key</c> header (never in URLs/logs) and never reaches the browser.
 /// </summary>
 /// <param name="http">HTTP client from IHttpClientFactory.</param>
@@ -55,7 +55,7 @@ public sealed class GeminiPrescriptionExtractor(HttpClient http, IConfiguration 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
 
     private string? ApiKey => config["GEMINI_API_KEY"] ?? config["Gemini:ApiKey"];
-    private string Model => config["Gemini:Model"] ?? "gemini-2.5-flash";
+    private string Model => config["Gemini:Model"] ?? "gemini-3.5-flash-lite";
 
     /// <inheritdoc />
     public bool IsEnabled => !string.IsNullOrWhiteSpace(ApiKey);
@@ -145,6 +145,7 @@ public sealed class GeminiPrescriptionExtractor(HttpClient http, IConfiguration 
             {
                 HttpStatusCode.TooManyRequests => "The free scanning limit was reached for now. Please try again in a minute, or enter the details by hand.",
                 HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "The scanning service rejected the server's key. An admin needs to check the configuration.",
+                HttpStatusCode.NotFound => "The configured Gemini model isn't available for this API key. Check Gemini__Model in Render or use gemini-3.5-flash-lite.",
                 HttpStatusCode.BadRequest => "This file couldn't be read. Try a clearer, well-lit photo of the prescription.",
                 _ => "The scanning service had a problem. Please try again."
             });
