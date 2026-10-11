@@ -6,6 +6,7 @@ using HealthTracker.Api.Models;
 using HealthTracker.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace HealthTracker.Api.Controllers;
 
@@ -162,6 +163,10 @@ public class MedicineActionsController(AppDbContext db, IPatientAccessService ac
             RefillThreshold = old.RefillThreshold,
             IsRecurring = old.IsRecurring,
             DoseAmount = old.DoseAmount,
+            StockQuantity = old.StockQuantity,
+            StockUnit = old.StockUnit,
+            PrescribedBy = old.PrescribedBy,
+            LastRefillAt = old.LastRefillAt,
             PauseStartDate = old.PauseStartDate,
             PauseEndDate = old.PauseEndDate,
             RescheduledFromId = old.Id,
@@ -185,5 +190,65 @@ public class MedicineActionsController(AppDbContext db, IPatientAccessService ac
             replacement.DurationType, replacement.DurationValue, replacement.DurationUnit, replacement.SupplyCount, replacement.RefillThreshold,
             replacement.IsRecurring, replacement.PauseStartDate?.ToString("yyyy-MM-dd"), replacement.PauseEndDate?.ToString("yyyy-MM-dd"),
             null, old.Id, oldTimes, replacement.DoseAmount));
+    }
+
+    /// <summary>
+    /// Records a refill: adds stock in the medicine's unit (tablets, ml…) and keeps a permanent
+    /// trail entry (who, when, how much, pharmacy, note, stock after).
+    /// </summary>
+    /// <param name="id">Medicine id.</param>
+    /// <param name="request">Quantity (&gt; 0), optional date (not in the future), pharmacy and note.</param>
+    /// <response code="200">New stock level and the trail entry.</response>
+    /// <response code="400">Invalid quantity or date.</response>
+    /// <response code="403">No access.</response>
+    /// <response code="404">Medicine not found.</response>
+    [HttpPost("{id:guid}/refill")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Refill(Guid id, RefillRequest request)
+    {
+        var medicine = await db.Medicines.FindAsync(id);
+        if (medicine is null)
+            return NotFound();
+        if (!await access.CanAccessPatientAsync(CurrentUserId, medicine.PatientId))
+            return Forbid();
+        if (request.Quantity <= 0 || request.Quantity > 100000)
+            return BadRequestMessage("Enter how much you added (more than 0).");
+        var at = DateTimeOffset.UtcNow;
+        if (!string.IsNullOrWhiteSpace(request.Date))
+        {
+            if (!DateOnly.TryParse(request.Date, out var d) || d > DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1))
+                return BadRequestMessage("Choose a valid refill date (not in the future).");
+            at = new DateTimeOffset(d.ToDateTime(new TimeOnly(12, 0)), TimeSpan.Zero);
+        }
+
+        var (_, unit) = DoseQuantity.Parse(medicine.DoseAmount, medicine.Form);
+        medicine.StockUnit = unit;
+        medicine.StockQuantity += request.Quantity;
+        medicine.LastRefillAt = at;
+        StockPlanner.SyncDoses(medicine);
+        var actor = await db.Users.Where(u => u.Id == CurrentUserId).Select(u => u.DisplayName).FirstOrDefaultAsync() ?? "Someone";
+        var log = new RefillLog
+        {
+            MedicineId = medicine.Id,
+            PatientId = medicine.PatientId,
+            Kind = "refill",
+            Quantity = request.Quantity,
+            Unit = unit,
+            StockAfter = medicine.StockQuantity,
+            Pharmacy = (request.Pharmacy ?? "").Trim(),
+            Note = (request.Note ?? "").Trim(),
+            ActorUserId = CurrentUserId,
+            ActorName = actor,
+            At = at
+        };
+        db.RefillLogs.Add(log);
+        await audit.RecordAsync(CurrentUserId, "medicine", medicine.Id, "refilled",
+            $"{medicine.Name}: +{DoseQuantity.Format(request.Quantity, unit)} (now {DoseQuantity.Format(medicine.StockQuantity, unit)})",
+            medicine.PatientId, medicine.Id, request.Note, new { request.Quantity, unit, stockAfter = medicine.StockQuantity, request.Pharmacy });
+        await db.SaveChangesAsync();
+        return Ok(new { medicine.Id, medicine.StockQuantity, StockUnit = unit, DosesLeft = medicine.SupplyCount, Entry = new { log.Id, log.Kind, log.Quantity, log.Unit, log.StockAfter, log.Pharmacy, log.Note, log.ActorName, log.At } });
     }
 }

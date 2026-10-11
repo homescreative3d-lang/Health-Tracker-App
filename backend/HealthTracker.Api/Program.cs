@@ -37,6 +37,7 @@ await DatabaseInitializer.InitializeAsync(app.Services);
 // Push works without manual setup: load configured keys or generate and persist a pair once.
 await VapidKeyStore.InitializeAsync(app.Services);
 await IFeatureFlags.SeedAsync(app.Services);
+await FileLinks.InitializeAsync(app.Services);
 
 app.UseExceptionHandler();
 app.UseSwaggerDocumentation();

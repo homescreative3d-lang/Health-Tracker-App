@@ -73,7 +73,7 @@ public class GeminiExtractorTests
         var (x, _) = Make(HttpStatusCode.OK, "{}", key: null);
         Assert.False(x.IsEnabled);
         var e = await Assert.ThrowsAsync<InvalidOperationException>(() => x.ExtractAsync("image/png", "AAAA"));
-        Assert.Contains("Gemini API key", e.Message);
+        Assert.Contains("configure the AI service", e.Message);
     }
 
     [Fact]

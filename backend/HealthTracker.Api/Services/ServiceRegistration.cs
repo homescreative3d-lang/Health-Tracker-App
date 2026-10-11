@@ -28,11 +28,14 @@ public static class ServiceRegistration
         services.AddScoped<IAuditTrail, AuditTrail>();
         services.AddScoped<IFeatureFlags, FeatureFlags>();
         services.AddScoped<IPatientLinker, PatientLinker>();
+        services.AddScoped<IAiScanQuota, AiScanQuota>();
         services.AddScoped<ITokenService, TokenService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<ICareTeamNotifier, CareTeamNotifier>();
         services.AddScoped<IDoseService, DoseService>();
         services.AddScoped<IPushNotificationService, PushNotificationService>();
+        services.AddHttpContextAccessor();
+        services.AddSingleton<FileLinks>();
         services.AddSingleton<INeonObjectStorage, NeonObjectStorage>();
         services.AddSingleton<VapidKeyStore>();
         services.AddHttpClient<IPrescriptionExtractor, GeminiPrescriptionExtractor>(c => c.Timeout = TimeSpan.FromSeconds(60));
