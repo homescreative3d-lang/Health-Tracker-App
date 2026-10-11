@@ -26,6 +26,12 @@ public record RescheduleRequest(string Date, string? Time = null, string? Reason
 public record RescheduleMedicineRequest(string EffectiveDate, List<string> Times);
 /// <summary>Name for a new family.</summary>
 public record FamilyCreateRequest(string Name);
+/// <summary>New family name and picture (data URL to upload, existing value to keep, empty to remove).</summary>
+public record FamilyUpdateRequest(string Name, string? PhotoUrl);
+
+/// <summary>Whether a member may add/remove members and edit the family.</summary>
+public record FamilyPermissionRequest(bool CanManageMembers);
+
 /// <summary>User to invite to the family.</summary>
 public record FamilyInviteRequest(Guid UserId);
 /// <summary>Answer to a family invitation.</summary>

@@ -124,6 +124,19 @@ Then:
 - Use `@capacitor/push-notifications` (FCM), because Web Push isn't available in Android WebViews.
 - Add the app's origin (`capacitor://localhost` / `https://localhost`) to the API CORS policy.
 
+## Push notifications setup
+
+Notifications always appear in the in-app bell. To also deliver them as browser or phone alerts, the API needs VAPID keys.
+
+1. **Generate keys** once with `npx web-push generate-vapid-keys`.
+2. **Set three environment variables on the API** (for example, Render → Environment), then redeploy:
+   - `WebPush__PublicKey`
+   - `WebPush__PrivateKey` (keep it secret)
+   - `WebPush__Subject` (for example, `mailto:you@yourdomain.com`)
+3. **Enable each device.** In the app, go to Profile → Notifications, press **Enable alerts on this device**, then **Send test**.
+
+The settings screen shows a live checklist covering the server keys, browser permission, this device's subscription and how many devices are subscribed. When a test fails, it states the exact reason. The most common one, a device subscribed with older keys, is repaired automatically: the stale subscription is removed and the browser re-subscribes.
+
 ## Notification scheduler switch
 
 The `NotificationRuntimeConfig` table has one controlling row:
