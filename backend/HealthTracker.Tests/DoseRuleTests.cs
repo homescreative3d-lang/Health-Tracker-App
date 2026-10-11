@@ -32,7 +32,9 @@ public class DoseRuleTests
             Condition = "Hypertension",
             TimesJson = $"[\"{time}\"]",
             StartDate = date,
-            SupplyCount = supply
+            SupplyCount = supply,
+            StockQuantity = supply,
+            DoseAmount = "1 tablet"
         };
         var d = new DoseEvent
         {
@@ -66,7 +68,7 @@ public class DoseRuleTests
         var x = Setup(date, time);
         var d = await x.Svc.Take(x.User, x.DoseId);
         Assert.Equal("taken", d.Status);
-        Assert.Equal(4, await x.Db.Medicines.Select(m => m.SupplyCount).SingleAsync());
+        Assert.Equal(4m, await x.Db.Medicines.Select(m => m.StockQuantity).SingleAsync());
     }
 
     [Fact]
@@ -138,7 +140,7 @@ public class DoseRuleTests
         await x.Svc.Take(x.User, x.DoseId);
         var undone = await x.Svc.Undo(x.User, x.DoseId);
         Assert.Equal("pending", undone.Status);
-        Assert.Equal(5, await x.Db.Medicines.Select(m => m.SupplyCount).SingleAsync());
+        Assert.Equal(5m, await x.Db.Medicines.Select(m => m.StockQuantity).SingleAsync());
     }
 
     [Fact]
