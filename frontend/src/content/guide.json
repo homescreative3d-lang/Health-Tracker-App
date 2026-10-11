@@ -1,0 +1,147 @@
+{
+  "title": "How to use Tended",
+  "intro": "Tended keeps medicine schedules, reminders and a shared record in one place for patients and the people who care for them. This guide walks through every part of the app.",
+  "sections": [
+    {
+      "id": "start",
+      "icon": "rocket",
+      "title": "Getting started",
+      "steps": [
+        "Open Tended and choose Sign up (or Log in if you already have an account) from the top bar.",
+        "Enter your name, email and a password of at least 8 characters. Adding a mobile number with its country code is optional.",
+        "Choose who you are setting up the plan for: someone you care for, or yourself.",
+        "If you closed your account before, signing up again with the same email reopens it."
+      ]
+    },
+    {
+      "id": "patients",
+      "icon": "user",
+      "title": "Adding a patient",
+      "steps": [
+        "Go to Profile and press Add patient (or Add my profile for your own medicines).",
+        "Enter the name, relationship, date of birth, conditions, doctor and notes. Photos can be taken with the in-app camera.",
+        "Add the patient's mobile number with its country code; it becomes a tap-to-call link.",
+        "Optionally add the patient's email. When they sign in with that email they get a read-only view of their own plan."
+      ]
+    },
+    {
+      "id": "medicines",
+      "icon": "pill",
+      "title": "Adding a medicine",
+      "steps": [
+        "Open Medicines and press Add medicine.",
+        "Enter the name and strength, choose the form (pill, syrup, drops, inhaler, injection, powder) and what it is for. Choose Other to type a condition that isn't listed.",
+        "Choose how much to take per dose: tablet fractions like ½ or ¼, millilitres for syrup, drops, puffs or units. This is required.",
+        "Pick how often and the start date, then add each dose time with the hour, minute and AM/PM. There is no default time; times that already passed today are not allowed (use Start from tomorrow).",
+        "Enter how many doses you have and when to be reminded to refill, then save."
+      ]
+    },
+    {
+      "id": "today",
+      "icon": "sun",
+      "title": "Taking doses on the Today screen",
+      "steps": [
+        "Doses are grouped into Morning, Afternoon, Evening and Night, like a pill organizer.",
+        "A dose that is due right now has a glowing border. Press Take or Skip; each dose can be marked from its time until one hour after.",
+        "Made a mistake? Press Undo while the dose is still open.",
+        "Taken, skipped and missed doses are counted separately in the progress ring and bar. Each dose shows who recorded it."
+      ]
+    },
+    {
+      "id": "reschedule",
+      "icon": "calendar-clock",
+      "title": "Rescheduling",
+      "steps": [
+        "Press Reschedule on a dose (or on a medicine card).",
+        "Choose Just this dose to move one dose to a new date and time, or Whole schedule to change the medicine's times from a date onwards.",
+        "Enter a reason; it is required and saved in the change history.",
+        "The moved dose shows a Rescheduled badge and Changed history; everyone caring for the patient is notified."
+      ]
+    },
+    {
+      "id": "pause",
+      "icon": "pause",
+      "title": "Pausing and resuming",
+      "steps": [
+        "Press the pause button on a medicine card, or use Pause a medicine in Calendar.",
+        "Choose a reason (for example Doctor advised or Side effects), then confirm a second time.",
+        "Paused medicines show a Paused badge. Press Resume on the card to start again."
+      ]
+    },
+    {
+      "id": "history",
+      "icon": "history",
+      "title": "History and change log",
+      "steps": [
+        "History shows every dose with its patient, time, outcome and who recorded it, as a timeline or a table.",
+        "Filter by patient, medicine, dates or time of day.",
+        "The Changes view lists every change (reschedules, pauses, edits, undo) with who made it, when and why.",
+        "Rescheduled medicines have a Change history button covering all their versions."
+      ]
+    },
+    {
+      "id": "medical",
+      "icon": "activity",
+      "title": "Medical history and prescription scanning",
+      "steps": [
+        "Open a patient and choose Medical history to see diagnoses, prescriptions, procedures, allergies and results on a timeline.",
+        "Press Scan prescription, take a photo or upload an image or PDF, and AI reads the date, doctor, diagnosis and medicines.",
+        "AI can make mistakes, especially with handwriting. Always check every field against the original before saving; nothing is saved until you confirm.",
+        "You can also add, edit or delete entries by hand and view the original document."
+      ]
+    },
+    {
+      "id": "attachments",
+      "icon": "paperclip",
+      "title": "Attachments and photos",
+      "steps": [
+        "Add prescriptions, reports and photos to a patient (JPEG, PNG, HEIC, PDF or Excel, up to 10 MB).",
+        "Press any attachment to preview it: zoom images, read PDFs and view Excel sheets as tables.",
+        "The Camera button asks for permission, shows a live preview and lets you retake before using a photo."
+      ]
+    },
+    {
+      "id": "family",
+      "icon": "users",
+      "title": "Family sharing",
+      "steps": [
+        "Create a family in Profile, then Family. You become its admin. A person can belong to one family only.",
+        "Invite people by their exact email address. They see the family's patients only after accepting.",
+        "Invitations can be accepted or declined from the bell or the Family page; the inviter and the admin are told the answer.",
+        "The admin can let members add and remove people, hand over the admin role, remove members and edit the family name and picture."
+      ]
+    },
+    {
+      "id": "portal",
+      "icon": "eye",
+      "title": "Patient view (linked accounts)",
+      "steps": [
+        "If a patient record has your email, signing in shows that plan in view-only mode: medicines, history, schedule and your caregivers' contact details.",
+        "Your caregiver can allow you to mark your own doses as taken or skipped.",
+        "Full access returns when your caregiver removes your email from the patient record."
+      ]
+    },
+    {
+      "id": "notifications",
+      "icon": "bell",
+      "title": "Reminders and notifications",
+      "steps": [
+        "Every notification appears in the bell. Invitations can be answered there directly.",
+        "In Profile, then Notifications, choose when the first reminder arrives and how often it repeats (never longer than the first reminder).",
+        "Press Enable alerts on this device, then Send test. The checklist shows exactly what is missing if alerts don't arrive.",
+        "On iPhone or iPad, first use Share, then Add to Home Screen, and open Tended from there."
+      ]
+    },
+    {
+      "id": "account",
+      "icon": "settings",
+      "title": "Your account",
+      "steps": [
+        "Edit your name, photo and phone number in Profile, then Edit details.",
+        "Close account signs you out everywhere and moves care plans to another caregiver when possible. Signing up again with the same email reopens it.",
+        "System admins can switch features on or off for everyone or for one user from Profile, then Feature flags."
+      ]
+    }
+  ],
+  "disclaimer": "Tended helps organize medicine routines. It does not provide medical advice, diagnosis or treatment. Always follow your doctor's or pharmacist's instructions."
+}

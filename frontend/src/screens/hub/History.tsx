@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Clock3, ListTree, Table2 } from "lucide-react";
+import { Clock3, History as HistoryIcon, ListTree, Table2 } from "lucide-react";
+import { useCare } from "../../hooks/CareAppContext";
 import { api, type HistoryRow, type Patient } from "../../api";
 import { dateLabel, fmtTime, part } from "../../lib/dates";
 import { err } from "../../lib/errors";
@@ -75,6 +76,7 @@ function HistoryTimeline({ rows }: { rows: HistoryRow[] }) {
  * The table collapses into stacked cards on phones.
  */
 export function History({ patients, patient }: { patients: Patient[]; patient: Patient }) {
+  const app = useCare();
   const [rows, setRows] = useState<HistoryRow[]>([]),
     [selected, setSelected] = useState<string[]>(patient.id ? [patient.id] : []),
     [medicine, setMedicine] = useState(""),
@@ -86,6 +88,7 @@ export function History({ patients, patient }: { patients: Patient[]; patient: P
   }, [patient.id]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"timeline" | "table">("timeline");
+
   const counts = {
     taken: rows.filter((r) => r.status === "taken").length,
     skipped: rows.filter((r) => r.status === "skipped").length,
@@ -231,10 +234,12 @@ export function History({ patients, patient }: { patients: Patient[]; patient: P
             >
               {v === "timeline" ? (
                 <ListTree size={16} aria-hidden="true" />
-              ) : (
+              ) : v === "table" ? (
                 <Table2 size={16} aria-hidden="true" />
+              ) : (
+                <HistoryIcon size={16} aria-hidden="true" />
               )}
-              {v === "timeline" ? "Timeline" : "Table"}
+              {v === "timeline" ? "Timeline" : v === "table" ? "Table" : "Changes"}
             </button>
           ))}
         </div>

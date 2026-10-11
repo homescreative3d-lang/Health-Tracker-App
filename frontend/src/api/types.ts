@@ -6,6 +6,13 @@ export type User = {
   displayName: string;
   timeZoneId?: string;
   profileImageUrl?: string | null;
+  /** Phone in E.164 format (+countrycode…), may be empty. */
+  phone?: string;
+  /** Signed in as a patient linked to a caregiver's patient record (read-only portal). */
+  isLinkedPatient?: boolean;
+  linkedPatientIds?: string[];
+  /** The caregiver allows this linked patient to mark their own doses. */
+  canMarkOwnDoses?: boolean;
 };
 export type PatientAttachment = {
   name: string;
@@ -31,6 +38,16 @@ export type Patient = {
   userId?: string;
   ownerName?: string;
   ownerEmail?: string;
+  /** Optional email; a user signing in with it is linked as this patient (read-only). */
+  email?: string;
+  /** Linked patient may mark their own doses. */
+  canMarkOwnDoses?: boolean;
+  /** A user account is linked to this patient. */
+  isLinked?: boolean;
+  linkedUserName?: string | null;
+  /** This record is the signed-in user's own (they are the linked patient). */
+  isMyPatientProfile?: boolean;
+  ownerPhone?: string;
 };
 export type FamilyUser = {
   id: string;
@@ -47,6 +64,7 @@ export type FamilyUser = {
   isMe?: boolean;
   /** Search results: already in a family (can't be invited). */
   inFamily?: boolean;
+  phone?: string;
 };
 export type Family = {
   id: string;
@@ -108,6 +126,73 @@ export type Medicine = {
   rescheduledFromId?: string | null;
   /** Dose times before the reschedule (for "was 8:00 AM"). */
   previousTimes?: string[] | null;
+  /** How much to take per dose, e.g. "½ tablet", "5 ml" (required for new medicines). */
+  doseAmount?: string;
+  /** Stock on hand in `stockUnit` (tablets, ml…). */
+  stockQuantity?: number;
+  stockUnit?: string;
+  /** Quantity taken per dose (e.g. 0.5). */
+  perDose?: number;
+  /** Days until stock runs out (null = beyond the horizon/course). */
+  daysLeft?: number | null;
+  runOutDate?: string | null;
+  /** out | critical | low | ok */
+  stockStatus?: "out" | "critical" | "low" | "ok";
+  prescribedBy?: string;
+  lastRefillAt?: string | null;
+};
+
+/** One entry in a medicine's stock trail. */
+export type RefillEntry = {
+  id: string;
+  kind: "initial" | "opening" | "refill" | "adjustment";
+  quantity: number;
+  unit: string;
+  stockAfter: number;
+  pharmacy: string;
+  note: string;
+  actorName: string;
+  at: string;
+};
+
+/** One row of the stock planner report. */
+export type StockPlanRow = {
+  medicineId: string;
+  name: string;
+  strength: string;
+  form: string;
+  condition: string;
+  prescribedBy: string;
+  doseAmount: string;
+  times: string[];
+  frequency: string;
+  perDose: number;
+  unit: string;
+  dosesPerDay: number;
+  quantityPerDay: number;
+  stockQuantity: number;
+  dosesLeft: number;
+  daysLeft: number | null;
+  runOutDate: string | null;
+  quantityNeeded: number;
+  quantityToBuy: number;
+  status: "out" | "critical" | "low" | "ok";
+  insufficient: boolean;
+  paused: boolean;
+  courseEnds: string | null;
+  lastRefillAt: string | null;
+  refillThreshold: number;
+};
+
+/** Stock planner report. */
+export type StockPlan = {
+  patientId: string;
+  patientName: string;
+  doctor: string;
+  days: number;
+  today: string;
+  generatedAt: string;
+  rows: StockPlanRow[];
 };
 export type Dose = {
   id: string;
@@ -135,6 +220,26 @@ export type Dose = {
   rescheduledFromTime?: string | null;
   /** Calendar date of this dose (`YYYY-MM-DD`). */
   date?: string | null;
+  /** Change history (audit) for this dose and the dose it was moved from. */
+  history?: AuditEntry[] | null;
+  /** How much to take, e.g. "½ tablet". */
+  doseAmount?: string;
+  /** Future dose computed on the fly (not stored until acted on). */
+  isVirtual?: boolean;
+};
+
+/** One audit-trail entry: who did what, when and why. */
+export type AuditEntry = {
+  id: string;
+  entityType: "dose" | "medicine";
+  entityId: string;
+  medicineId?: string | null;
+  patientId?: string | null;
+  action: string;
+  actorName: string;
+  reason: string;
+  summary: string;
+  at: string;
 };
 export type HistoryRow = {
   id: string;
@@ -193,6 +298,7 @@ export type PatientInput = {
   profileImageUrl?: string;
   doctorPhotoUrl?: string;
   attachments?: PatientAttachment[];
+  email?: string;
 };
 
 /** Kinds of medical history entries. */
@@ -254,3 +360,28 @@ export type PrescriptionDraft = {
   confidence: "high" | "medium" | "low";
   isPrescription: boolean;
 };
+
+/** A person on a patient's care team (owner + approved family). */
+export type CareTeamMember = {
+  id: string;
+  displayName: string;
+  email: string;
+  phone: string;
+  profileImageUrl?: string | null;
+  isPrimary: boolean;
+  familyRole?: "admin" | "member" | null;
+  canManage: boolean;
+};
+
+/** Feature keys (all on by default). */
+export type FeatureKey =
+  | "medical_history"
+  | "prescription_scan"
+  | "family_sharing"
+  | "rescheduling"
+  | "change_history"
+  | "push_notifications"
+  | "patient_portal"
+  | "attachments"
+  | "in_app_camera"
+  | "phone_calls";

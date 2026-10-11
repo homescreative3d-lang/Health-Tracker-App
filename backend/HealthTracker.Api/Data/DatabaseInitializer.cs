@@ -21,6 +21,7 @@ public static class DatabaseInitializer
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await EnsureSchemaAsync(db);
+        await BackfillStockAsync(db);
         await MigrateNotificationRuntimeConfigAsync(db);
     }
 
@@ -60,6 +61,7 @@ public static class DatabaseInitializer
                     await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Medicines\" ADD COLUMN IF NOT EXISTS \"EndedOn\" date;");
                     await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Medicines\" ADD COLUMN IF NOT EXISTS \"RescheduledFromId\" uuid;");
                     await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Medicines\" ADD COLUMN IF NOT EXISTS \"PreviousTimesJson\" text;");
+                    await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Medicines\" ADD COLUMN IF NOT EXISTS \"DoseAmount\" text NOT NULL DEFAULT '';");
 
                     // Family roles, permissions and picture. Existing family creators become admins.
                     await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FamilyMembers\" ADD COLUMN IF NOT EXISTS \"Role\" text NOT NULL DEFAULT 'member';");
@@ -90,6 +92,73 @@ public static class DatabaseInitializer
                             "CreatedAt" timestamp with time zone NOT NULL,
                             "UpdatedAt" timestamp with time zone NOT NULL);
                         CREATE INDEX IF NOT EXISTS "IX_MedicalRecords_PatientId" ON "MedicalRecords" ("PatientId");
+                        CREATE TABLE IF NOT EXISTS "AuditLogs" (
+                            "Id" uuid NOT NULL CONSTRAINT "PK_AuditLogs" PRIMARY KEY,
+                            "PatientId" uuid NULL,
+                            "EntityType" text NOT NULL,
+                            "EntityId" uuid NOT NULL,
+                            "MedicineId" uuid NULL,
+                            "Action" text NOT NULL,
+                            "ActorUserId" uuid NOT NULL,
+                            "ActorName" text NOT NULL,
+                            "Reason" text NOT NULL,
+                            "Summary" text NOT NULL,
+                            "DetailsJson" text NOT NULL,
+                            "At" timestamp with time zone NOT NULL);
+                        CREATE INDEX IF NOT EXISTS "IX_AuditLogs_PatientId_At" ON "AuditLogs" ("PatientId", "At");
+                        CREATE INDEX IF NOT EXISTS "IX_AuditLogs_MedicineId" ON "AuditLogs" ("MedicineId");
+                        CREATE TABLE IF NOT EXISTS "FeatureFlags" (
+                            "Key" text NOT NULL CONSTRAINT "PK_FeatureFlags" PRIMARY KEY,
+                            "Enabled" boolean NOT NULL,
+                            "Description" text NOT NULL,
+                            "UpdatedAt" timestamp with time zone NOT NULL);
+                        CREATE TABLE IF NOT EXISTS "UserFeatureOverrides" (
+                            "UserId" uuid NOT NULL,
+                            "Key" text NOT NULL,
+                            "Enabled" boolean NOT NULL,
+                            "UpdatedAt" timestamp with time zone NOT NULL,
+                            CONSTRAINT "PK_UserFeatureOverrides" PRIMARY KEY ("UserId", "Key"));
+                        ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "Phone" text NOT NULL DEFAULT '';
+                        ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "IsDeleted" boolean NOT NULL DEFAULT false;
+                        ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "DeletedAt" timestamp with time zone NULL;
+                        ALTER TABLE "Patients" ADD COLUMN IF NOT EXISTS "Email" text NOT NULL DEFAULT '';
+                        ALTER TABLE "Patients" ADD COLUMN IF NOT EXISTS "LinkedUserId" uuid NULL;
+                        ALTER TABLE "Patients" ADD COLUMN IF NOT EXISTS "CanMarkOwnDoses" boolean NOT NULL DEFAULT false;
+                        CREATE INDEX IF NOT EXISTS "IX_Patients_LinkedUserId" ON "Patients" ("LinkedUserId");
+                        ALTER TABLE "Medicines" ADD COLUMN IF NOT EXISTS "StockQuantity" numeric(12,3) NOT NULL DEFAULT 0;
+                        ALTER TABLE "Medicines" ADD COLUMN IF NOT EXISTS "StockUnit" text NOT NULL DEFAULT '';
+                        ALTER TABLE "Medicines" ADD COLUMN IF NOT EXISTS "PrescribedBy" text NOT NULL DEFAULT '';
+                        ALTER TABLE "Medicines" ADD COLUMN IF NOT EXISTS "LastRefillAt" timestamp with time zone NULL;
+                        ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "AiScanDailyLimit" integer NULL;
+                        CREATE TABLE IF NOT EXISTS "RefillLogs" (
+                            "Id" uuid NOT NULL CONSTRAINT "PK_RefillLogs" PRIMARY KEY,
+                            "MedicineId" uuid NOT NULL,
+                            "PatientId" uuid NOT NULL,
+                            "Kind" text NOT NULL,
+                            "Quantity" numeric(12,3) NOT NULL,
+                            "Unit" text NOT NULL,
+                            "StockAfter" numeric(12,3) NOT NULL,
+                            "Pharmacy" text NOT NULL,
+                            "Note" text NOT NULL,
+                            "ActorUserId" uuid NOT NULL,
+                            "ActorName" text NOT NULL,
+                            "At" timestamp with time zone NOT NULL);
+                        CREATE INDEX IF NOT EXISTS "IX_RefillLogs_MedicineId" ON "RefillLogs" ("MedicineId");
+                        CREATE TABLE IF NOT EXISTS "AiScanLogs" (
+                            "Id" uuid NOT NULL CONSTRAINT "PK_AiScanLogs" PRIMARY KEY,
+                            "UserId" uuid NOT NULL,
+                            "At" timestamp with time zone NOT NULL,
+                            "Succeeded" boolean NOT NULL);
+                        CREATE INDEX IF NOT EXISTS "IX_AiScanLogs_UserId_At" ON "AiScanLogs" ("UserId", "At");
+                        INSERT INTO "ServerSettings" ("Key", "Value", "UpdatedAt") VALUES ('ai.scanDailyLimit', '5', now()) ON CONFLICT ("Key") DO NOTHING;
+                        -- Future dose rows created only because someone viewed a future day: never actioned, safe to drop
+                        -- (future doses are now computed on the fly). Moved doses and anything actioned are kept.
+                        DELETE FROM "DoseEvents" d
+                         WHERE d."Date" > current_date
+                           AND d."Status" = 'pending'
+                           AND d."RescheduledFromId" IS NULL
+                           AND d."ActionedByUserId" IS NULL
+                           AND NOT EXISTS (SELECT 1 FROM "DoseEvents" o WHERE o."RescheduledFromId" = d."Id");
                         """);
                 }
             }
@@ -158,5 +227,38 @@ public static class DatabaseInitializer
             )
             ON CONFLICT ("Id") DO NOTHING;
             """);
+    }
+
+    /// <summary>
+    /// One-time conversion of dose-count supply into quantity stock (e.g. 30 doses of ½ tablet =
+    /// 15 tablets) and an "opening stock" refill entry so every medicine has a fill trail.
+    /// Only touches medicines whose stock unit hasn't been set yet, so it is safe to run every start.
+    /// </summary>
+    /// <param name="db">Database context.</param>
+    private static async Task BackfillStockAsync(AppDbContext db)
+    {
+        var pending = await db.Medicines.Where(m => m.StockUnit == "").ToListAsync();
+        foreach (var m in pending)
+        {
+            var (perDose, unit) = Domain.DoseQuantity.Parse(m.DoseAmount, m.Form);
+            m.StockUnit = unit;
+            m.StockQuantity = m.SupplyCount * perDose;
+            if (!await db.RefillLogs.AnyAsync(r => r.MedicineId == m.Id))
+                db.RefillLogs.Add(new Models.RefillLog
+                {
+                    MedicineId = m.Id,
+                    PatientId = m.PatientId,
+                    Kind = "opening",
+                    Quantity = m.StockQuantity,
+                    Unit = unit,
+                    StockAfter = m.StockQuantity,
+                    Note = "Stock on hand when refill tracking started",
+                    ActorName = "System",
+                    At = new DateTimeOffset(m.StartDate.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero)
+                });
+        }
+
+        if (pending.Count > 0)
+            await db.SaveChangesAsync();
     }
 }

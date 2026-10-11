@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Camera, FileImage, Trash2 } from "lucide-react";
 import { CameraCapture } from "./CameraCapture";
+import { useCare } from "../hooks/CareAppContext";
 import { IMAGE_ACCEPT, readImageFile } from "../lib/files";
 import { err } from "../lib/errors";
 
@@ -26,6 +27,7 @@ export function ImagePickerButtons({
   onRemove,
   label = "photo",
 }: ImagePickerButtonsProps) {
+  const app = useCare();
   const [camera, setCamera] = useState(false);
   const deviceCamera = useRef<HTMLInputElement>(null);
 
@@ -53,7 +55,11 @@ export function ImagePickerButtons({
           onChange={(e) => void handle(e.currentTarget)}
         />
       </label>
-      <button type="button" className="btn soft upload-btn" onClick={() => setCamera(true)}>
+      <button
+        type="button"
+        className="btn soft upload-btn"
+        onClick={() => (app.can("in_app_camera") ? setCamera(true) : deviceCamera.current?.click())}
+      >
         <Camera size={16} aria-hidden="true" />
         Camera
       </button>

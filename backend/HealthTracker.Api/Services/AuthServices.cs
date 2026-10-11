@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text;
 using HealthTracker.Api.Contracts;
 using HealthTracker.Api.Data;
+using HealthTracker.Api.Domain;
 using HealthTracker.Api.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -61,33 +62,66 @@ public interface IAuthService
     /// <param name="r">Credentials.</param>
     /// <exception cref="UnauthorizedAccessException">Email or password is wrong.</exception>
     Task<AuthResponse> Login(LoginRequest r);
+
+    /// <summary>
+    /// Builds the public user shape, including patient-portal status (linked patient ids and
+    /// whether the user may mark their own doses).
+    /// </summary>
+    Task<UserResponse> ToResponse(AppUser u);
 }
 
 /// <summary>
 /// EF Core implementation of <see cref="IAuthService"/> using ASP.NET Core Identity password hashing.
 /// </summary>
-public class AuthService(AppDbContext db, IPasswordHasher<AppUser> h, ITokenService t, INeonObjectStorage storage) : IAuthService
+public class AuthService(AppDbContext db, IPasswordHasher<AppUser> h, ITokenService t, INeonObjectStorage storage, IPatientLinker linker) : IAuthService
 {
     /// <inheritdoc />
     public async Task<AuthResponse> Register(RegisterRequest r)
     {
         var email = r.Email.Trim().ToLowerInvariant();
-        if (await db.Users.AnyAsync(x => x.Email == email))
-            throw new InvalidOperationException("An account with this email already exists.");
         if (r.Password.Length < 8)
             throw new InvalidOperationException("Password must be at least 8 characters.");
         if (r.DisplayName.Trim().Length < 2)
             throw new InvalidOperationException("Name is required.");
-        var u = new AppUser
+        string phone;
+        try
         {
-            Email = email,
-            DisplayName = r.DisplayName.Trim()
-        };
-        u.PasswordHash = h.HashPassword(u, r.Password);
-        db.Users.Add(u);
-        db.Patients.Add(new Patient { UserId = u.Id });
+            phone = PhoneNumber.Normalize(r.Phone);
+        }
+        catch (ArgumentException e)
+        {
+            throw new InvalidOperationException(e.Message);
+        }
+
+        var existing = await db.Users.SingleOrDefaultAsync(x => x.Email == email);
+        AppUser u;
+        if (existing is { IsDeleted: true })
+        {
+            // Soft-deleted account: signing up again with the same email reactivates it.
+            u = existing;
+            u.IsDeleted = false;
+            u.DeletedAt = null;
+            u.DisplayName = r.DisplayName.Trim();
+            u.Phone = phone;
+            u.PasswordHash = h.HashPassword(u, r.Password);
+            if (!await db.Patients.AnyAsync(p => p.UserId == u.Id))
+                db.Patients.Add(new Patient { UserId = u.Id });
+        }
+        else if (existing is not null)
+        {
+            throw new InvalidOperationException("An account with this email already exists.");
+        }
+        else
+        {
+            u = new AppUser { Email = email, DisplayName = r.DisplayName.Trim(), Phone = phone };
+            u.PasswordHash = h.HashPassword(u, r.Password);
+            db.Users.Add(u);
+            db.Patients.Add(new Patient { UserId = u.Id });
+        }
+
         await db.SaveChangesAsync();
-        return new(new(u.Id, u.Email, u.DisplayName, u.TimeZoneId, string.IsNullOrWhiteSpace(u.ProfileImageUrl) ? null : storage.GetReadUrl("users", u.ProfileImageUrl)), t.Create(u));
+        await linker.LinkByEmailAsync(u);
+        return new(await ToResponse(u), t.Create(u));
     }
 
     /// <inheritdoc />
@@ -95,8 +129,18 @@ public class AuthService(AppDbContext db, IPasswordHasher<AppUser> h, ITokenServ
     {
         var email = r.Email.Trim().ToLowerInvariant();
         var u = await db.Users.SingleOrDefaultAsync(x => x.Email == email);
-        if (u is null || h.VerifyHashedPassword(u, u.PasswordHash, r.Password) != PasswordVerificationResult.Success)
+        if (u is null || u.IsDeleted || h.VerifyHashedPassword(u, u.PasswordHash, r.Password) != PasswordVerificationResult.Success)
             throw new UnauthorizedAccessException("Invalid email or password.");
-        return new(new(u.Id, u.Email, u.DisplayName, u.TimeZoneId, string.IsNullOrWhiteSpace(u.ProfileImageUrl) ? null : storage.GetReadUrl("users", u.ProfileImageUrl)), t.Create(u));
+        await linker.LinkByEmailAsync(u);
+        return new(await ToResponse(u), t.Create(u));
+    }
+
+    /// <inheritdoc />
+    public async Task<UserResponse> ToResponse(AppUser u)
+    {
+        var linked = await db.Patients.Where(p => p.LinkedUserId == u.Id).Select(p => new { p.Id, p.CanMarkOwnDoses }).ToListAsync();
+        return new UserResponse(u.Id, u.Email, u.DisplayName, u.TimeZoneId,
+            string.IsNullOrWhiteSpace(u.ProfileImageUrl) ? null : storage.GetReadUrl("users", u.ProfileImageUrl),
+            u.Phone, linked.Count > 0, linked.Select(x => x.Id).ToList(), linked.Any(x => x.CanMarkOwnDoses));
     }
 }

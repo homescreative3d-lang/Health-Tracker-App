@@ -17,6 +17,7 @@ import {
   Trash2,
   Upload,
   X,
+  Pill as PillIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -32,6 +33,9 @@ import { err } from "../../lib/errors";
 import { readAsDataUrl, detectMime } from "../../lib/files";
 import { AttachmentPreview } from "../../components/AttachmentPreview";
 import { CameraCapture } from "../../components/CameraCapture";
+import { confirmAction } from "../../components/ConfirmHost";
+import { prescriptionDrafts } from "../../lib/prescriptionImport";
+import { useCare } from "../../hooks/CareAppContext";
 import { Field } from "../../components/Field";
 import { InlineError } from "../../components/InlineError";
 import { Modal } from "../../components/Modal";
@@ -94,6 +98,8 @@ function draftToRecord(d: PrescriptionDraft): MedicalRecordInput {
 type MedicalTimelineProps = {
   patientId: string;
   patientName: string;
+  /** Linked patient (view-only): hides add/scan/edit/delete. */
+  readOnly?: boolean;
   /** Conditions and free-text history from the patient profile (shown as undated notes). */
   legacyNotes: { text: string; kind: "condition" | "note" }[];
 };
@@ -102,7 +108,13 @@ type MedicalTimelineProps = {
  * Medical history as an animated timeline grouped by year, with filters, manual entries and
  * prescription scanning. Scans return an editable draft; nothing is saved until confirmed.
  */
-export function MedicalTimeline({ patientId, patientName, legacyNotes }: MedicalTimelineProps) {
+export function MedicalTimeline({
+  patientId,
+  patientName,
+  legacyNotes,
+  readOnly = false,
+}: MedicalTimelineProps) {
+  const app = useCare();
   const [records, setRecords] = useState<MedicalRecord[] | null>(null);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<MedicalRecordType | "all">("all");
@@ -118,7 +130,8 @@ export function MedicalTimeline({ patientId, patientName, legacyNotes }: Medical
   /** Loads the patient's records. */
   const load = async () => {
     try {
-      setRecords(await api.getMedicalRecords(patientId));
+      const rows = await api.getMedicalRecords(patientId);
+      setRecords(Array.isArray(rows) ? rows : []);
       setError("");
     } catch (e) {
       setError(err(e));
@@ -144,17 +157,39 @@ export function MedicalTimeline({ patientId, patientName, legacyNotes }: Medical
   }, [visible]);
   const presentTypes = [...new Set((records || []).map((r) => r.type))];
 
-  /** Called after save: reloads and highlights the new/edited entry. */
-  const saved = async (r: MedicalRecord) => {
+  /** Called after save: reloads, highlights the entry and (for new scanned prescriptions) offers to add its medicines. */
+  const saved = async (r: MedicalRecord, isNew = false) => {
+    const fromScan = !!editor?.values.aiExtracted && isNew;
     setEditor(null);
     await load();
     setFresh(r.id);
     window.setTimeout(() => setFresh(null), 2400);
+    if (fromScan && r.type === "prescription" && r.medicines.length && !readOnly)
+      await offerImport(r);
+  };
+
+  /** Asks whether to add a prescription's medicines to the plan, then starts the import flow. */
+  const offerImport = async (r: MedicalRecord) => {
+    const names = r.medicines.map((m) => m.name).filter(Boolean);
+    const ok = await confirmAction({
+      title: `Add ${names.length} medicine${names.length === 1 ? "" : "s"} to the plan?`,
+      message: `${names.join(", ")}. You'll set the dose times, how much you have and how long to give each one.`,
+      confirmLabel: "Yes, add them",
+      cancelLabel: "Not now",
+      tone: "default",
+    });
+    if (ok) app.startPrescriptionImport(prescriptionDrafts(r));
   };
 
   /** Deletes a record after confirmation. */
   const remove = async (r: MedicalRecord) => {
-    if (!confirm(`Delete “${r.title}” from the medical history?`)) return;
+    const ok = await confirmAction({
+      title: "Delete this history entry?",
+      message: `“${r.title}” and any attached document will be permanently removed. This can't be undone.`,
+      confirmLabel: "Delete entry",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       await api.deleteMedicalRecord(patientId, r.id);
       await load();
@@ -165,18 +200,22 @@ export function MedicalTimeline({ patientId, patientName, legacyNotes }: Medical
 
   return (
     <div className="med-history">
-      <div className="med-history-actions">
-        <button type="button" className="btn primary" onClick={() => setScanning(true)}>
-          <ScanLine size={17} aria-hidden="true" /> Scan prescription
-        </button>
-        <button
-          type="button"
-          className="btn soft"
-          onClick={() => setEditor({ record: null, values: blankRecord() })}
-        >
-          <Plus size={17} aria-hidden="true" /> Add entry
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="med-history-actions">
+          {app.can("prescription_scan") && (
+            <button type="button" className="btn primary" onClick={() => setScanning(true)}>
+              <ScanLine size={17} aria-hidden="true" /> Scan prescription
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn soft"
+            onClick={() => setEditor({ record: null, values: blankRecord() })}
+          >
+            <Plus size={17} aria-hidden="true" /> Add entry
+          </button>
+        </div>
+      )}
 
       {presentTypes.length > 1 && (
         <div className="chips med-filter" role="radiogroup" aria-label="Filter history">
@@ -261,12 +300,17 @@ export function MedicalTimeline({ patientId, patientName, legacyNotes }: Medical
                         )}
                         <footer>
                           {r.aiExtracted && (
-                            <span
-                              className="ai-tag"
-                              title="Read from a scanned prescription and reviewed before saving"
-                            >
-                              <Sparkles size={12} aria-hidden="true" /> Scanned
-                            </span>
+                            <>
+                              <span
+                                className="ai-tag"
+                                title="Read from a scanned prescription and reviewed before saving"
+                              >
+                                <Sparkles size={12} aria-hidden="true" /> Scanned
+                              </span>
+                              <small className="ai-note">
+                                AI-read: verify against the original document
+                              </small>
+                            </>
                           )}
                           {r.sourceUrl && (
                             <button
@@ -277,37 +321,50 @@ export function MedicalTimeline({ patientId, patientName, legacyNotes }: Medical
                               <FileText size={14} aria-hidden="true" /> View document
                             </button>
                           )}
+                          {!readOnly && r.type === "prescription" && r.medicines.length > 0 && (
+                            <button
+                              type="button"
+                              className="btn soft sm"
+                              onClick={() => offerImport(r)}
+                            >
+                              <PillIcon size={14} aria-hidden="true" /> Add medicines to plan
+                            </button>
+                          )}
                           <span className="spacer" />
-                          <button
-                            type="button"
-                            className="icon-btn"
-                            aria-label={`Edit ${r.title}`}
-                            onClick={() =>
-                              setEditor({
-                                record: r,
-                                values: {
-                                  date: r.date || "",
-                                  type: r.type,
-                                  title: r.title,
-                                  details: r.details,
-                                  doctor: r.doctor,
-                                  facility: r.facility,
-                                  medicines: r.medicines,
-                                  aiExtracted: r.aiExtracted,
-                                },
-                              })
-                            }
-                          >
-                            <Pencil size={16} />
-                          </button>
-                          <button
-                            type="button"
-                            className="icon-btn danger"
-                            aria-label={`Delete ${r.title}`}
-                            onClick={() => remove(r)}
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          {!readOnly && (
+                            <>
+                              <button
+                                type="button"
+                                className="icon-btn"
+                                aria-label={`Edit ${r.title}`}
+                                onClick={() =>
+                                  setEditor({
+                                    record: r,
+                                    values: {
+                                      date: r.date || "",
+                                      type: r.type,
+                                      title: r.title,
+                                      details: r.details,
+                                      doctor: r.doctor,
+                                      facility: r.facility,
+                                      medicines: r.medicines,
+                                      aiExtracted: r.aiExtracted,
+                                    },
+                                  })
+                                }
+                              >
+                                <Pencil size={16} />
+                              </button>
+                              <button
+                                type="button"
+                                className="icon-btn danger"
+                                aria-label={`Delete ${r.title}`}
+                                onClick={() => remove(r)}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </>
+                          )}
                         </footer>
                       </article>
                     </li>
@@ -355,7 +412,7 @@ export function MedicalTimeline({ patientId, patientName, legacyNotes }: Medical
           initial={editor.values}
           source={editor.source}
           onClose={() => setEditor(null)}
-          onSaved={saved}
+          onSaved={(r) => saved(r, !editor.record)}
         />
       )}
       {preview?.sourceUrl && (
@@ -390,11 +447,9 @@ function ScanPrescription({
   onDraft: (d: PrescriptionDraft, source: string) => void;
   onManual: () => void;
 }) {
-  const [status, setStatus] = useState<{
-    enabled: boolean;
-    showDataNotice: boolean;
-    provider: string;
-  } | null>(null);
+  const [status, setStatus] = useState<Awaited<ReturnType<typeof api.medicalAiStatus>> | null>(
+    null,
+  );
   const [agreed, setAgreed] = useState(false);
   const [image, setImage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -407,10 +462,21 @@ function ScanPrescription({
     api
       .medicalAiStatus()
       .then(setStatus)
-      .catch(() => setStatus({ enabled: false, showDataNotice: true, provider: "Google Gemini" }));
+      .catch(() =>
+        setStatus({
+          enabled: false,
+          showDataNotice: true,
+          provider: "our AI service",
+          limit: 0,
+          used: 0,
+          remaining: 0,
+          resetsAt: null,
+        }),
+      );
   }, []);
 
   const needsConsent = !!status?.showDataNotice && !agreed;
+  const outOfScans = !!status && status.enabled && status.remaining <= 0;
 
   /** Sends the image to the scanner and hands the draft back. */
   const scan = async (dataUrl: string) => {
@@ -470,8 +536,8 @@ function ScanPrescription({
         <div className="notice warning">
           <AlertTriangle size={18} aria-hidden="true" />
           <p>
-            Prescription scanning isn't set up on the server yet (an admin needs to add a Gemini API
-            key). You can still add the prescription by hand.
+            Prescription scanning isn't set up on the server yet (an admin needs to configure the AI
+            service). You can still add the prescription by hand.
           </p>
         </div>
       ) : image ? (
@@ -495,8 +561,9 @@ function ScanPrescription({
       ) : (
         <>
           <p className="muted">
-            Photograph or upload a prescription. We'll read the date, doctor, diagnosis and
-            medicines. You review and edit everything before it's saved.
+            Photograph or upload a prescription. AI reads the date, doctor, diagnosis and medicines.
+            AI can make mistakes, especially with handwriting, so you review and correct everything
+            before it's saved.
           </p>
           {status?.showDataNotice && (
             <label className="consent-box">
@@ -511,6 +578,13 @@ function ScanPrescription({
                 comfortable sharing.
               </span>
             </label>
+          )}
+          {status?.enabled && (
+            <p className={outOfScans ? "scan-quota none" : "scan-quota"}>
+              {outOfScans
+                ? `You've used all ${status.limit} AI scans for the last 24 hours${status.resetsAt ? `; more after ${new Date(status.resetsAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}` : ""}. You can still enter it by hand.`
+                : `${status.remaining} of ${status.limit} AI scans left today`}
+            </p>
           )}
           <div className="scan-choices">
             <button

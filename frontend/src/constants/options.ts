@@ -60,6 +60,7 @@ export const blank = (): MedicineInput => ({
   cycleEvery: 1,
   cycleUnit: "days",
   times: [], // no default time: the user must choose each dose time
+  doseAmount: "", // required: chosen per medicine form
   liquid: "No liquid needed",
   withFood: false,
   startDate: today(),

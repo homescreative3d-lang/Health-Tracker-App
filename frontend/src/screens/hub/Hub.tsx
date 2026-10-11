@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { ArrowLeft, BookOpen } from "lucide-react";
+import { ArrowLeft, BookOpen, Eye } from "lucide-react";
 import type { Dose, Medicine } from "../../api";
 import { RescheduleDialog } from "../modals/RescheduleDialog";
+import { ErrorBoundary } from "../../components/ErrorBoundary";
 import { useCare } from "../../hooks/CareAppContext";
 import { AppNav } from "../../components/navigation/AppNav";
 import { PageHeader } from "../../components/PageHeader";
@@ -11,6 +12,8 @@ import { Today } from "./Today";
 import { Calendar } from "./Calendar";
 import { Medicines } from "./Medicines";
 import { History } from "./History";
+import { StockPlanner } from "./StockPlanner";
+import { ActivityLog } from "./ActivityLog";
 import { Profile } from "./Profile";
 import { AccountDetails } from "./AccountDetails";
 import { PatientDetails } from "./PatientDetails";
@@ -35,6 +38,9 @@ export function Hub() {
   const rescheduleFromDose = (d: Dose) =>
     setResched({ dose: d, medicine: app.allMeds.find((m) => m.id === d.medicineId) || null });
   const { tab, setTab, user, patient, patients, meds } = app;
+  const ro = app.readOnly;
+  const canAct = app.canActOnDoses(patient);
+  const reschedule = !ro && app.can("rescheduling") ? rescheduleFromDose : undefined;
   if (!user || !patient) return null;
   const backToProfile = (
     <button className="btn soft" onClick={() => setTab("profile")}>
@@ -67,6 +73,16 @@ export function Hub() {
           />
         </aside>
         <div className="dashboard-main">
+          {ro && (
+            <div className="readonly-banner" role="status">
+              <Eye size={18} aria-hidden="true" />
+              <p>
+                <b>View-only access.</b> You're linked as the patient
+                {patient.name ? ` (${patient.name})` : ""}. Your caregivers manage the plan
+                {canAct ? "; you can mark your own doses" : ""}.
+              </p>
+            </div>
+          )}
           {PATIENT_SCOPED.includes(tab) && patient.id && (
             <PatientContextBar
               patient={patient}
@@ -74,112 +90,131 @@ export function Hub() {
               onSelect={(p) => app.selectPatient(p)}
             />
           )}
-          <div className="view" key={`${tab}:${patient.id}`}>
-            {tab === "today" && (
-              <Today
-                patient={patient}
-                patients={patients}
-                onPatientSelect={(p) => app.selectPatient(p)}
-                grouped={app.grouped}
-                meds={meds}
-                date={app.selectedDate}
-                onDose={app.doseAction}
-                onReschedule={rescheduleFromDose}
-                onAdd={() => app.openWizard()}
-                onAddPatient={() => app.startAddPatient()}
-                onPatientInfo={() => setTab("patientDetails")}
-                loading={app.planLoading}
-              />
-            )}
-            {tab === "calendar" && (
-              <Calendar
-                selectedDate={app.selectedDate}
-                setSelectedDate={app.setSelectedDate}
-                grouped={app.grouped}
-                meds={meds}
-                onPause={app.pauseMedicine}
-                onDose={app.doseAction}
-                onReschedule={rescheduleFromDose}
-              />
-            )}
-            {tab === "medicines" && (
-              <Medicines
-                meds={meds}
-                hasPatient={!!patient.id}
-                onAdd={() => app.openWizard()}
-                onAddPatient={() => app.startAddPatient()}
-                onEdit={(m) => app.openWizard(m)}
-                onDelete={app.removeMedicine}
-                onResume={app.resumeMedicine}
-                onReschedule={(m) => setResched({ dose: null, medicine: m })}
-                highlightId={app.justChangedMedicine}
-                loading={app.planLoading}
-              />
-            )}
-            {tab === "history" && <History patients={patients} patient={patient} />}
-            {tab === "profile" && (
-              <Profile
-                user={user}
-                patients={patients}
-                setTab={setTab}
-                onPatientView={(p) => app.selectPatient(p, "patientDetails")}
-                onPatientEdit={(p) => app.selectPatient(p, "patientDetailsEdit")}
-                onAddPatient={() => app.startAddPatient()}
-                onAddSelfPatient={() => app.startAddPatient(true)}
-                onGuide={() => app.setGuide(true)}
-                onDeleteAccount={app.deleteAccount}
-              />
-            )}
-            {tab === "profileDetails" && (
-              <AccountDetails
-                user={user}
-                onBack={() => setTab("profile")}
-                onSave={(u) => {
-                  app.setUser(u);
-                  app.flash("Your details were saved");
-                  setTab("profile");
-                }}
-              />
-            )}
-            {(tab === "patientDetails" || tab === "patientDetailsEdit") && (
-              <PatientDetails
-                patient={patient}
-                meds={meds}
-                startEditing={tab === "patientDetailsEdit"}
-                onBack={() => setTab("profile")}
-                onSave={app.savePatient}
-                onAddPatient={() => app.startAddPatient()}
-              />
-            )}
-            {tab === "family" && (
-              <div className="page-scroll">
-                <PageHeader
-                  kicker="Shared care"
-                  title="Family"
-                  description="Invite trusted people. They see patients only after accepting."
-                  actions={backToProfile}
+          <ErrorBoundary key={`eb:${tab}:${patient.id}`}>
+            <div className="view" key={`${tab}:${patient.id}`}>
+              {tab === "today" && (
+                <Today
+                  patient={patient}
+                  patients={patients}
+                  onPatientSelect={(p) => app.selectPatient(p)}
+                  grouped={app.grouped}
+                  meds={meds}
+                  date={app.selectedDate}
+                  onDose={app.doseAction}
+                  onReschedule={reschedule}
+                  canAct={canAct}
+                  readOnly={ro}
+                  onAdd={() => app.openWizard()}
+                  onAddPatient={() => app.startAddPatient()}
+                  onPatientInfo={() => setTab("patientDetails")}
+                  loading={app.planLoading}
                 />
-                <FamilyManagement
-                  family={app.family}
-                  notifications={app.notifications}
-                  onChange={app.refreshFamily}
-                  onRespond={app.respondInvite}
+              )}
+              {tab === "calendar" && (
+                <Calendar
+                  selectedDate={app.selectedDate}
+                  setSelectedDate={app.setSelectedDate}
+                  grouped={app.grouped}
+                  meds={meds}
+                  onPause={app.pauseMedicine}
+                  onDose={app.doseAction}
+                  onReschedule={reschedule}
+                  canAct={canAct}
+                  readOnly={ro}
                 />
-              </div>
-            )}
-            {tab === "notifications" && (
-              <div className="page-scroll">
-                <PageHeader
-                  kicker="Reminders"
-                  title="Notification settings"
-                  description="Choose when reminders arrive and turn on alerts for this device."
-                  actions={backToProfile}
+              )}
+              {tab === "medicines" && (
+                <Medicines
+                  onOpenPlanner={() => setTab("stock")}
+                  meds={meds}
+                  hasPatient={!!patient.id}
+                  onAdd={() => app.openWizard()}
+                  onAddPatient={() => app.startAddPatient()}
+                  onEdit={(m) => app.openWizard(m)}
+                  onDelete={app.removeMedicine}
+                  onResume={app.resumeMedicine}
+                  onReschedule={(m) => setResched({ dose: null, medicine: m })}
+                  readOnly={ro}
+                  highlightId={app.justChangedMedicine}
+                  onRefill={app.refillMedicine}
+                  onPause={app.pauseMedicine}
+                  loading={app.planLoading}
                 />
-                <NotificationSettings />
-                <NotificationInbox notifications={app.notifications} />
-              </div>
-            )}
-          </div>
+              )}
+              {tab === "history" && <History patients={patients} patient={patient} />}
+              {tab === "stock" && (
+                <StockPlanner patients={patients.filter((p) => p.id)} patient={patient} />
+              )}
+              {tab === "activity" && app.can("change_history") && (
+                <ActivityLog patients={patients.filter((p) => p.id)} patient={patient} />
+              )}
+              {tab === "profile" && (
+                <Profile
+                  onOpenActivity={() => setTab("activity")}
+                  user={user}
+                  patients={patients}
+                  setTab={setTab}
+                  onPatientView={(p) => app.selectPatient(p, "patientDetails")}
+                  onPatientEdit={(p) => app.selectPatient(p, "patientDetailsEdit")}
+                  onAddPatient={() => app.startAddPatient()}
+                  onAddSelfPatient={() => app.startAddPatient(true)}
+                  onGuide={() => app.setGuide(true)}
+                  onDeleteAccount={app.deleteAccount}
+                  readOnly={ro}
+                />
+              )}
+              {tab === "profileDetails" && (
+                <AccountDetails
+                  user={user}
+                  onBack={() => setTab("profile")}
+                  onSave={(u) => {
+                    app.setUser(u);
+                    app.flash("Your details were saved");
+                    setTab("profile");
+                  }}
+                />
+              )}
+              {(tab === "patientDetails" || tab === "patientDetailsEdit") && (
+                <PatientDetails
+                  patient={patient}
+                  meds={meds}
+                  startEditing={tab === "patientDetailsEdit"}
+                  onBack={() => setTab("profile")}
+                  onSave={app.savePatient}
+                  onAddPatient={() => app.startAddPatient()}
+                  readOnly={ro}
+                />
+              )}
+              {tab === "family" && (
+                <div className="page-scroll">
+                  <PageHeader
+                    kicker="Shared care"
+                    title="Family"
+                    description="Invite trusted people. They see patients only after accepting."
+                    actions={backToProfile}
+                  />
+                  <FamilyManagement
+                    family={app.family}
+                    notifications={app.notifications}
+                    onChange={app.refreshFamily}
+                    onRespond={app.respondInvite}
+                  />
+                </div>
+              )}
+              {tab === "notifications" && (
+                <div className="page-scroll">
+                  <PageHeader
+                    kicker="Reminders"
+                    title="Notification settings"
+                    description="Choose when reminders arrive and turn on alerts for this device."
+                    actions={backToProfile}
+                  />
+                  <NotificationSettings />
+                  <NotificationInbox notifications={app.notifications} />
+                </div>
+              )}
+            </div>
+          </ErrorBoundary>
         </div>
       </div>
       <AppNav tab={tab} onNavigate={setTab} variant="bottom" />

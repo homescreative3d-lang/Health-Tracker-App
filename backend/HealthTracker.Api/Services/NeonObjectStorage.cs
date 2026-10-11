@@ -31,8 +31,15 @@ public interface INeonObjectStorage
     /// <summary>Deletes an object; failures are logged, not thrown.</summary>
     Task DeleteAsync(string bucket, string key, CancellationToken ct = default);
 
-    /// <summary>Returns a pre-signed GET URL valid for one hour (empty when not configured).</summary>
+    /// <summary>
+    /// Returns a link for reading a stored file. It points to our own <c>/api/files/{token}</c>
+    /// proxy (opaque, expiring), never to the storage provider, so paths aren't exposed.
+    /// </summary>
     string GetReadUrl(string bucket, string key);
+
+    /// <summary>Opens a stored object for streaming (used only by the file proxy endpoint).</summary>
+    /// <returns>Content stream, content type and length; null when missing or storage isn't configured.</returns>
+    Task<(Stream Content, string ContentType, long Length)?> OpenReadAsync(string bucket, string key, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -47,8 +54,11 @@ public sealed class NeonObjectStorage : INeonObjectStorage
     public bool IsConfigured { get; }
 
     /// <summary>Creates the S3 client when storage is configured.</summary>
-    public NeonObjectStorage(IConfiguration config, ILogger<NeonObjectStorage> log)
+    private readonly FileLinks _links;
+
+    public NeonObjectStorage(IConfiguration config, ILogger<NeonObjectStorage> log, FileLinks links)
     {
+        _links = links;
         _config = config;
         _log = log;
         var endpoint = config["AWS_ENDPOINT_URL_S3"];
@@ -144,6 +154,22 @@ public sealed class NeonObjectStorage : INeonObjectStorage
     {
         if (!IsConfigured || string.IsNullOrWhiteSpace(key))
             return "";
-        return _s3.GetPreSignedURL(new GetPreSignedUrlRequest { BucketName = bucket, Key = key, Expires = DateTime.UtcNow.AddHours(1), Verb = HttpVerb.GET });
+        return _links.Link(bucket, key);
+    }
+
+    /// <inheritdoc />
+    public async Task<(Stream Content, string ContentType, long Length)?> OpenReadAsync(string bucket, string key, CancellationToken ct = default)
+    {
+        if (!IsConfigured)
+            return null;
+        try
+        {
+            var obj = await _s3.GetObjectAsync(bucket, key, ct);
+            return (obj.ResponseStream, string.IsNullOrWhiteSpace(obj.Headers.ContentType) ? "application/octet-stream" : obj.Headers.ContentType, obj.ContentLength);
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return null;
+        }
     }
 }

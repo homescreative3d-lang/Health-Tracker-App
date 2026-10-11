@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Bell,
   Check,
@@ -11,6 +11,7 @@ import {
   UserMinus,
   Users,
   X,
+  Mail,
 } from "lucide-react";
 import { api, type Family, type FamilyUser, type Notification } from "../../api";
 import { err } from "../../lib/errors";
@@ -20,6 +21,7 @@ import { Field } from "../../components/Field";
 import { ImagePickerButtons } from "../../components/ImagePickerButtons";
 import { InlineError } from "../../components/InlineError";
 import { LogoMark } from "../../components/LogoMark";
+import { PhoneLink } from "../../components/PhoneLink";
 import { Modal } from "../../components/Modal";
 import { EmptyArt } from "../../components/art/EmptyArt";
 
@@ -31,6 +33,9 @@ type FamilyManagementProps = {
   /** Accepts/declines an invitation addressed to the user. */
   onRespond: (n: Notification, accept: boolean) => Promise<boolean>;
 };
+
+/** Basic email shape check (the server validates too). */
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/;
 
 /** A destructive action waiting for confirmation. */
 type Pending = { title: string; body: string; confirm: string; run: () => Promise<void> } | null;
@@ -89,22 +94,28 @@ export function FamilyManagement({
   const [confirming, setConfirming] = useState<Pending>(null);
   const invites = notifications.filter((n) => n.type === "family_invite" && !n.isRead);
 
-  // Debounced, race-safe user search.
-  useEffect(() => {
-    const term = q.trim();
-    if (term.length < 2) return setResults([]);
-    let current = true;
-    const t = window.setTimeout(() => {
-      api
-        .familySearch(term)
-        .then((r) => current && setResults(r))
-        .catch((e) => current && setMessage({ text: err(e), error: true }));
-    }, 300);
-    return () => {
-      current = false;
-      window.clearTimeout(t);
-    };
-  }, [q]);
+  // Exact-email lookup (no partial search, so the user list can't be browsed).
+  const [lookup, setLookup] = useState<"idle" | "searching" | "done">("idle");
+  const emailValid = EMAIL_RE.test(q.trim());
+  const emailError =
+    q.trim().length > 3 && !emailValid
+      ? "Enter a complete, valid email address (e.g. name@example.com)."
+      : "";
+
+  /** Looks up the typed email. */
+  const findByEmail = async () => {
+    if (!emailValid) return;
+    setLookup("searching");
+    setMessage(null);
+    try {
+      setResults(await api.familySearch(q.trim().toLowerCase()));
+    } catch (e) {
+      setResults([]);
+      setMessage({ text: err(e), error: true });
+    } finally {
+      setLookup("done");
+    }
+  };
 
   /**
    * Runs an action with a busy key, reports success or the API's error, then refreshes.
@@ -306,17 +317,58 @@ export function FamilyManagement({
 
               {active.canManage ? (
                 <div className="family-search">
-                  <Field label="Add someone by name or email">
-                    <div className="icon-input">
-                      <Search aria-hidden="true" />
-                      <input
-                        className="input"
-                        value={q}
-                        onChange={(e) => setQ(e.target.value)}
-                        placeholder="Search registered users"
-                      />
+                  <form
+                    className="email-lookup"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void findByEmail();
+                    }}
+                  >
+                    <Field label="Add someone by their email">
+                      <div className="icon-input">
+                        <Mail aria-hidden="true" />
+                        <input
+                          className={emailError ? "input invalid" : "input"}
+                          type="email"
+                          inputMode="email"
+                          autoComplete="off"
+                          value={q}
+                          onChange={(e) => {
+                            setQ(e.target.value);
+                            setLookup("idle");
+                            setResults([]);
+                          }}
+                          placeholder="name@example.com"
+                          aria-invalid={!!emailError}
+                          aria-describedby="email-lookup-help"
+                        />
+                      </div>
+                    </Field>
+                    <button
+                      type="submit"
+                      className="btn primary"
+                      disabled={!emailValid || lookup === "searching"}
+                    >
+                      <Search size={16} aria-hidden="true" />
+                      {lookup === "searching" ? "Finding…" : "Find"}
+                    </button>
+                  </form>
+                  <small
+                    id="email-lookup-help"
+                    className={emailError ? "field-error" : "field-hint"}
+                  >
+                    {emailError ||
+                      "For privacy, people are found only by their exact email address."}
+                  </small>
+                  {lookup === "done" && results.length === 0 && (
+                    <div className="notice info">
+                      <Mail size={18} aria-hidden="true" />
+                      <p>
+                        No Tended account uses this email. Ask them to sign up first, then invite
+                        them.
+                      </p>
                     </div>
-                  </Field>
+                  )}
                   {results.length > 0 && (
                     <div className="family-results">
                       {results.map((r) => {
@@ -396,6 +448,7 @@ export function FamilyManagement({
                           {m.isMe && <span className="you-tag">You</span>}
                         </b>
                         <span>{m.email}</span>
+                        <PhoneLink phone={m.phone} />
                         <div className="member-tags">
                           {isAdmin && (
                             <span className="role-tag admin">

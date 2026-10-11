@@ -109,7 +109,7 @@ public sealed class GeminiPrescriptionExtractor(HttpClient http, IConfiguration 
     public async Task<PrescriptionDraft> ExtractAsync(string mimeType, string base64, CancellationToken ct = default)
     {
         if (!IsEnabled)
-            throw new InvalidOperationException("Prescription scanning isn't set up yet. An admin needs to add a Gemini API key on the server.");
+            throw new InvalidOperationException("Prescription scanning isn't set up yet. An admin needs to configure the AI service on the server.");
 
         var body = new
         {
@@ -144,7 +144,7 @@ public sealed class GeminiPrescriptionExtractor(HttpClient http, IConfiguration 
             throw new InvalidOperationException(response.StatusCode switch
             {
                 HttpStatusCode.TooManyRequests => "The free scanning limit was reached for now. Please try again in a minute, or enter the details by hand.",
-                HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "The server's Gemini API key was rejected. An admin needs to check it.",
+                HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "The scanning service rejected the server's key. An admin needs to check the configuration.",
                 HttpStatusCode.BadRequest => "This file couldn't be read. Try a clearer, well-lit photo of the prescription.",
                 _ => "The scanning service had a problem. Please try again."
             });

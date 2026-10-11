@@ -28,8 +28,8 @@ public class HistoryController(AppDbContext db, IPatientAccessService access) : 
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> Get([FromQuery] string? patientIds, [FromQuery] Guid? medicineId, [FromQuery] string? from, [FromQuery] string? to, [FromQuery] string? period, [FromQuery] string? medicineName)
     {
-        var ids = await access.GetAccessibleOwnerIdsAsync(CurrentUserId);
-        var pids = await db.Patients.Where(p => ids.Contains(p.UserId)).Select(p => p.Id).ToListAsync();
+        var accessiblePatients = await access.GetAccessiblePatientIdsAsync(CurrentUserId);
+        var pids = accessiblePatients;
         if (!string.IsNullOrWhiteSpace(patientIds))
         {
             var wanted = patientIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => Guid.TryParse(x, out var id) ? id : Guid.Empty).Where(x => x != Guid.Empty).ToHashSet();
@@ -56,14 +56,63 @@ public class HistoryController(AppDbContext db, IPatientAccessService access) : 
             q = q.Where(x => x.d.Date >= f);
         if (t.HasValue)
             q = q.Where(x => x.d.Date <= t);
+        // History is what already happened: nothing scheduled after now (owner's time zone).
+        var horizon = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1);
+        q = q.Where(x => x.d.Date <= horizon);
         var rows = await q.OrderByDescending(x => x.d.Date).ThenByDescending(x => x.d.Time).Take(1000).ToListAsync();
         var actorIds = rows.Where(x => x.d.ActionedByUserId.HasValue).Select(x => x.d.ActionedByUserId!.Value).Distinct().ToList();
         var actors = await db.Users.Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.DisplayName);
         if (!string.IsNullOrWhiteSpace(period))
             rows = rows.Where(x => Bucket(x.d.Time) == period).ToList();
+        var ownerIds = rows.Select(x => x.p.UserId).Distinct().ToList();
+        var zones = (await db.Users.Where(u => ownerIds.Contains(u.Id)).Select(u => new { u.Id, u.TimeZoneId }).ToListAsync())
+            .ToDictionary(u => u.Id, u => DoseSchedule.ResolveTimeZone(u.TimeZoneId));
+        var now = DateTimeOffset.UtcNow;
+        rows = rows.Where(x => x.d.Status is "taken" or "skipped"
+            || DoseSchedule.ScheduledAt(x.d.Date, x.d.Time, zones.TryGetValue(x.p.UserId, out var z) ? z : DoseSchedule.ResolveTimeZone(null)) <= now).ToList();
         return Ok(rows.Select(x => new { Id = x.d.Id, PatientId = x.p.Id, PatientName = x.p.Name, MedicineId = x.m.Id, MedicineName = x.m.Name, Form = x.m.Form, Time = x.d.Time, Date = x.d.Date.ToString("yyyy-MM-dd"), Status = x.d.Status, TakenAt = x.d.TakenAt, SkipReason = x.d.SkipReason, ActionedByUserId = x.d.ActionedByUserId, ActionedByName = x.d.ActionedByUserId.HasValue && actors.TryGetValue(x.d.ActionedByUserId.Value, out var name) ? name : null }));
     }
 
     /// <summary>Maps a dose time to its history filter bucket.</summary>
     static string Bucket(string time) => DoseSchedule.DayPart(time);
+
+    /// <summary>
+    /// Audit trail of changes (dose actions, reschedules with reasons, pauses, medicine edits) for
+    /// every accessible patient, newest first (max 500).
+    /// </summary>
+    /// <param name="patientIds">Comma-separated patient ids; defaults to all accessible patients.</param>
+    /// <param name="from">Earliest date (inclusive, UTC).</param>
+    /// <param name="to">Latest date (inclusive, UTC).</param>
+    /// <response code="200">Audit entries.</response>
+    [HttpGet("changes")]
+    [RequiresFeature("change_history")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> Changes(string? patientIds, DateOnly? from, DateOnly? to)
+    {
+        var visible = await access.GetAccessiblePatientIdsAsync(CurrentUserId);
+        var accessible = await db.Patients.Where(p => visible.Contains(p.Id)).Select(p => new { p.Id, p.Name }).ToListAsync();
+        var ids = accessible.Select(p => p.Id).ToList();
+        if (!string.IsNullOrWhiteSpace(patientIds))
+        {
+            var wanted = patientIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(v => Guid.TryParse(v, out var g) ? g : Guid.Empty).ToHashSet();
+            ids = ids.Where(wanted.Contains).ToList();
+        }
+
+        var q = db.AuditLogs.Where(a => a.PatientId != null && ids.Contains(a.PatientId.Value));
+        if (from.HasValue)
+        {
+            var f = new DateTimeOffset(from.Value.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+            q = q.Where(a => a.At >= f);
+        }
+
+        if (to.HasValue)
+        {
+            var t = new DateTimeOffset(to.Value.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+            q = q.Where(a => a.At < t);
+        }
+
+        var rows = await q.OrderByDescending(a => a.At).Take(500).ToListAsync();
+        var names = accessible.ToDictionary(p => p.Id, p => p.Name);
+        return Ok(rows.Select(a => new { entry = IAuditTrail.Map(a), patientName = a.PatientId.HasValue && names.TryGetValue(a.PatientId.Value, out var n) ? n : "" }));
+    }
 }

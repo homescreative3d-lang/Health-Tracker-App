@@ -11,12 +11,17 @@ import {
   Trash2,
   User,
   Users,
+  ToggleRight,
+  History as HistoryIcon,
 } from "lucide-react";
 import type { Patient, User as ApiUser } from "../../api";
 import type { HubTab } from "../../components/navigation/navItems";
 import { Avatar } from "../../components/Avatar";
 import { Modal } from "../../components/Modal";
 import { EmptyArt } from "../../components/art/EmptyArt";
+import { useCare } from "../../hooks/CareAppContext";
+import { PhoneLink } from "../../components/PhoneLink";
+import { FeatureFlagsDialog } from "../modals/FeatureFlagsDialog";
 
 type ProfileProps = {
   user: ApiUser;
@@ -28,6 +33,10 @@ type ProfileProps = {
   onAddSelfPatient: () => void;
   onGuide: () => void;
   onDeleteAccount: () => Promise<void>;
+  /** Linked patient (view-only): hides patient-management controls. */
+  readOnly?: boolean;
+  /** Opens the activity (audit) log. */
+  onOpenActivity: () => void;
 };
 
 /** One row in the profile's settings lists. */
@@ -99,7 +108,11 @@ export function Profile({
   onAddSelfPatient,
   onGuide,
   onDeleteAccount,
+  readOnly = false,
+  onOpenActivity,
 }: ProfileProps) {
+  const app = useCare();
+  const [flagsOpen, setFlagsOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -125,6 +138,7 @@ export function Profile({
           <span className="eyebrow">Your account</span>
           <h1>{user.displayName}</h1>
           <p>{user.email}</p>
+          {user.phone && <PhoneLink phone={user.phone} />}
           <div className="profile-banner-stats">
             <span>
               <b>{caredFor.length}</b> {caredFor.length === 1 ? "person" : "people"} cared for
@@ -146,10 +160,12 @@ export function Profile({
             <h3>People I care for</h3>
             <p className="muted">Patients you manage for someone else.</p>
           </div>
-          <button className="btn primary" onClick={onAddPatient}>
-            <Plus size={16} aria-hidden="true" />
-            Add patient
-          </button>
+          {!readOnly && (
+            <button className="btn primary" onClick={onAddPatient}>
+              <Plus size={16} aria-hidden="true" />
+              Add patient
+            </button>
+          )}
         </div>
         {caredFor.length ? (
           <div className="patient-cards">
@@ -198,22 +214,26 @@ export function Profile({
                 Create a personal profile for your history, doctor and prescriptions.
               </p>
             </div>
-            <button className="btn soft" onClick={onAddSelfPatient}>
-              <Plus size={16} aria-hidden="true" />
-              Add my profile
-            </button>
+            {!readOnly && (
+              <button className="btn soft" onClick={onAddSelfPatient}>
+                <Plus size={16} aria-hidden="true" />
+                Add my profile
+              </button>
+            )}
           </div>
         )}
       </section>
 
       <section className="card profile-section profile-tools">
-        <ProfileAction
-          icon={<Users size={20} />}
-          tone="evening"
-          title="Family"
-          text="Members, invitations and consent"
-          onClick={() => setTab("family")}
-        />
+        {app.can("family_sharing") && !readOnly && (
+          <ProfileAction
+            icon={<Users size={20} />}
+            tone="evening"
+            title="Family"
+            text="Members, invitations and consent"
+            onClick={() => setTab("family")}
+          />
+        )}
         <ProfileAction
           icon={<Bell size={20} />}
           tone="night"
@@ -225,9 +245,27 @@ export function Profile({
           icon={<BookOpen size={20} />}
           tone="morning"
           title="How to use Tended"
-          text="A two-minute guide"
+          text="Every flow, step by step (PDF too)"
           onClick={onGuide}
         />
+        {app.can("change_history") && (
+          <ProfileAction
+            icon={<HistoryIcon size={20} />}
+            tone="night"
+            title="Activity log"
+            text="Every change: who, when and why"
+            onClick={onOpenActivity}
+          />
+        )}
+        {app.isSystemAdmin && (
+          <ProfileAction
+            icon={<ToggleRight size={20} />}
+            tone="night"
+            title="Feature flags"
+            text="Turn features on or off for everyone or per user"
+            onClick={() => setFlagsOpen(true)}
+          />
+        )}
       </section>
 
       <section className="card delete-account-section">
@@ -236,7 +274,7 @@ export function Profile({
             <ShieldAlert size={20} aria-hidden="true" />
           </span>
           <div>
-            <h3>Delete account</h3>
+            <h3>Close account</h3>
             <p className="muted">
               Allowed when no doses are pending, or when every patient you manage has another
               approved caregiver. Care plans are transferred to them so reminders continue.
@@ -245,13 +283,13 @@ export function Profile({
         </div>
         <button className="btn danger" onClick={() => setConfirmDelete(true)}>
           <Trash2 size={16} aria-hidden="true" />
-          Delete my account
+          Close my account
         </button>
       </section>
 
       {confirmDelete && (
         <Modal
-          title="Delete your account?"
+          title="Close your account?"
           icon={<ShieldAlert size={20} />}
           onClose={() => setConfirmDelete(false)}
           actions={
@@ -269,12 +307,12 @@ export function Profile({
                   setConfirmDelete(false);
                 }}
               >
-                {deleting ? "Deleting…" : "Delete permanently"}
+                {deleting ? "Deleting…" : "Close account"}
               </button>
             </>
           }
         >
-          <p className="muted">This can't be undone. Type DELETE to confirm.</p>
+          <p className="muted">You'll be signed out everywhere. Type DELETE to confirm.</p>
           <input
             className="input"
             value={confirmText}
@@ -284,6 +322,7 @@ export function Profile({
           />
         </Modal>
       )}
+      {flagsOpen && <FeatureFlagsDialog onClose={() => setFlagsOpen(false)} />}
     </div>
   );
 }

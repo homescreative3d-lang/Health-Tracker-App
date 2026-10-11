@@ -69,17 +69,33 @@ public class DosesController(IDoseService doses) : ApiControllerBase
     /// Undo on the original removes the moved dose while it is still open.
     /// </remarks>
     /// <param name="id">Dose id.</param>
-    /// <param name="request">Target date (<c>YYYY-MM-DD</c>) and optional time (<c>HH:mm</c>).</param>
+    /// <param name="request">Target date (<c>YYYY-MM-DD</c>), optional time (<c>HH:mm</c>) and a required reason (audited).</param>
     /// <response code="200">The newly created (moved) dose.</response>
     /// <response code="400">Invalid or past target, slot already used, or dose already recorded.</response>
     /// <response code="403">No access to the dose.</response>
     [HttpPost("{id:guid}/reschedule")]
+    [RequiresFeature("rescheduling")]
     [ProducesResponseType<DoseResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public Task<IActionResult> Reschedule(Guid id, RescheduleRequest request) =>
         DateOnly.TryParse(request.Date, out var date)
-            ? Run(() => doses.Reschedule(CurrentUserId, id, date, request.Time))
+            ? Run(() => doses.Reschedule(CurrentUserId, id, date, request.Time, request.Reason))
+            : Task.FromResult<IActionResult>(BadRequestMessage("Enter a valid date (YYYY-MM-DD)."));
+
+    /// <summary>
+    /// Stores a future scheduled dose so it can be rescheduled. Future days are computed on the fly
+    /// (<c>isVirtual: true</c>) and never written to the database until acted on.
+    /// </summary>
+    /// <param name="request">Medicine, date and time of the scheduled slot.</param>
+    /// <response code="200">The stored dose (same id as the virtual one).</response>
+    /// <response code="400">Not a scheduled slot.</response>
+    [HttpPost("materialize")]
+    [ProducesResponseType<DoseResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public Task<IActionResult> Materialize(MaterializeRequest request) =>
+        DateOnly.TryParse(request.Date, out var date)
+            ? Run(() => doses.Materialize(CurrentUserId, request.MedicineId, date, request.Time))
             : Task.FromResult<IActionResult>(BadRequestMessage("Enter a valid date (YYYY-MM-DD)."));
 
     /// <summary>

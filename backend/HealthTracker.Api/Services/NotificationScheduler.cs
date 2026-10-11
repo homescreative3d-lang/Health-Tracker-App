@@ -70,14 +70,15 @@ public class NotificationScheduler(IServiceScopeFactory scopes, ILogger<Notifica
 
         var push = services.GetRequiredService<IPushNotificationService>();
         var now = DateTimeOffset.UtcNow;
-        var users = await db.Users.AsNoTracking().ToListAsync(cancellationToken);
+        var users = await db.Users.AsNoTracking().Where(u => !u.IsDeleted).ToListAsync(cancellationToken);
         foreach (var user in users)
         {
             var timeZone = DoseSchedule.ResolveTimeZone(user.TimeZoneId);
             var localNow = TimeZoneInfo.ConvertTime(now, timeZone);
             var localDate = DateOnly.FromDateTime(localNow.DateTime);
             var ownerIds = await access.GetAccessibleOwnerIdsAsync(user.Id, cancellationToken);
-            var patients = await db.Patients.Where(patient => ownerIds.Contains(patient.UserId)).ToListAsync(cancellationToken);
+            // Caregivers get reminders for patients they can access; linked patients for their own record.
+            var patients = await db.Patients.Where(patient => ownerIds.Contains(patient.UserId) || patient.LinkedUserId == user.Id).ToListAsync(cancellationToken);
             foreach (var patient in patients)
             {
                 var medicines = await db.Medicines.Where(medicine => medicine.PatientId == patient.Id).ToListAsync(cancellationToken);
@@ -158,19 +159,19 @@ public class NotificationScheduler(IServiceScopeFactory scopes, ILogger<Notifica
             }
         }
 
-        if (user.FinalNotificationEnabled && minutesUntilDose <= 0 && minutesUntilDose > -60.0 && await Reserve(db, user.Id, dose.Id, "final", scheduledUtc, cancellationToken))
+        if (user.FinalNotificationEnabled && minutesUntilDose <= 0 && minutesUntilDose >= -1.0 && await Reserve(db, user.Id, dose.Id, "final", scheduledUtc, cancellationToken))
         {
             await Deliver(db, user.Id, patient, medicine, dose, "Medicine due now", $"{medicine.Name} ({medicine.Strength}) for {patient.Name} is due now{label}.", "dose_final", scheduledUtc, push, cancellationToken);
         }
 
-        if (minutesUntilDose <= -60.0 && dose.Status == "pending")
+        if (minutesUntilDose <= 0 && dose.Status == "pending")
         {
             dose.Status = "missed";
             dose.MissedAt = now;
             await db.SaveChangesAsync(cancellationToken);
         }
 
-        if (minutesUntilDose <= -60.0 && dose.Status == "missed" && await Reserve(db, user.Id, dose.Id, "missed", scheduledUtc, cancellationToken))
+        if (minutesUntilDose <= -1.0 && dose.Status == "missed" && await Reserve(db, user.Id, dose.Id, "missed", scheduledUtc, cancellationToken))
         {
             await Deliver(db, user.Id, patient, medicine, dose, "Dose missed", $"{medicine.Name} ({medicine.Strength}) for {patient.Name} was not marked taken at {timeOfDay}{label}.", "dose_missed", scheduledUtc, push, cancellationToken);
         }
@@ -214,16 +215,7 @@ public class NotificationScheduler(IServiceScopeFactory scopes, ILogger<Notifica
         db.Notifications.Add(new AppNotification { UserId = userId, Type = type, Title = title, Message = body, DataJson = JsonSerializer.Serialize(new { doseId = dose.Id, patientId = patient.Id, medicineId = medicine.Id, medicineForm = medicine.Form, type, deliveryStatus = sent ? "sent" : "failed" }) });
         if (!sent)
         {
-            // Retries must not flood the in-app bell with the same failure every 20 seconds.
-            var failureAlreadyRecorded = await db.Notifications.AnyAsync(notification =>
-                notification.UserId == userId &&
-                notification.Type == "notification_failed" &&
-                notification.DataJson.Contains(dose.Id.ToString()) &&
-                notification.DataJson.Contains(type), cancellationToken);
-            if (!failureAlreadyRecorded)
-            {
-                db.Notifications.Add(new AppNotification { UserId = userId, Type = "notification_failed", Title = "Browser notification not delivered", Message = $"{title}: {medicine.Name} for {patient.Name}. Enable browser notifications or check the push subscription.", DataJson = JsonSerializer.Serialize(new { doseId = dose.Id, type }) });
-            }
+            db.Notifications.Add(new AppNotification { UserId = userId, Type = "notification_failed", Title = "Browser notification not delivered", Message = $"{title}: {medicine.Name} for {patient.Name}. Enable browser notifications or check the push subscription.", DataJson = JsonSerializer.Serialize(new { doseId = dose.Id, type }) });
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -235,17 +227,10 @@ public class NotificationScheduler(IServiceScopeFactory scopes, ILogger<Notifica
     private static async Task<bool> Reserve(AppDbContext db, Guid userId, Guid doseId, string type, DateTimeOffset occurrenceUtc, CancellationToken cancellationToken)
     {
         occurrenceUtc = occurrenceUtc.ToUniversalTime();
-        var existing = await db.NotificationDeliveries.SingleOrDefaultAsync(item => item.UserId == userId && item.DoseEventId == doseId && item.Type == type && item.ScheduledFor == occurrenceUtc, cancellationToken);
-        if (existing is not null)
+        var alreadyReserved = await db.NotificationDeliveries.AnyAsync(item => item.UserId == userId && item.DoseEventId == doseId && item.Type == type && item.ScheduledFor == occurrenceUtc, cancellationToken);
+        if (alreadyReserved)
         {
-            // Retry failed deliveries while this scheduled occurrence is still current.
-            if (existing.Status != "failed")
-                return false;
-
-            existing.Status = "pending";
-            existing.Error = null;
-            await db.SaveChangesAsync(cancellationToken);
-            return true;
+            return false;
         }
 
         db.NotificationDeliveries.Add(new NotificationDelivery { UserId = userId, DoseEventId = doseId, Type = type, ScheduledFor = occurrenceUtc });

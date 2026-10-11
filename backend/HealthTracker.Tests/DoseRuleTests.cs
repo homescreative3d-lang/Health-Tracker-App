@@ -157,7 +157,7 @@ public class DoseRuleTests
     {
         var x = Setup(DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1), "08:00");
         var target = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(2);
-        var moved = await x.Svc.Reschedule(x.User, x.DoseId, target, "15:30");
+        var moved = await x.Svc.Reschedule(x.User, x.DoseId, target, "15:30", "Doctor visit in the morning");
         Assert.Equal("pending", moved.Status);
         Assert.Equal("15:30", moved.Time);
         Assert.Equal(x.DoseId, moved.RescheduledFromId);
@@ -171,7 +171,7 @@ public class DoseRuleTests
     public async Task UndoRescheduleRemovesMovedDose()
     {
         var x = Setup(DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1), "08:00");
-        var moved = await x.Svc.Reschedule(x.User, x.DoseId, DateOnly.FromDateTime(DateTime.UtcNow).AddDays(2), "09:00");
+        var moved = await x.Svc.Reschedule(x.User, x.DoseId, DateOnly.FromDateTime(DateTime.UtcNow).AddDays(2), "09:00", "Travelling");
         var original = await x.Svc.Undo(x.User, x.DoseId);
         Assert.Equal("pending", original.Status);
         Assert.False(await x.Db.DoseEvents.AnyAsync(d => d.Id == moved.Id));
@@ -181,6 +181,24 @@ public class DoseRuleTests
     public async Task CannotRescheduleIntoThePast()
     {
         var x = Setup(DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1), "08:00");
-        await Assert.ThrowsAsync<InvalidOperationException>(() => x.Svc.Reschedule(x.User, x.DoseId, DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1), "08:00"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => x.Svc.Reschedule(x.User, x.DoseId, DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1), "08:00", "Testing past"));
+    }
+
+    [Fact]
+    public async Task RescheduleRequiresReason()
+    {
+        var x = Setup(DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1), "08:00");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => x.Svc.Reschedule(x.User, x.DoseId, DateOnly.FromDateTime(DateTime.UtcNow).AddDays(2), "09:00", " "));
+    }
+
+    [Fact]
+    public async Task SameDayRescheduleShowsOneCard()
+    {
+        var day = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1);
+        var x = Setup(day, "08:00");
+        await x.Svc.Reschedule(x.User, x.DoseId, day, "15:00", "Lunch meeting");
+        var doses = await x.Svc.Get(x.User, day, null);
+        Assert.Equal(1, doses.Count);
+        Assert.Equal("15:00", doses[0].Time);
     }
 }

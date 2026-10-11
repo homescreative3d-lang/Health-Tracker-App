@@ -4,6 +4,7 @@ import { TopBar } from "./components/TopBar";
 import { SplashScreen } from "./components/SplashScreen";
 import { LandingScreen } from "./screens/landing/LandingScreen";
 import { Toast } from "./components/Toast";
+import { ConfirmHost } from "./components/ConfirmHost";
 import { LoginScreen } from "./screens/auth/LoginScreen";
 import { ForgotScreen } from "./screens/auth/ForgotScreen";
 import { ResetScreen } from "./screens/auth/ResetScreen";
@@ -113,14 +114,21 @@ export default function App() {
         )}
         {app.wizard && (
           <MedicineWizard
-            initial={app.editing || blank()}
+            key={app.importDraft ? `import-${app.importPosition}` : app.editing?.id || "new"}
+            initial={app.editing || app.importDraft?.draft || blank()}
             isEdit={!!app.editing}
+            hint={
+              app.importDraft
+                ? `Medicine ${app.importPosition} of ${app.importTotal} from the prescription. ${app.importDraft.hint}`
+                : undefined
+            }
             patientName={app.patient?.name}
             onClose={app.closeWizard}
             onSave={app.saveMedicine}
           />
         )}
         <Toast toast={app.toast} onDismiss={app.dismissToast} />
+        <ConfirmHost />
       </div>
     </CareAppContext.Provider>
   );
