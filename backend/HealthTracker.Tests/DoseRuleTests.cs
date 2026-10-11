@@ -52,9 +52,10 @@ public class DoseRuleTests
     public async Task CannotTakeBeforeScheduled()
     {
         var now = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"));
-        var date = DateOnly.FromDateTime(now.DateTime);
-        var future = now.TimeOfDay.Add(TimeSpan.FromMinutes(30));
-        var time = TimeOnly.FromTimeSpan(future).ToString("HH:mm");
+        // Add to the local date-time first so a time near midnight rolls over to tomorrow safely.
+        var scheduled = now.AddMinutes(30);
+        var date = DateOnly.FromDateTime(scheduled.DateTime);
+        var time = TimeOnly.FromDateTime(scheduled.DateTime).ToString("HH:mm");
         var x = Setup(date, time);
         await Assert.ThrowsAsync<InvalidOperationException>(() => x.Svc.Take(x.User, x.DoseId));
     }
