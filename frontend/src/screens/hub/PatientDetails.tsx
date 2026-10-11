@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Activity,
   ArrowLeft,
@@ -27,6 +27,8 @@ import { MedicineFormIcon } from "../../components/MedicineFormIcon";
 import { PageHeader } from "../../components/PageHeader";
 import { Row } from "../../components/DetailRow";
 import { AttachmentPreview } from "../../components/AttachmentPreview";
+import { CameraCapture } from "../../components/CameraCapture";
+import { MedicalTimeline } from "./MedicalTimeline";
 import { EmptyArt } from "../../components/art/EmptyArt";
 
 /**
@@ -70,6 +72,9 @@ export function PatientDetails({
     setEditing(startEditing);
     setError("");
   }, [patient.id, patient.name, patient.attachments, startEditing]);
+  /** In-app camera for attachments, with the device camera as fallback. */
+  const [attachCamera, setAttachCamera] = useState(false);
+  const attachDeviceCamera = useRef<HTMLInputElement>(null);
   /** Attachment open in the preview viewer (index into draft.attachments). */
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
@@ -422,40 +427,21 @@ export function PatientDetails({
                 </span>
                 <div>
                   <h3>Medical history</h3>
-                  <p className="muted">A visual timeline of recorded conditions and history</p>
+                  <p className="muted">
+                    Diagnoses, prescriptions, procedures and results over time
+                  </p>
                 </div>
               </div>
-              {historyNodes.length ? (
-                <div className="medical-history-flow">
-                  {historyNodes.map((node, i) => (
-                    <div
-                      className="medical-history-node"
-                      key={node}
-                      style={
-                        {
-                          animationDelay: i * 100 + "ms",
-                        } as React.CSSProperties
-                      }
-                    >
-                      <span className="medical-history-node-dot">{i + 1}</span>
-                      <div>
-                        <b>{node}</b>
-                        <small>
-                          {(draft.conditions || []).includes(node)
-                            ? "Recorded condition"
-                            : "Medical history note"}
-                        </small>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="patient-section-empty">
-                  <Activity size={22} />
-                  <b>No medical history added</b>
-                  <span>Add conditions or history notes in edit mode to build this timeline.</span>
-                </div>
-              )}
+              {patient.id ? (
+                <MedicalTimeline
+                  patientId={patient.id}
+                  patientName={draft.name || patient.name}
+                  legacyNotes={historyNodes.map((text) => ({
+                    text,
+                    kind: (draft.conditions || []).includes(text) ? "condition" : "note",
+                  }))}
+                />
+              ) : null}
               {!editing && draft.doctorPhotoUrl && (
                 <div className="doctor-photo-detail">
                   <b>Doctor / prescriber photo</b>
@@ -490,20 +476,46 @@ export function PatientDetails({
                         }}
                       />
                     </label>
-                    <label className="btn soft upload-btn">
+                    <button
+                      type="button"
+                      className="btn soft upload-btn"
+                      onClick={() => setAttachCamera(true)}
+                    >
                       <Camera size={15} />
                       Camera
-                      <input
-                        type="file"
-                        accept="image/*,.heic,.heif"
-                        capture="environment"
-                        hidden
-                        onChange={(e) => {
-                          void addFiles(e.currentTarget.files);
-                          e.currentTarget.value = "";
+                    </button>
+                    <input
+                      ref={attachDeviceCamera}
+                      type="file"
+                      accept="image/*,.heic,.heif"
+                      capture="environment"
+                      hidden
+                      onChange={(e) => {
+                        void addFiles(e.currentTarget.files);
+                        e.currentTarget.value = "";
+                      }}
+                    />
+                    {attachCamera && (
+                      <CameraCapture
+                        title="Photograph a document"
+                        onClose={() => setAttachCamera(false)}
+                        onFallback={() => {
+                          setAttachCamera(false);
+                          attachDeviceCamera.current?.click();
+                        }}
+                        onCapture={(dataUrl) => {
+                          setAttachCamera(false);
+                          const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
+                          setDraft((v) => ({
+                            ...v,
+                            attachments: [
+                              ...(v.attachments || []),
+                              { name: `photo-${stamp}.jpg`, mimeType: "image/jpeg", dataUrl },
+                            ],
+                          }));
                         }}
                       />
-                    </label>
+                    )}
                   </div>
                 )}
               </div>

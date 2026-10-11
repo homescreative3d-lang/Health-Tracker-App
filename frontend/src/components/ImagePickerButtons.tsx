@@ -1,4 +1,6 @@
+import { useRef, useState } from "react";
 import { Camera, FileImage, Trash2 } from "lucide-react";
+import { CameraCapture } from "./CameraCapture";
 import { IMAGE_ACCEPT, readImageFile } from "../lib/files";
 import { err } from "../lib/errors";
 
@@ -15,7 +17,8 @@ type ImagePickerButtonsProps = {
 
 /**
  * "Gallery" + "Camera" (+ optional "Remove") buttons for picking a photo.
- * On phones, Camera opens the rear camera; on desktop both open the file chooser.
+ * Camera opens the in-app camera (asks for permission, live preview, capture/retake) on phones
+ * and computers, falling back to the device camera app if in-app capture isn't available.
  */
 export function ImagePickerButtons({
   onPick,
@@ -23,6 +26,9 @@ export function ImagePickerButtons({
   onRemove,
   label = "photo",
 }: ImagePickerButtonsProps) {
+  const [camera, setCamera] = useState(false);
+  const deviceCamera = useRef<HTMLInputElement>(null);
+
   /** Reads the chosen file, reports errors, and resets the input so the same file can be re-picked. */
   const handle = async (input: HTMLInputElement) => {
     const file = input.files?.[0];
@@ -47,18 +53,34 @@ export function ImagePickerButtons({
           onChange={(e) => void handle(e.currentTarget)}
         />
       </label>
-      <label className="btn soft upload-btn">
+      <button type="button" className="btn soft upload-btn" onClick={() => setCamera(true)}>
         <Camera size={16} aria-hidden="true" />
         Camera
-        <input
-          type="file"
-          accept="image/*,.heic,.heif"
-          capture="environment"
-          hidden
-          aria-label={`Take ${label} with camera`}
-          onChange={(e) => void handle(e.currentTarget)}
+      </button>
+      {/* Fallback: the device's own camera app when in-app capture isn't available. */}
+      <input
+        ref={deviceCamera}
+        type="file"
+        accept="image/*,.heic,.heif"
+        capture="environment"
+        hidden
+        aria-label={`Take ${label} with the device camera`}
+        onChange={(e) => void handle(e.currentTarget)}
+      />
+      {camera && (
+        <CameraCapture
+          title={`Take ${label}`}
+          onClose={() => setCamera(false)}
+          onCapture={(dataUrl) => {
+            setCamera(false);
+            onPick(dataUrl);
+          }}
+          onFallback={() => {
+            setCamera(false);
+            deviceCamera.current?.click();
+          }}
         />
-      </label>
+      )}
       {onRemove && (
         <button type="button" className="btn ghost" onClick={onRemove}>
           <Trash2 size={16} aria-hidden="true" />

@@ -5,12 +5,15 @@ import type {
   Family,
   FamilyUser,
   HistoryRow,
+  MedicalRecord,
+  MedicalRecordInput,
   Medicine,
   MedicineInput,
   Notification,
   NotificationSettingsData,
   Patient,
   PatientInput,
+  PrescriptionDraft,
   PushTestResult,
   User,
 } from "./types";
@@ -57,6 +60,31 @@ export const api = {
   /** Updates a patient the user can access. */
   savePatient: (b: PatientInput, id?: string) =>
     request<Patient>(id ? "/patient/" + id : "/patient", send("PUT", b)),
+
+  // ---- Medical history ----
+  /** Whether prescription scanning is enabled and whether to show the data-sharing notice. */
+  medicalAiStatus: () =>
+    request<{ enabled: boolean; showDataNotice: boolean; provider: string }>(
+      "/medical-records/ai-status",
+    ),
+  /** Lists a patient's medical records, newest first. */
+  getMedicalRecords: (patientId: string) =>
+    request<MedicalRecord[]>(`/patients/${patientId}/medical-records`),
+  /** Adds a record (optionally with its source document). */
+  createMedicalRecord: (patientId: string, b: MedicalRecordInput) =>
+    request<MedicalRecord>(`/patients/${patientId}/medical-records`, send("POST", b)),
+  /** Updates a record. */
+  updateMedicalRecord: (patientId: string, id: string, b: MedicalRecordInput) =>
+    request<MedicalRecord>(`/patients/${patientId}/medical-records/${id}`, send("PUT", b)),
+  /** Deletes a record and its source document. */
+  deleteMedicalRecord: (patientId: string, id: string) =>
+    request<void>(`/patients/${patientId}/medical-records/${id}`, send("DELETE")),
+  /** Scans a prescription image/PDF and returns an editable draft (nothing is saved). */
+  scanPrescription: (patientId: string, dataUrl: string) =>
+    request<PrescriptionDraft>(
+      `/patients/${patientId}/medical-records/extract`,
+      send("POST", { dataUrl }),
+    ),
 
   // ---- Medicines ----
   /** Lists medicines for a patient. */

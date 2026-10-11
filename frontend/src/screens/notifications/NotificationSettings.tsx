@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BellRing, Check, Send, X } from "lucide-react";
+import { BellRing, Check, Send, Smartphone, X } from "lucide-react";
 import { api, enablePush, notificationPermission, type NotificationSettingsData } from "../../api";
 import { err } from "../../lib/errors";
 import { timeZones } from "../../constants/options";
@@ -123,8 +123,25 @@ function PushStatus({
 }) {
   const permission = notificationPermission();
   const configured = settings.pushConfigured ?? !!settings.vapidPublicKey;
+  // iPhone/iPad Safari supports web push only for apps added to the Home Screen (iOS 16.4+).
+  const ios =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const standalone =
+    window.matchMedia?.("(display-mode: standalone)").matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true;
   return (
     <div className="push-status">
+      {ios && !standalone && (
+        <div className="notice info ios-hint">
+          <Smartphone size={18} aria-hidden="true" />
+          <p>
+            <b>On iPhone or iPad:</b> tap the Share button, choose <b>Add to Home Screen</b>, then
+            open Tended from the Home Screen and enable alerts there. Apple only allows
+            notifications for apps added this way (iOS 16.4 or later).
+          </p>
+        </div>
+      )}
       <ul>
         <StatusLine
           state={configured ? "ok" : "bad"}
@@ -164,24 +181,11 @@ function PushStatus({
         it's open, even before push is fully set up.
       </p>
       {!configured && (
-        <details className="push-guide">
-          <summary>Set up push on the server (admin, about 2 minutes)</summary>
-          <ol>
-            <li>
-              On any computer with Node.js, run <code>npx web-push generate-vapid-keys</code>.
-            </li>
-            <li>
-              In your backend host (e.g. Render → Environment), add <code>WebPush__PublicKey</code>,{" "}
-              <code>WebPush__PrivateKey</code> and <code>WebPush__Subject</code> (e.g.{" "}
-              <code>mailto:you@yourdomain.com</code>).
-            </li>
-            <li>Redeploy the API, reload this page and press “Enable alerts on this device”.</li>
-          </ol>
-          <p>
-            Keep the private key secret. If you ever change the keys, each device simply re-enables
-            once.
-          </p>
-        </details>
+        <p className="push-note">
+          Push keys are generated automatically when the API starts. If this stays red after a
+          restart, the server logs will show why. To use your own keys instead, set{" "}
+          <code>WebPush__PublicKey</code> and <code>WebPush__PrivateKey</code>.
+        </p>
       )}
     </div>
   );
