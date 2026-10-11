@@ -33,6 +33,8 @@ if (!app.Environment.IsEnvironment("Testing") && !app.Environment.IsDevelopment(
         "Neon Object Storage is required. Configure AWS_ENDPOINT_URL_S3, AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.");
 
 await DatabaseInitializer.InitializeAsync(app.Services);
+// Push works without manual setup: load configured keys or generate and persist a pair once.
+await VapidKeyStore.InitializeAsync(app.Services);
 
 app.UseExceptionHandler();
 app.UseSwaggerDocumentation();

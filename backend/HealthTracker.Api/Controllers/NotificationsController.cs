@@ -12,7 +12,7 @@ namespace HealthTracker.Api.Controllers;
 /// </summary>
 [Authorize]
 [Route("api/notifications")]
-public class NotificationsController(AppDbContext db, IConfiguration config, IPushNotificationService push) : ApiControllerBase
+public class NotificationsController(AppDbContext db, IPushNotificationService push, VapidKeyStore keys) : ApiControllerBase
 {
     private Guid UserId => CurrentUserId;
 
@@ -27,7 +27,7 @@ public class NotificationsController(AppDbContext db, IConfiguration config, IPu
     {
         var user = await db.Users.FindAsync(UserId);
         var devices = await db.PushSubscriptions.CountAsync(s => s.UserId == UserId);
-        return Ok(new { timeZoneId = user?.TimeZoneId ?? "Asia/Kolkata", leadMinutes = user?.NotificationLeadMinutes ?? 15, repeatMinutes = user?.NotificationRepeatMinutes ?? 5, finalNotificationEnabled = user?.FinalNotificationEnabled ?? true, vapidPublicKey = config["WebPush:PublicKey"], pushConfigured = !string.IsNullOrWhiteSpace(config["WebPush:PublicKey"]) && !string.IsNullOrWhiteSpace(config["WebPush:PrivateKey"]), subscribedDevices = devices });
+        return Ok(new { timeZoneId = user?.TimeZoneId ?? "Asia/Kolkata", leadMinutes = user?.NotificationLeadMinutes ?? 15, repeatMinutes = user?.NotificationRepeatMinutes ?? 5, finalNotificationEnabled = user?.FinalNotificationEnabled ?? true, vapidPublicKey = keys.IsReady ? keys.PublicKey : null, pushConfigured = keys.IsReady, keySource = keys.Source, subscribedDevices = devices });
     }
 
     /// <summary>
@@ -70,7 +70,7 @@ public class NotificationsController(AppDbContext db, IConfiguration config, IPu
         user.NotificationRepeatMinutes = request.RepeatMinutes;
         user.FinalNotificationEnabled = request.FinalNotificationEnabled;
         await db.SaveChangesAsync();
-        return Ok(new { timeZoneId = user.TimeZoneId, leadMinutes = user.NotificationLeadMinutes, repeatMinutes = user.NotificationRepeatMinutes, finalNotificationEnabled = user.FinalNotificationEnabled, vapidPublicKey = config["WebPush:PublicKey"] });
+        return Ok(new { timeZoneId = user.TimeZoneId, leadMinutes = user.NotificationLeadMinutes, repeatMinutes = user.NotificationRepeatMinutes, finalNotificationEnabled = user.FinalNotificationEnabled, vapidPublicKey = keys.IsReady ? keys.PublicKey : null, pushConfigured = keys.IsReady });
     }
 
     /// <summary>
@@ -145,7 +145,7 @@ public class NotificationsController(AppDbContext db, IConfiguration config, IPu
         var message = r.Reason switch
         {
             null => $"Test notification sent to {r.Delivered} device{(r.Delivered == 1 ? "" : "s")}.",
-            "not_configured" => "Browser push isn't set up on the server yet: WebPush keys are missing. In-app notifications in the bell still work.",
+            "not_configured" => "Push keys could not be loaded on the server. Notifications still appear in the bell; check the server logs.",
             "no_subscription" => "This account has no device signed up for alerts. Press “Enable alerts on this device” first.",
             "keys_mismatch" => "This device was signed up with older server keys, so the push service rejected it. The old sign-up was removed: press “Enable alerts on this device” again.",
             "expired" => "This device's sign-up had expired and was removed. Press “Enable alerts on this device” again.",

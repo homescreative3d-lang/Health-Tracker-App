@@ -124,18 +124,29 @@ Then:
 - Use `@capacitor/push-notifications` (FCM), because Web Push isn't available in Android WebViews.
 - Add the app's origin (`capacitor://localhost` / `https://localhost`) to the API CORS policy.
 
-## Push notifications setup
+## Push notifications
 
-Notifications always appear in the in-app bell. To also deliver them as browser or phone alerts, the API needs VAPID keys.
+Push works without any setup. On first start, the API generates a Web Push (VAPID) key pair and stores it in the `ServerSettings` table, so every instance and every restart uses the same keys. The private key never leaves the server.
 
-1. **Generate keys** once with `npx web-push generate-vapid-keys`.
-2. **Set three environment variables on the API** (for example, Render → Environment), then redeploy:
-   - `WebPush__PublicKey`
-   - `WebPush__PrivateKey` (keep it secret)
-   - `WebPush__Subject` (for example, `mailto:you@yourdomain.com`)
-3. **Enable each device.** In the app, go to Profile → Notifications, press **Enable alerts on this device**, then **Send test**.
+- **Use your own keys instead:** set `WebPush__PublicKey`, `WebPush__PrivateKey` and, optionally, `WebPush__Subject`. Configured keys always take priority.
+- **Devices:** each one enables alerts once, under Profile → Notifications → **Enable alerts on this device**. A device that subscribed with older keys is re-subscribed automatically.
+- **Android and desktop:** Chrome, Edge and Firefox work in the browser.
+- **iPhone and iPad:** iOS 16.4+ allows web push only after the user taps Share → **Add to Home Screen** and opens Tended from there. The app shows this hint on iOS.
+- **In the app:** every notification also appears in the bell, and as a browser alert while the app is open.
+- **Troubleshooting:** the settings screen shows a live checklist, and **Send test** reports the exact failure reason.
 
-The settings screen shows a live checklist covering the server keys, browser permission, this device's subscription and how many devices are subscribed. When a test fails, it states the exact reason. The most common one, a device subscribed with older keys, is repaired automatically: the stale subscription is removed and the browser re-subscribes.
+## Prescription scanning (Gemini)
+
+The medical history timeline can read a photographed or uploaded prescription and pre-fill an entry. The user reviews everything before it's saved; nothing is stored automatically.
+
+1. **Create a key** at Google AI Studio (free tier available).
+2. **Set environment variables on the API:**
+   - `GEMINI_API_KEY` (required).
+   - `Gemini__Model` (optional; default `gemini-2.5-flash`).
+   - `Gemini__ShowDataNotice` (optional; default `true`). The notice tells users that, with free keys, Google may use submitted content to improve its services. Set it to `false` only when using a paid key.
+3. **Redeploy.** Without a key, the app offers manual entry instead.
+
+The key stays on the server and is sent in a request header, never in a URL. Images and extracted health data are never logged.
 
 ## Notification scheduler switch
 

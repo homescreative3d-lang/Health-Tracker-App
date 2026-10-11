@@ -66,6 +66,31 @@ public static class DatabaseInitializer
                     await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FamilyMembers\" ADD COLUMN IF NOT EXISTS \"CanManageMembers\" boolean NOT NULL DEFAULT false;");
                     await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Families\" ADD COLUMN IF NOT EXISTS \"PhotoKey\" text;");
                     await db.Database.ExecuteSqlRawAsync("UPDATE \"FamilyMembers\" m SET \"Role\" = 'admin' FROM \"Families\" f WHERE m.\"FamilyId\" = f.\"Id\" AND m.\"UserId\" = f.\"OwnerUserId\" AND m.\"Role\" <> 'admin';");
+
+                    // Server settings (generated push keys) and structured medical history. Idempotent.
+                    await db.Database.ExecuteSqlRawAsync("""
+                        CREATE TABLE IF NOT EXISTS "ServerSettings" (
+                            "Key" text NOT NULL CONSTRAINT "PK_ServerSettings" PRIMARY KEY,
+                            "Value" text NOT NULL,
+                            "UpdatedAt" timestamp with time zone NOT NULL);
+                        CREATE TABLE IF NOT EXISTS "MedicalRecords" (
+                            "Id" uuid NOT NULL CONSTRAINT "PK_MedicalRecords" PRIMARY KEY,
+                            "PatientId" uuid NOT NULL,
+                            "Date" date NULL,
+                            "Type" text NOT NULL,
+                            "Title" text NOT NULL,
+                            "Details" text NOT NULL,
+                            "Doctor" text NOT NULL,
+                            "Facility" text NOT NULL,
+                            "MedicinesJson" text NOT NULL,
+                            "SourceKey" text NULL,
+                            "SourceMimeType" text NULL,
+                            "AiExtracted" boolean NOT NULL,
+                            "CreatedByUserId" uuid NOT NULL,
+                            "CreatedAt" timestamp with time zone NOT NULL,
+                            "UpdatedAt" timestamp with time zone NOT NULL);
+                        CREATE INDEX IF NOT EXISTS "IX_MedicalRecords_PatientId" ON "MedicalRecords" ("PatientId");
+                        """);
                 }
             }
             finally
