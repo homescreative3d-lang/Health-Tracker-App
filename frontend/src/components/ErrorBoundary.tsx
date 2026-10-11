@@ -18,7 +18,11 @@ export class ErrorBoundary extends Component<Props, State> {
 
   /** Logs the error for diagnostics (no personal data is included). */
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("UI section crashed:", error.message, info.componentStack?.split("\n").slice(0, 3).join(" "));
+    console.error(
+      "UI section crashed:",
+      error.message,
+      info.componentStack?.split("\n").slice(0, 3).join(" "),
+    );
   }
 
   render() {
@@ -26,7 +30,9 @@ export class ErrorBoundary extends Component<Props, State> {
     return (
       <div className="error-boundary card" role="alert">
         <b>{this.props.label || "Something went wrong in this section."}</b>
-        <p className="muted">Your data is safe. Try again, or reload the app if it keeps happening.</p>
+        <p className="muted">
+          Your data is safe. Try again, or reload the app if it keeps happening.
+        </p>
         <div className="error-boundary-actions">
           <button type="button" className="btn soft" onClick={() => this.setState({ error: null })}>
             <RefreshCcw size={16} aria-hidden="true" /> Try again
