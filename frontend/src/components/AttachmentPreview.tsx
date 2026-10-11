@@ -94,6 +94,7 @@ function SheetView({ src }: { src: string }) {
         <div className="sheet-tabs" role="tablist">
           {sheets.map((n, i) => (
             <button
+              type="button"
               key={n}
               role="tab"
               aria-selected={i === sheet}
@@ -177,6 +178,7 @@ export function AttachmentPreview({ attachments, start, onClose }: AttachmentPre
           {attachments.length > 1 && (
             <div className="preview-nav">
               <button
+                type="button"
                 className="icon-btn"
                 onClick={() => go(index - 1)}
                 aria-label="Previous attachment"
@@ -184,6 +186,7 @@ export function AttachmentPreview({ attachments, start, onClose }: AttachmentPre
                 <ChevronLeft size={20} />
               </button>
               <button
+                type="button"
                 className="icon-btn"
                 onClick={() => go(index + 1)}
                 aria-label="Next attachment"
@@ -193,7 +196,7 @@ export function AttachmentPreview({ attachments, start, onClose }: AttachmentPre
             </div>
           )}
           {kind === "image" && (
-            <button className="btn soft" onClick={() => setZoom((z) => !z)}>
+            <button type="button" className="btn soft" onClick={() => setZoom((z) => !z)}>
               {zoom ? (
                 <ZoomOut size={16} aria-hidden="true" />
               ) : (
