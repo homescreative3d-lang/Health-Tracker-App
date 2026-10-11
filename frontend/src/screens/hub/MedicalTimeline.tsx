@@ -17,6 +17,7 @@ import {
   Trash2,
   Upload,
   X,
+  Pill as PillIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -33,6 +34,7 @@ import { readAsDataUrl, detectMime } from "../../lib/files";
 import { AttachmentPreview } from "../../components/AttachmentPreview";
 import { CameraCapture } from "../../components/CameraCapture";
 import { confirmAction } from "../../components/ConfirmHost";
+import { prescriptionDrafts } from "../../lib/prescriptionImport";
 import { useCare } from "../../hooks/CareAppContext";
 import { Field } from "../../components/Field";
 import { InlineError } from "../../components/InlineError";
@@ -155,12 +157,28 @@ export function MedicalTimeline({
   }, [visible]);
   const presentTypes = [...new Set((records || []).map((r) => r.type))];
 
-  /** Called after save: reloads and highlights the new/edited entry. */
-  const saved = async (r: MedicalRecord) => {
+  /** Called after save: reloads, highlights the entry and (for new scanned prescriptions) offers to add its medicines. */
+  const saved = async (r: MedicalRecord, isNew = false) => {
+    const fromScan = !!editor?.values.aiExtracted && isNew;
     setEditor(null);
     await load();
     setFresh(r.id);
     window.setTimeout(() => setFresh(null), 2400);
+    if (fromScan && r.type === "prescription" && r.medicines.length && !readOnly)
+      await offerImport(r);
+  };
+
+  /** Asks whether to add a prescription's medicines to the plan, then starts the import flow. */
+  const offerImport = async (r: MedicalRecord) => {
+    const names = r.medicines.map((m) => m.name).filter(Boolean);
+    const ok = await confirmAction({
+      title: `Add ${names.length} medicine${names.length === 1 ? "" : "s"} to the plan?`,
+      message: `${names.join(", ")}. You'll set the dose times, how much you have and how long to give each one.`,
+      confirmLabel: "Yes, add them",
+      cancelLabel: "Not now",
+      tone: "default",
+    });
+    if (ok) app.startPrescriptionImport(prescriptionDrafts(r));
   };
 
   /** Deletes a record after confirmation. */
@@ -303,6 +321,15 @@ export function MedicalTimeline({
                               <FileText size={14} aria-hidden="true" /> View document
                             </button>
                           )}
+                          {!readOnly && r.type === "prescription" && r.medicines.length > 0 && (
+                            <button
+                              type="button"
+                              className="btn soft sm"
+                              onClick={() => offerImport(r)}
+                            >
+                              <PillIcon size={14} aria-hidden="true" /> Add medicines to plan
+                            </button>
+                          )}
                           <span className="spacer" />
                           {!readOnly && (
                             <>
@@ -385,7 +412,7 @@ export function MedicalTimeline({
           initial={editor.values}
           source={editor.source}
           onClose={() => setEditor(null)}
-          onSaved={saved}
+          onSaved={(r) => saved(r, !editor.record)}
         />
       )}
       {preview?.sourceUrl && (
@@ -420,11 +447,9 @@ function ScanPrescription({
   onDraft: (d: PrescriptionDraft, source: string) => void;
   onManual: () => void;
 }) {
-  const [status, setStatus] = useState<{
-    enabled: boolean;
-    showDataNotice: boolean;
-    provider: string;
-  } | null>(null);
+  const [status, setStatus] = useState<Awaited<ReturnType<typeof api.medicalAiStatus>> | null>(
+    null,
+  );
   const [agreed, setAgreed] = useState(false);
   const [image, setImage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -437,10 +462,21 @@ function ScanPrescription({
     api
       .medicalAiStatus()
       .then(setStatus)
-      .catch(() => setStatus({ enabled: false, showDataNotice: true, provider: "Google Gemini" }));
+      .catch(() =>
+        setStatus({
+          enabled: false,
+          showDataNotice: true,
+          provider: "our AI service",
+          limit: 0,
+          used: 0,
+          remaining: 0,
+          resetsAt: null,
+        }),
+      );
   }, []);
 
   const needsConsent = !!status?.showDataNotice && !agreed;
+  const outOfScans = !!status && status.enabled && status.remaining <= 0;
 
   /** Sends the image to the scanner and hands the draft back. */
   const scan = async (dataUrl: string) => {
@@ -500,8 +536,8 @@ function ScanPrescription({
         <div className="notice warning">
           <AlertTriangle size={18} aria-hidden="true" />
           <p>
-            Prescription scanning isn't set up on the server yet (an admin needs to add a Gemini API
-            key). You can still add the prescription by hand.
+            Prescription scanning isn't set up on the server yet (an admin needs to configure the AI
+            service). You can still add the prescription by hand.
           </p>
         </div>
       ) : image ? (
@@ -542,6 +578,13 @@ function ScanPrescription({
                 comfortable sharing.
               </span>
             </label>
+          )}
+          {status?.enabled && (
+            <p className={outOfScans ? "scan-quota none" : "scan-quota"}>
+              {outOfScans
+                ? `You've used all ${status.limit} AI scans for the last 24 hours${status.resetsAt ? `; more after ${new Date(status.resetsAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}` : ""}. You can still enter it by hand.`
+                : `${status.remaining} of ${status.limit} AI scans left today`}
+            </p>
           )}
           <div className="scan-choices">
             <button

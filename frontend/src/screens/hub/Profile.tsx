@@ -12,6 +12,7 @@ import {
   User,
   Users,
   ToggleRight,
+  History as HistoryIcon,
 } from "lucide-react";
 import type { Patient, User as ApiUser } from "../../api";
 import type { HubTab } from "../../components/navigation/navItems";
@@ -34,6 +35,8 @@ type ProfileProps = {
   onDeleteAccount: () => Promise<void>;
   /** Linked patient (view-only): hides patient-management controls. */
   readOnly?: boolean;
+  /** Opens the activity (audit) log. */
+  onOpenActivity: () => void;
 };
 
 /** One row in the profile's settings lists. */
@@ -106,6 +109,7 @@ export function Profile({
   onGuide,
   onDeleteAccount,
   readOnly = false,
+  onOpenActivity,
 }: ProfileProps) {
   const app = useCare();
   const [flagsOpen, setFlagsOpen] = useState(false);
@@ -244,6 +248,15 @@ export function Profile({
           text="Every flow, step by step (PDF too)"
           onClick={onGuide}
         />
+        {app.can("change_history") && (
+          <ProfileAction
+            icon={<HistoryIcon size={20} />}
+            tone="night"
+            title="Activity log"
+            text="Every change: who, when and why"
+            onClick={onOpenActivity}
+          />
+        )}
         {app.isSystemAdmin && (
           <ProfileAction
             icon={<ToggleRight size={20} />}

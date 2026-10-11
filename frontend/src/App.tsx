@@ -114,8 +114,14 @@ export default function App() {
         )}
         {app.wizard && (
           <MedicineWizard
-            initial={app.editing || blank()}
+            key={app.importDraft ? `import-${app.importPosition}` : app.editing?.id || "new"}
+            initial={app.editing || app.importDraft?.draft || blank()}
             isEdit={!!app.editing}
+            hint={
+              app.importDraft
+                ? `Medicine ${app.importPosition} of ${app.importTotal} from the prescription. ${app.importDraft.hint}`
+                : undefined
+            }
             patientName={app.patient?.name}
             onClose={app.closeWizard}
             onSave={app.saveMedicine}

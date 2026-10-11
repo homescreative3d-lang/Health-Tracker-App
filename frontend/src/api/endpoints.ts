@@ -1,6 +1,8 @@
 import { request, send } from "./client";
 import type {
   AuditEntry,
+  RefillEntry,
+  StockPlan,
   CareTeamMember,
   AuthResult,
   Dose,
@@ -96,9 +98,15 @@ export const api = {
   // ---- Medical history ----
   /** Whether prescription scanning is enabled and whether to show the data-sharing notice. */
   medicalAiStatus: () =>
-    request<{ enabled: boolean; showDataNotice: boolean; provider: string }>(
-      "/medical-records/ai-status",
-    ),
+    request<{
+      enabled: boolean;
+      showDataNotice: boolean;
+      provider: string;
+      limit: number;
+      used: number;
+      remaining: number;
+      resetsAt: string | null;
+    }>("/medical-records/ai-status"),
   /** Lists a patient's medical records, newest first. */
   getMedicalRecords: (patientId: string) =>
     request<MedicalRecord[]>(`/patients/${patientId}/medical-records`),
@@ -144,6 +152,23 @@ export const api = {
     ),
   /** Full change history of a medicine across its rescheduled versions. */
   medicineHistory: (id: string) => request<AuditEntry[]>(`/medicines/${id}/history`),
+  /** Adds stock (in the medicine's unit) and records it in the refill trail. */
+  refillMedicine: (
+    id: string,
+    b: { quantity: number; date?: string; pharmacy?: string; note?: string },
+  ) =>
+    request<{
+      id: string;
+      stockQuantity: number;
+      stockUnit: string;
+      dosesLeft: number;
+      entry: RefillEntry;
+    }>(`/medicine-actions/${id}/refill`, send("POST", b)),
+  /** Stock trail since the first fill (all versions of the medicine). */
+  medicineRefills: (id: string) => request<RefillEntry[]>(`/medicines/${id}/refills`),
+  /** Stock planner report for the next `days` days. */
+  stockPlan: (patientId: string, days: number) =>
+    request<StockPlan>(`/patients/${patientId}/stock-plan?days=${days}`),
   /** Ends an active pause as of today. */
   resumeMedicine: (id: string) => request<unknown>(`/medicine-actions/${id}/resume`, send("POST")),
 
@@ -159,6 +184,9 @@ export const api = {
   /** Moves one dose to another date/time; returns the new (moved) dose. */
   rescheduleDose: (id: string, date: string, time: string, reason: string) =>
     request<Dose>(`/doses/${id}/reschedule`, send("POST", { date, time, reason })),
+  /** Stores a future (virtual) dose so it can be acted on. */
+  materializeDose: (medicineId: string, date: string, time: string) =>
+    request<Dose>("/doses/materialize", send("POST", { medicineId, date, time })),
   /** Reverts a taken/skipped/rescheduled dose back to pending. */
   undo: (id: string) => request<Dose>(`/doses/${id}/undo`, send("POST")),
 

@@ -411,8 +411,9 @@ export function useCareApp() {
         : await api.createMedicine(m, patient!.id);
       setJustChangedMedicine(saved.id);
       flash(editing ? `${m.name} updated` : `${m.name} added to the plan`);
-      setWizard(false);
       setEditing(null);
+      if (importQueue.length > 0) nextImport();
+      else setWizard(false);
       await reloadPlan();
     } catch (e) {
       fail(e);
@@ -456,7 +457,11 @@ export function useCareApp() {
     reason: string,
   ): Promise<boolean> => {
     try {
-      await api.rescheduleDose(d.id, date, time, reason);
+      // Future doses are virtual (not stored yet): store it first, then move it.
+      const target = d.isVirtual
+        ? await api.materializeDose(d.medicineId, d.date || selectedDate, d.time)
+        : d;
+      await api.rescheduleDose(target.id, date, time, reason);
       flash(`${d.medName} moved to ${dateLabel(date)} at ${fmtTime(time)}`);
       await refreshDoses();
       setNotifications(await api.getNotifications());
@@ -491,6 +496,58 @@ export function useCareApp() {
       fail(e);
       return false;
     }
+  };
+
+  /**
+   * Records a refill (stock added in the medicine's unit) and refreshes the plan.
+   * @returns True on success.
+   */
+  const refillMedicine = async (
+    m: Medicine,
+    b: { quantity: number; date?: string; pharmacy?: string; note?: string },
+  ): Promise<boolean> => {
+    try {
+      const r = await api.refillMedicine(m.id, b);
+      flash(
+        `${m.name} refilled: now ${r.stockQuantity} ${r.stockUnit}${r.stockQuantity === 1 ? "" : "s"}`,
+      );
+      setJustChangedMedicine(m.id);
+      await reloadPlan();
+      return true;
+    } catch (e) {
+      fail(e);
+      return false;
+    }
+  };
+
+  // ---- Adding medicines from a scanned prescription ----
+  /** Medicines from a prescription waiting to be added, one wizard at a time. */
+  const [importQueue, setImportQueue] = useState<{ draft: MedicineInput; hint: string }[]>([]);
+  const [importTotal, setImportTotal] = useState(0);
+
+  /**
+   * Starts adding prescription medicines: opens the medicine form pre-filled for each one in turn
+   * (the user still sets times, supply and how long to give it).
+   * @param items - Drafts plus a hint shown in the form (e.g. "Prescription says: 1-0-1").
+   */
+  const startPrescriptionImport = (items: { draft: MedicineInput; hint: string }[]) => {
+    if (!items.length) return;
+    setImportQueue(items);
+    setImportTotal(items.length);
+    setEditing(null);
+    setWizard(true);
+  };
+
+  /** Moves to the next prescription medicine (after saving or skipping the current one). */
+  const nextImport = () => {
+    setImportQueue((q) => {
+      const rest = q.slice(1);
+      if (!rest.length) {
+        setWizard(false);
+        setImportTotal(0);
+      }
+      return rest;
+    });
   };
 
   /**
@@ -580,8 +637,12 @@ export function useCareApp() {
 
   /** Closes the medicine wizard without saving. */
   const closeWizard = () => {
+    // While importing from a prescription, closing skips to the next medicine.
+    if (importQueue.length > 1) return nextImport();
     setWizard(false);
     setEditing(null);
+    setImportQueue([]);
+    setImportTotal(0);
   };
 
   /** Reloads family membership and notifications after an invite/response. */
@@ -734,6 +795,11 @@ export function useCareApp() {
     resumeMedicine,
     rescheduleDose,
     rescheduleMedicine,
+    refillMedicine,
+    startPrescriptionImport,
+    importDraft: importQueue[0] || null,
+    importPosition: importTotal ? importTotal - importQueue.length + 1 : 0,
+    importTotal,
     justChangedMedicine,
     selectPatient,
     startAddPatient,

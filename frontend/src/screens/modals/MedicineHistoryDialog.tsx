@@ -17,6 +17,7 @@ export const ACTION_LABELS: Record<string, string> = {
   updated: "Edited",
   deleted: "Removed",
   schedule_changed: "Schedule changed",
+  refilled: "Refilled",
 };
 
 /** Audit list (shared by the medicine dialog and History → Changes). */

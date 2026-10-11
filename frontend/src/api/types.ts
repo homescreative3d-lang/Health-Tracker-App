@@ -128,6 +128,71 @@ export type Medicine = {
   previousTimes?: string[] | null;
   /** How much to take per dose, e.g. "½ tablet", "5 ml" (required for new medicines). */
   doseAmount?: string;
+  /** Stock on hand in `stockUnit` (tablets, ml…). */
+  stockQuantity?: number;
+  stockUnit?: string;
+  /** Quantity taken per dose (e.g. 0.5). */
+  perDose?: number;
+  /** Days until stock runs out (null = beyond the horizon/course). */
+  daysLeft?: number | null;
+  runOutDate?: string | null;
+  /** out | critical | low | ok */
+  stockStatus?: "out" | "critical" | "low" | "ok";
+  prescribedBy?: string;
+  lastRefillAt?: string | null;
+};
+
+/** One entry in a medicine's stock trail. */
+export type RefillEntry = {
+  id: string;
+  kind: "initial" | "opening" | "refill" | "adjustment";
+  quantity: number;
+  unit: string;
+  stockAfter: number;
+  pharmacy: string;
+  note: string;
+  actorName: string;
+  at: string;
+};
+
+/** One row of the stock planner report. */
+export type StockPlanRow = {
+  medicineId: string;
+  name: string;
+  strength: string;
+  form: string;
+  condition: string;
+  prescribedBy: string;
+  doseAmount: string;
+  times: string[];
+  frequency: string;
+  perDose: number;
+  unit: string;
+  dosesPerDay: number;
+  quantityPerDay: number;
+  stockQuantity: number;
+  dosesLeft: number;
+  daysLeft: number | null;
+  runOutDate: string | null;
+  quantityNeeded: number;
+  quantityToBuy: number;
+  status: "out" | "critical" | "low" | "ok";
+  insufficient: boolean;
+  paused: boolean;
+  courseEnds: string | null;
+  lastRefillAt: string | null;
+  refillThreshold: number;
+};
+
+/** Stock planner report. */
+export type StockPlan = {
+  patientId: string;
+  patientName: string;
+  doctor: string;
+  days: number;
+  today: string;
+  generatedAt: string;
+  rows: StockPlanRow[];
 };
 export type Dose = {
   id: string;
@@ -159,6 +224,8 @@ export type Dose = {
   history?: AuditEntry[] | null;
   /** How much to take, e.g. "½ tablet". */
   doseAmount?: string;
+  /** Future dose computed on the fly (not stored until acted on). */
+  isVirtual?: boolean;
 };
 
 /** One audit-trail entry: who did what, when and why. */
