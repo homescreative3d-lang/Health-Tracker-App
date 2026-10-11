@@ -108,6 +108,8 @@ export type Medicine = {
   rescheduledFromId?: string | null;
   /** Dose times before the reschedule (for "was 8:00 AM"). */
   previousTimes?: string[] | null;
+  /** How much to take per dose, e.g. "½ tablet", "5 ml" (required for new medicines). */
+  doseAmount?: string;
 };
 export type Dose = {
   id: string;
@@ -135,6 +137,24 @@ export type Dose = {
   rescheduledFromTime?: string | null;
   /** Calendar date of this dose (`YYYY-MM-DD`). */
   date?: string | null;
+  /** Change history (audit) for this dose and the dose it was moved from. */
+  history?: AuditEntry[] | null;
+  /** How much to take, e.g. "½ tablet". */
+  doseAmount?: string;
+};
+
+/** One audit-trail entry: who did what, when and why. */
+export type AuditEntry = {
+  id: string;
+  entityType: "dose" | "medicine";
+  entityId: string;
+  medicineId?: string | null;
+  patientId?: string | null;
+  action: string;
+  actorName: string;
+  reason: string;
+  summary: string;
+  at: string;
 };
 export type HistoryRow = {
   id: string;

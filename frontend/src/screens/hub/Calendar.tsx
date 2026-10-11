@@ -8,13 +8,14 @@ import { DoseGroup } from "../../components/DoseGroup";
 import { DoseRow, type DoseAction } from "../../components/DoseRow";
 import { PageHeader } from "../../components/PageHeader";
 import { EmptyArt } from "../../components/art/EmptyArt";
+import { PauseDialog } from "../modals/PauseDialog";
 
 type CalendarProps = {
   selectedDate: string;
   setSelectedDate: (v: string) => void;
   grouped: { name: DayPart; items: Dose[] }[];
   meds: Medicine[];
-  onPause: (id: string, start: string) => Promise<void>;
+  onPause: (id: string, start: string, reason: string) => Promise<void>;
   onDose: (d: Dose, a: DoseAction) => Promise<void>;
   /** Opens the reschedule dialog for a dose. */
   onReschedule: (d: Dose) => void;
@@ -53,17 +54,11 @@ export function Calendar({
       ?.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
   }, [selectedDate]);
 
-  /** Pauses the chosen medicine from the selected date. */
-  const pause = async () => {
-    if (!pauseId) return;
-    setPausing(true);
-    try {
-      await onPause(pauseId, selectedDate);
-      setPauseId("");
-    } finally {
-      setPausing(false);
-    }
+  /** Opens the pause dialog (reason + double confirmation) for the chosen medicine. */
+  const pause = () => {
+    if (pauseId) setPausing(true);
   };
+  const pauseTarget = meds.find((m) => m.id === pauseId);
 
   return (
     <div className="page-scroll">
@@ -187,11 +182,22 @@ export function Calendar({
               </option>
             ))}
           </select>
-          <button className="btn soft" disabled={!pauseId || pausing} onClick={pause}>
-            {pausing ? "Pausing…" : "Pause"}
+          <button className="btn soft" disabled={!pauseId} onClick={pause}>
+            Pause…
           </button>
         </div>
       </div>
+      {pausing && pauseTarget && (
+        <PauseDialog
+          medicine={pauseTarget}
+          startDate={selectedDate}
+          onClose={() => {
+            setPausing(false);
+            setPauseId("");
+          }}
+          onPause={onPause}
+        />
+      )}
     </div>
   );
 }

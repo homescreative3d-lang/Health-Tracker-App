@@ -9,13 +9,20 @@ type TimePickerProps = {
   onChange: (times: string[]) => void;
   /** Allow only one time (used when moving a single dose). */
   single?: boolean;
+  /** Draws an animated rainbow prompt around the controls until a time is added. */
+  highlight?: boolean;
 };
 
 /**
  * Picks dose times with 12-hour selects. Nothing is pre-selected: the user chooses hour,
  * minute and AM/PM, then adds the time (there is no default such as 8:00).
  */
-export function TimePicker({ times, onChange, single = false }: TimePickerProps) {
+export function TimePicker({
+  times,
+  onChange,
+  single = false,
+  highlight = false,
+}: TimePickerProps) {
   const [hour, setHour] = useState("");
   const [minute, setMinute] = useState("");
   const [period, setPeriod] = useState<"" | "AM" | "PM">("");
@@ -39,7 +46,7 @@ export function TimePicker({ times, onChange, single = false }: TimePickerProps)
 
   return (
     <div className="time-picker">
-      <div className="time-picker-controls">
+      <div className={highlight ? "time-picker-controls needs-time" : "time-picker-controls"}>
         <label className="time-select">
           <span>Hour</span>
           <select value={hour} onChange={(e) => setHour(e.target.value)}>

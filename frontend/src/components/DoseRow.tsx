@@ -8,6 +8,7 @@ import {
   RotateCcw,
   UserRound,
   X,
+  History as HistoryIcon,
 } from "lucide-react";
 import type { Dose } from "../api";
 import { dateLabel, fmtTime } from "../lib/dates";
@@ -72,6 +73,11 @@ function activityClass(prev: string, next: string): string | null {
 export function DoseRow({ d, date, onDose, onReschedule }: DoseRowProps) {
   const now = useNow();
   const [busy, setBusy] = useState<DoseAction | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  // Only changes worth showing on the card (not routine take/skip, which the status already shows).
+  const history = (d.history || []).filter(
+    (h) => h.action === "rescheduled" || h.action === "undone",
+  );
   const actionWindow = doseWindow(date, d, now);
   const status = statusOf(d, actionWindow);
   const acted = d.status === "taken" || d.status === "skipped";
@@ -134,6 +140,7 @@ export function DoseRow({ d, date, onDose, onReschedule }: DoseRowProps) {
                 </span>
               )}
             </b>
+            {d.doseAmount && <span className="dose-amount">Take {d.doseAmount}</span>}
             <span className="muted">
               {[
                 d.strength,
@@ -203,6 +210,36 @@ export function DoseRow({ d, date, onDose, onReschedule }: DoseRowProps) {
             )}
           </div>
         </div>
+        {history.length > 0 && (
+          <div className="dose-history">
+            <button
+              type="button"
+              className="dose-history-toggle"
+              aria-expanded={showHistory}
+              onClick={() => setShowHistory((v) => !v)}
+            >
+              <HistoryIcon size={13} aria-hidden="true" />
+              {showHistory ? "Hide changes" : `Changed ${history.length}×`}
+            </button>
+            {showHistory && (
+              <ol className="dose-history-list">
+                {history.map((h) => (
+                  <li key={h.id} className={`act-${h.action}`}>
+                    <b>{h.summary}</b>
+                    <small>
+                      {h.actorName} ·{" "}
+                      {new Date(h.at).toLocaleString(undefined, {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </small>
+                    {h.reason && <q>{h.reason}</q>}
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        )}
         {actionWindow === "upcoming" && !acted && !moved && (
           <span className="dose-hint">
             <Clock3 size={14} aria-hidden="true" />

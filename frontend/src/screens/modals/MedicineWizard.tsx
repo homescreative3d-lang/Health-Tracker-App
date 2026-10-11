@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Medicine, MedicineInput } from "../../api";
-import { DAY_PARTS, fmtTime, part, today } from "../../lib/dates";
+import { DAY_PARTS, addDays, fmtTime, part, scheduledAt, today } from "../../lib/dates";
 import { conditions, days, forms, frequencyLabel, liquids } from "../../constants/options";
 import { Field } from "../../components/Field";
 import { InlineError } from "../../components/InlineError";
 import { Modal } from "../../components/Modal";
 import { TimePicker } from "../../components/TimePicker";
+import { DoseAmountPicker } from "../../components/DoseAmountPicker";
 import { MedicineArt } from "../../components/art/MedicineArt";
 
 type MedicineWizardProps = {
@@ -68,12 +69,25 @@ export function MedicineWizard({
   const set = <K extends keyof MedicineInput>(k: K, v: MedicineInput[K]) =>
     setM((x) => ({ ...x, [k]: v }));
 
+  // Condition dropdown choice; "Other" reveals a text box for a condition that isn't listed.
+  const [conditionChoice, setConditionChoice] = useState(
+    !m.condition ? "" : conditions.includes(m.condition) ? m.condition : "Other",
+  );
+  // A new medicine starting today can't have a dose time that has already passed.
+  const pastTimes =
+    !isEdit && m.startDate === today()
+      ? m.times.filter((t) => scheduledAt(m.startDate, t).getTime() <= Date.now())
+      : [];
+
   /** Returns the first validation problem for the current step (and earlier steps), or "". */
   const validate = (): string => {
     if (!m.name.trim()) return "Enter the medicine name.";
     if (m.name.trim().length > 100) return "Medicine name must be 100 characters or fewer.";
     if (!m.strength.trim()) return "Enter the strength, e.g. 500 mg.";
-    if (!m.condition) return "Choose what this medicine is for.";
+    if (!conditionChoice) return "Choose what this medicine is for.";
+    if (conditionChoice === "Other" && !m.condition.trim())
+      return "Type the condition this medicine is for.";
+    if (!(m.doseAmount || "").trim()) return "Choose how much to take per dose.";
     if (step >= 1) {
       if (!m.times.length) return "Add at least one dose time.";
       if (m.frequencyPattern === "specificDays" && !m.specificDays.length)
@@ -84,6 +98,8 @@ export function MedicineWizard({
       )
         return "Repeat interval must be a whole number of at least 1.";
       if (!m.startDate) return "Choose a start date.";
+      if (pastTimes.length)
+        return `${pastTimes.map(fmtTime).join(", ")} ${pastTimes.length === 1 ? "has" : "have"} already passed today. Choose a later time or start from tomorrow.`;
     }
     if (step >= 2) {
       if (!Number.isInteger(m.supplyCount) || m.supplyCount < 1)
@@ -200,18 +216,40 @@ export function MedicineWizard({
           <Field label="Used for">
             <select
               className="input"
-              value={m.condition}
-              onChange={(e) => set("condition", e.target.value)}
+              value={conditionChoice}
+              onChange={(e) => {
+                setConditionChoice(e.target.value);
+                set("condition", e.target.value === "Other" ? "" : e.target.value);
+              }}
             >
               <option value="">Choose a condition</option>
-              {(conditions.includes(m.condition) || !m.condition
-                ? conditions
-                : [m.condition, ...conditions]
-              ).map((x) => (
+              {conditions.map((x) => (
                 <option key={x}>{x}</option>
               ))}
             </select>
           </Field>
+          {conditionChoice === "Other" && (
+            <Field label="Which condition?" full>
+              <input
+                className="input"
+                value={m.condition}
+                maxLength={80}
+                autoFocus
+                onChange={(e) => set("condition", e.target.value)}
+                placeholder="Type the condition, e.g. Migraine"
+              />
+            </Field>
+          )}
+          <div className="field full-field">
+            <span className="field-label">
+              How much per dose <em>required</em>
+            </span>
+            <DoseAmountPicker
+              form={m.form}
+              value={m.doseAmount || ""}
+              onChange={(v) => set("doseAmount", v)}
+            />
+          </div>
         </div>
       )}
 
@@ -290,7 +328,11 @@ export function MedicineWizard({
           )}
           <div className="field full-field">
             <span className="field-label">Dose times</span>
-            <TimePicker times={m.times} onChange={(times) => set("times", times)} />
+            <TimePicker
+              times={m.times}
+              onChange={(times) => set("times", times)}
+              highlight={!m.times.length}
+            />
           </div>
           <CompartmentPreview times={m.times} />
           <label className="check-row full-field">
@@ -360,6 +402,18 @@ export function MedicineWizard({
         </div>
       )}
       {error && <InlineError>{error}</InlineError>}
+      {error && pastTimes.length > 0 && step === 1 && (
+        <button
+          type="button"
+          className="btn soft"
+          onClick={() => {
+            set("startDate", addDays(today(), 1));
+            setError("");
+          }}
+        >
+          Start from tomorrow instead
+        </button>
+      )}
     </Modal>
   );
 }

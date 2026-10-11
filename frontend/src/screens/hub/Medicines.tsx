@@ -1,4 +1,7 @@
-import { CalendarClock, PauseCircle, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { CalendarClock, History, PauseCircle, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import { MedicineHistoryDialog } from "../modals/MedicineHistoryDialog";
+import { PauseDialog } from "../modals/PauseDialog";
 import type { Medicine } from "../../api";
 import { dateLabel, fmtTime } from "../../lib/dates";
 import { plural } from "../../lib/text";
@@ -24,6 +27,8 @@ type MedicinesProps = {
   onReschedule: (m: Medicine) => void;
   /** Medicine just added or rescheduled: its card pops in and glows briefly. */
   highlightId?: string | null;
+  /** Pauses a medicine (reason + double confirmation in the dialog). */
+  onPause: (id: string, start: string, reason: string) => Promise<void>;
 };
 
 /**
@@ -66,7 +71,10 @@ export function Medicines({
   loading = false,
   onReschedule,
   highlightId,
+  onPause,
 }: MedicinesProps) {
+  const [historyFor, setHistoryFor] = useState<Medicine | null>(null);
+  const [pauseFor, setPauseFor] = useState<Medicine | null>(null);
   const active = meds.filter((m) => !isPausedOn(m)).length;
   return (
     <div className="page-scroll">
@@ -122,6 +130,7 @@ export function Medicines({
                       {m.strength || "Strength not set"} · {m.form}
                     </span>
                     {m.condition && <span className="muted">For {m.condition}</span>}
+                    {m.doseAmount && <span className="dose-amount">Take {m.doseAmount}</span>}
                   </div>
                 </div>
                 {m.rescheduledFromId && (
@@ -130,6 +139,13 @@ export function Medicines({
                       <CalendarClock size={12} aria-hidden="true" />
                       Rescheduled
                     </span>
+                    <button
+                      type="button"
+                      className="btn ghost sm history-btn"
+                      onClick={() => setHistoryFor(m)}
+                    >
+                      <History size={13} aria-hidden="true" /> Change history
+                    </button>
                     <small>
                       Since {dateLabel(m.startDate)}
                       {m.previousTimes?.length
@@ -169,6 +185,15 @@ export function Medicines({
                         <CalendarClock size={15} aria-hidden="true" />
                         Reschedule
                       </button>
+                      <button
+                        type="button"
+                        className="btn soft icon-only"
+                        onClick={() => setPauseFor(m)}
+                        aria-label={`Pause ${m.name}`}
+                        title="Pause"
+                      >
+                        <PauseCircle size={16} aria-hidden="true" />
+                      </button>
                     </>
                   )}
                   <button
@@ -184,6 +209,12 @@ export function Medicines({
             );
           })}
         </div>
+      )}
+      {historyFor && (
+        <MedicineHistoryDialog medicine={historyFor} onClose={() => setHistoryFor(null)} />
+      )}
+      {pauseFor && (
+        <PauseDialog medicine={pauseFor} onClose={() => setPauseFor(null)} onPause={onPause} />
       )}
     </div>
   );

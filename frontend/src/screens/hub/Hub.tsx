@@ -113,6 +113,7 @@ export function Hub() {
                 onResume={app.resumeMedicine}
                 onReschedule={(m) => setResched({ dose: null, medicine: m })}
                 highlightId={app.justChangedMedicine}
+                onPause={app.pauseMedicine}
                 loading={app.planLoading}
               />
             )}
