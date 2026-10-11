@@ -14,6 +14,7 @@ namespace HealthTracker.Api.Controllers;
 /// scanning (Gemini) that returns an editable draft — nothing is saved until a person confirms.
 /// </summary>
 [Authorize]
+[RequiresFeature("medical_history")]
 [Route("api")]
 public class MedicalRecordsController(
     AppDbContext db,
@@ -67,6 +68,7 @@ public class MedicalRecordsController(
     /// <response code="200">The draft: date, doctor, facility, diagnosis, notes, medicines, confidence.</response>
     /// <response code="400">Unsupported/too large file, unreadable image, quota reached or scanning not configured.</response>
     [HttpPost("patients/{patientId:guid}/medical-records/extract")]
+    [RequiresFeature("prescription_scan")]
     [ProducesResponseType<PrescriptionDraft>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Extract(Guid patientId, ExtractRequest r)

@@ -82,6 +82,7 @@ public class NotificationsController(AppDbContext db, IPushNotificationService p
     /// <response code="200">Subscribed.</response>
     /// <response code="400">Incomplete subscription.</response>
     [HttpPost("push/subscribe")]
+    [RequiresFeature("push_notifications")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Subscribe(PushSubscriptionRequest request)

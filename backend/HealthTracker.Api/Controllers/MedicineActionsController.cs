@@ -98,6 +98,7 @@ public class MedicineActionsController(AppDbContext db, IPatientAccessService ac
     /// <response code="403">No access to the medicine's patient.</response>
     /// <response code="404">Medicine not found.</response>
     [HttpPost("{id:guid}/reschedule")]
+    [RequiresFeature("rescheduling")]
     [ProducesResponseType<MedicineResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

@@ -6,7 +6,8 @@ using Microsoft.EntityFrameworkCore;
 // Composition root: registers services, configures the HTTP pipeline and starts the API.
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddControllers(o => o.Filters.Add<AccessGuard>());
+builder.Services.AddMemoryCache();
 builder.Services.AddSwaggerDocumentation();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
@@ -35,6 +36,7 @@ if (!app.Environment.IsEnvironment("Testing") && !app.Environment.IsDevelopment(
 await DatabaseInitializer.InitializeAsync(app.Services);
 // Push works without manual setup: load configured keys or generate and persist a pair once.
 await VapidKeyStore.InitializeAsync(app.Services);
+await IFeatureFlags.SeedAsync(app.Services);
 
 app.UseExceptionHandler();
 app.UseSwaggerDocumentation();

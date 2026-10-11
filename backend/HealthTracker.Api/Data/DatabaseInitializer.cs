@@ -106,6 +106,24 @@ public static class DatabaseInitializer
                             "At" timestamp with time zone NOT NULL);
                         CREATE INDEX IF NOT EXISTS "IX_AuditLogs_PatientId_At" ON "AuditLogs" ("PatientId", "At");
                         CREATE INDEX IF NOT EXISTS "IX_AuditLogs_MedicineId" ON "AuditLogs" ("MedicineId");
+                        CREATE TABLE IF NOT EXISTS "FeatureFlags" (
+                            "Key" text NOT NULL CONSTRAINT "PK_FeatureFlags" PRIMARY KEY,
+                            "Enabled" boolean NOT NULL,
+                            "Description" text NOT NULL,
+                            "UpdatedAt" timestamp with time zone NOT NULL);
+                        CREATE TABLE IF NOT EXISTS "UserFeatureOverrides" (
+                            "UserId" uuid NOT NULL,
+                            "Key" text NOT NULL,
+                            "Enabled" boolean NOT NULL,
+                            "UpdatedAt" timestamp with time zone NOT NULL,
+                            CONSTRAINT "PK_UserFeatureOverrides" PRIMARY KEY ("UserId", "Key"));
+                        ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "Phone" text NOT NULL DEFAULT '';
+                        ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "IsDeleted" boolean NOT NULL DEFAULT false;
+                        ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "DeletedAt" timestamp with time zone NULL;
+                        ALTER TABLE "Patients" ADD COLUMN IF NOT EXISTS "Email" text NOT NULL DEFAULT '';
+                        ALTER TABLE "Patients" ADD COLUMN IF NOT EXISTS "LinkedUserId" uuid NULL;
+                        ALTER TABLE "Patients" ADD COLUMN IF NOT EXISTS "CanMarkOwnDoses" boolean NOT NULL DEFAULT false;
+                        CREATE INDEX IF NOT EXISTS "IX_Patients_LinkedUserId" ON "Patients" ("LinkedUserId");
                         """);
                 }
             }

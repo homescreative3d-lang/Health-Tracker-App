@@ -122,6 +122,7 @@ public class MedicinesController(AppDbContext db, IPatientAccessService access, 
     /// <response code="200">Audit entries, newest first.</response>
     /// <response code="404">Medicine not found or not accessible.</response>
     [HttpGet("{id:guid}/history")]
+    [RequiresFeature("change_history")]
     [ProducesResponseType<List<AuditEntryResponse>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> History(Guid id)

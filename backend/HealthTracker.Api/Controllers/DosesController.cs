@@ -74,6 +74,7 @@ public class DosesController(IDoseService doses) : ApiControllerBase
     /// <response code="400">Invalid or past target, slot already used, or dose already recorded.</response>
     /// <response code="403">No access to the dose.</response>
     [HttpPost("{id:guid}/reschedule")]
+    [RequiresFeature("rescheduling")]
     [ProducesResponseType<DoseResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

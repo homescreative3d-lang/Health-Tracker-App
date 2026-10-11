@@ -11,12 +11,12 @@ namespace HealthTracker.Api.Controllers;
 /// </summary>
 [Authorize]
 [Route("api/account")]
-public class AccountController(AppDbContext db, INeonObjectStorage storage) : ApiControllerBase
+public class AccountController(AppDbContext db, INeonObjectStorage storage, IAuthService auth) : ApiControllerBase
 {
     Guid U => CurrentUserId;
 
     /// <summary>
-    /// Updates display name and profile photo.
+    /// Updates display name, phone (with country code) and profile photo.
     /// </summary>
     /// <param name="r">
     /// <c>ProfileImageUrl</c>: a <c>data:image/...</c> URL uploads a new photo (max 1 MB),
@@ -34,6 +34,10 @@ public class AccountController(AppDbContext db, INeonObjectStorage storage) : Ap
         var u = await db.Users.FindAsync(U);
         if (u is null)
             return NotFound();
+        // The name was previously validated but never saved, so name changes were lost.
+        u.DisplayName = r.DisplayName.Trim();
+        if (r.Phone is not null)
+            u.Phone = Domain.PhoneNumber.Normalize(r.Phone);
         var old = u.ProfileImageUrl;
         if (!string.IsNullOrWhiteSpace(r.ProfileImageUrl) && r.ProfileImageUrl.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
             u.ProfileImageUrl = await storage.PutDataUrlAsync("users", $"{U}/{Guid.NewGuid():N}", r.ProfileImageUrl);
@@ -44,11 +48,11 @@ public class AccountController(AppDbContext db, INeonObjectStorage storage) : Ap
         if (u.ProfileImageUrl != old && !string.IsNullOrWhiteSpace(old))
             await storage.DeleteAsync("users", old);
         await db.SaveChangesAsync();
-        return Ok(new { u.Id, u.Email, u.DisplayName, u.TimeZoneId, ProfileImageUrl = string.IsNullOrWhiteSpace(u.ProfileImageUrl) ? null : storage.GetReadUrl("users", u.ProfileImageUrl) });
+        return Ok(await auth.ToResponse(u));
     }
 
     /// <summary>
-    /// Permanently deletes the account.
+    /// Closes the account (soft delete: the row is kept with <c>IsDeleted = true</c>).
     /// </summary>
     /// <remarks>
     /// Patients are transferred to another approved family caregiver when one exists; otherwise
@@ -118,15 +122,19 @@ public class AccountController(AppDbContext db, INeonObjectStorage storage) : Ap
         db.PushSubscriptions.RemoveRange(db.PushSubscriptions.Where(s => s.UserId == userId));
         db.NotificationDeliveries.RemoveRange(db.NotificationDeliveries.Where(d => d.UserId == userId));
         db.PasswordResetTokens.RemoveRange(db.PasswordResetTokens.Where(t => t.UserId == userId));
+        // Soft delete: keep the row (audit history keeps its actor), flag it closed. Signing up again
+        // with the same email reactivates it. Patient links to this account are removed.
         var user = await db.Users.FindAsync(userId);
         if (user is not null)
         {
-            if (!string.IsNullOrWhiteSpace(user.ProfileImageUrl))
-                await storage.DeleteAsync("users", user.ProfileImageUrl);
-            db.Users.Remove(user);
+            user.IsDeleted = true;
+            user.DeletedAt = DateTimeOffset.UtcNow;
         }
 
+        foreach (var linked in await db.Patients.Where(p => p.LinkedUserId == userId).ToListAsync())
+            linked.LinkedUserId = null;
+
         await db.SaveChangesAsync();
-        return Ok(new { message = "Account deleted successfully." });
+        return Ok(new { message = "Account closed. Sign up again with the same email to reactivate it." });
     }
 }

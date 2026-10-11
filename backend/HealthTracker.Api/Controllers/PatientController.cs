@@ -17,7 +17,7 @@ namespace HealthTracker.Api.Controllers;
 /// </remarks>
 [Authorize]
 [Route("api/patient")]
-public class PatientController(AppDbContext db, INeonObjectStorage storage, IPatientAccessService access) : ApiControllerBase
+public class PatientController(AppDbContext db, INeonObjectStorage storage, IPatientAccessService access, IPatientLinker linker) : ApiControllerBase
 {
     Guid U => CurrentUserId;
 
@@ -44,9 +44,11 @@ public class PatientController(AppDbContext db, INeonObjectStorage storage, IPat
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> All()
     {
-        var ids = await access.GetAccessibleOwnerIdsAsync(U);
-        var rows = await db.Patients.Where(x => ids.Contains(x.UserId)).Join(db.Users, p => p.UserId, u => u.Id, (p, u) => new { p, u }).ToListAsync();
-        var result = rows.Select(x => new { x.p.Id, x.p.UserId, x.p.Name, x.p.Dob, Conditions = JsonSerializer.Deserialize<List<string>>(x.p.ConditionsJson) ?? [], x.p.Notes, x.p.Relationship, x.p.Mobile, x.p.Doctor, x.p.MedicalHistory, DoctorPhotoUrl = string.IsNullOrWhiteSpace(x.p.DoctorPhotoUrl) ? null : storage.GetReadUrl("patient", x.p.DoctorPhotoUrl), ProfileImageUrl = string.IsNullOrWhiteSpace(x.p.ProfileImageUrl) ? null : storage.GetReadUrl("patient", x.p.ProfileImageUrl), Attachments = MapAttachments(x.p), OwnerName = x.u.DisplayName, OwnerEmail = x.u.Email }).ToList();
+        var ids = await access.GetAccessiblePatientIdsAsync(U);
+        var rows = await db.Patients.Where(x => ids.Contains(x.Id)).Join(db.Users, p => p.UserId, u => u.Id, (p, u) => new { p, u }).ToListAsync();
+        var linkedIds = rows.Where(r => r.p.LinkedUserId.HasValue).Select(r => r.p.LinkedUserId!.Value).Distinct().ToList();
+        var linkedNames = await db.Users.Where(u => linkedIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.DisplayName);
+        var result = rows.Select(x => new { x.p.Id, x.p.UserId, x.p.Name, x.p.Dob, Conditions = JsonSerializer.Deserialize<List<string>>(x.p.ConditionsJson) ?? [], x.p.Notes, x.p.Relationship, x.p.Mobile, x.p.Doctor, x.p.MedicalHistory, DoctorPhotoUrl = string.IsNullOrWhiteSpace(x.p.DoctorPhotoUrl) ? null : storage.GetReadUrl("patient", x.p.DoctorPhotoUrl), ProfileImageUrl = string.IsNullOrWhiteSpace(x.p.ProfileImageUrl) ? null : storage.GetReadUrl("patient", x.p.ProfileImageUrl), Attachments = MapAttachments(x.p), OwnerName = x.u.DisplayName, OwnerEmail = x.u.Email, OwnerPhone = x.u.Phone, x.p.Email, x.p.CanMarkOwnDoses, IsLinked = x.p.LinkedUserId.HasValue, LinkedUserName = x.p.LinkedUserId.HasValue && linkedNames.TryGetValue(x.p.LinkedUserId.Value, out var ln) ? ln : null, IsMyPatientProfile = x.p.LinkedUserId == U }).ToList();
         return Ok(result);
     }
 
@@ -62,12 +64,14 @@ public class PatientController(AppDbContext db, INeonObjectStorage storage, IPat
     public async Task<IActionResult> Create(PatientRequest r)
     {
         var p = Build(r, U);
-        if (IsDataImage(r.ProfileImageUrl))
+        p.Mobile = Domain.PhoneNumber.Normalize(r.Mobile);
+        p.Email = NormalizeEmail(r.Email);
             p.ProfileImageUrl = await storage.PutDataUrlAsync("patient", $"{p.Id}/{Guid.NewGuid():N}", r.ProfileImageUrl);
         if (IsDataImage(r.DoctorPhotoUrl))
             p.DoctorPhotoUrl = await storage.PutDataUrlAsync("patient", $"{p.Id}/doctor-{Guid.NewGuid():N}", r.DoctorPhotoUrl);
         await UpdateAttachments(p, r.Attachments);
         db.Patients.Add(p);
+        await linker.SyncPatientAsync(p, "");
         await db.SaveChangesAsync();
         return Ok(await Map(p));
     }
@@ -116,7 +120,10 @@ public class PatientController(AppDbContext db, INeonObjectStorage storage, IPat
         p.ConditionsJson = JsonSerializer.Serialize(r.Conditions ?? []);
         p.Notes = r.Notes;
         p.Relationship = r.Relationship;
-        p.Mobile = r.Mobile?.Trim() ?? "";
+        p.Mobile = Domain.PhoneNumber.Normalize(r.Mobile);
+        var previousEmail = p.Email;
+        if (r.Email is not null)
+            p.Email = NormalizeEmail(r.Email);
         p.Doctor = r.Doctor?.Trim() ?? "";
         p.MedicalHistory = r.MedicalHistory?.Trim() ?? "";
         var oldDoctorPhoto = p.DoctorPhotoUrl;
@@ -137,6 +144,7 @@ public class PatientController(AppDbContext db, INeonObjectStorage storage, IPat
         if (p.ProfileImageUrl != old && !string.IsNullOrWhiteSpace(old))
             await storage.DeleteAsync("patient", old);
         await UpdateAttachments(p, r.Attachments);
+        await linker.SyncPatientAsync(p, previousEmail);
         await db.SaveChangesAsync();
         return Ok(await Map(p));
     }
@@ -223,6 +231,88 @@ public class PatientController(AppDbContext db, INeonObjectStorage storage, IPat
         p.MedicalHistory,
         DoctorPhotoUrl = string.IsNullOrWhiteSpace(p.DoctorPhotoUrl) ? null : storage.GetReadUrl("patient", p.DoctorPhotoUrl),
         ProfileImageUrl = string.IsNullOrWhiteSpace(p.ProfileImageUrl) ? null : storage.GetReadUrl("patient", p.ProfileImageUrl),
-        Attachments = MapAttachments(p)
+        Attachments = MapAttachments(p),
+        p.Email,
+        p.CanMarkOwnDoses,
+        IsLinked = p.LinkedUserId.HasValue
     });
+
+    /// <summary>
+    /// Validates an optional patient email (lowercased). Empty removes it (and unlinks the account).
+    /// </summary>
+    /// <exception cref="ArgumentException">Malformed email (mapped to 400).</exception>
+    static string NormalizeEmail(string? value)
+    {
+        var email = (value ?? "").Trim().ToLowerInvariant();
+        if (email.Length > 0 && !System.Text.RegularExpressions.Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$"))
+            throw new ArgumentException("Enter a valid email address for the patient, or leave it empty.");
+        return email;
+    }
+
+    /// <summary>
+    /// Sets whether the linked patient may mark their own doses (owner, or family admin/managers).
+    /// </summary>
+    /// <param name="id">Patient id.</param>
+    /// <param name="r">Portal settings.</param>
+    /// <response code="200">Updated setting.</response>
+    /// <response code="403">Only the patient's caregiver or the family admin/managers can change this.</response>
+    [HttpPut("{id:guid}/portal")]
+    [RequiresFeature("patient_portal")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> Portal(Guid id, PatientPortalRequest r)
+    {
+        var p = await db.Patients.FindAsync(id);
+        if (p is null)
+            return NotFound();
+        var isOwner = p.UserId == U;
+        var ownerFamilies = await db.FamilyMembers.Where(m => m.UserId == p.UserId && m.Status == "approved").Select(m => m.FamilyId).ToListAsync();
+        var isManager = await db.FamilyMembers.AnyAsync(m => m.UserId == U && m.Status == "approved" && ownerFamilies.Contains(m.FamilyId) && (m.Role == "admin" || m.CanManageMembers));
+        if (!isOwner && !isManager)
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Only the patient's caregiver or the family admin can change this." });
+        p.CanMarkOwnDoses = r.CanMarkOwnDoses;
+        if (p.LinkedUserId is Guid linked)
+            db.Notifications.Add(new AppNotification
+            {
+                UserId = linked,
+                Type = "patient_portal_changed",
+                Title = r.CanMarkOwnDoses ? "You can now mark your doses" : "Dose marking turned off",
+                Message = r.CanMarkOwnDoses ? $"You can now mark your own doses as taken or skipped in {p.Name}'s plan." : "Your caregiver now records your doses for you.",
+                DataJson = JsonSerializer.Serialize(new { patientId = p.Id })
+            });
+        await db.SaveChangesAsync();
+        return Ok(new { p.Id, p.CanMarkOwnDoses });
+    }
+
+    /// <summary>
+    /// Everyone caring for a patient (the owner and approved family members) with contact details,
+    /// for the patient's own view and for caregivers.
+    /// </summary>
+    /// <param name="id">Patient id.</param>
+    /// <response code="200">Care team.</response>
+    [HttpGet("{id:guid}/care-team")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> CareTeam(Guid id)
+    {
+        var p = await access.GetAccessiblePatientAsync(U, id);
+        var familyIds = await db.FamilyMembers.Where(m => m.UserId == p.UserId && m.Status == "approved").Select(m => m.FamilyId).ToListAsync();
+        var members = await db.FamilyMembers.Where(m => familyIds.Contains(m.FamilyId) && m.Status == "approved").ToListAsync();
+        var userIds = members.Select(m => m.UserId).Append(p.UserId).Distinct().ToList();
+        var users = await db.Users.Where(u => userIds.Contains(u.Id) && !u.IsDeleted).ToListAsync();
+        return Ok(users.Select(u =>
+        {
+            var m = members.FirstOrDefault(x => x.UserId == u.Id);
+            return new
+            {
+                u.Id,
+                u.DisplayName,
+                u.Email,
+                u.Phone,
+                ProfileImageUrl = string.IsNullOrWhiteSpace(u.ProfileImageUrl) ? null : storage.GetReadUrl("users", u.ProfileImageUrl),
+                IsPrimary = u.Id == p.UserId,
+                FamilyRole = m?.Role,
+                CanManage = m is not null && (m.Role == "admin" || m.CanManageMembers)
+            };
+        }).OrderByDescending(x => x.IsPrimary));
+    }
 }

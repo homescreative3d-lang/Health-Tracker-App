@@ -70,14 +70,15 @@ public class NotificationScheduler(IServiceScopeFactory scopes, ILogger<Notifica
 
         var push = services.GetRequiredService<IPushNotificationService>();
         var now = DateTimeOffset.UtcNow;
-        var users = await db.Users.AsNoTracking().ToListAsync(cancellationToken);
+        var users = await db.Users.AsNoTracking().Where(u => !u.IsDeleted).ToListAsync(cancellationToken);
         foreach (var user in users)
         {
             var timeZone = DoseSchedule.ResolveTimeZone(user.TimeZoneId);
             var localNow = TimeZoneInfo.ConvertTime(now, timeZone);
             var localDate = DateOnly.FromDateTime(localNow.DateTime);
             var ownerIds = await access.GetAccessibleOwnerIdsAsync(user.Id, cancellationToken);
-            var patients = await db.Patients.Where(patient => ownerIds.Contains(patient.UserId)).ToListAsync(cancellationToken);
+            // Caregivers get reminders for patients they can access; linked patients for their own record.
+            var patients = await db.Patients.Where(patient => ownerIds.Contains(patient.UserId) || patient.LinkedUserId == user.Id).ToListAsync(cancellationToken);
             foreach (var patient in patients)
             {
                 var medicines = await db.Medicines.Where(medicine => medicine.PatientId == patient.Id).ToListAsync(cancellationToken);

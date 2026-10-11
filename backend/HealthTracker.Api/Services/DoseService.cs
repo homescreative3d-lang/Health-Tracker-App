@@ -308,7 +308,7 @@ public class DoseService(AppDbContext db, IPatientAccessService access, ICareTea
     {
         var d = await db.DoseEvents.SingleOrDefaultAsync(x => x.Id == id) ?? throw new KeyNotFoundException("Dose not found.");
         var p = await db.Patients.SingleOrDefaultAsync(x => x.Id == d.PatientId) ?? throw new KeyNotFoundException("Patient not found.");
-        if (!(await access.GetAccessibleOwnerIdsAsync(uid)).Contains(p.UserId))
+        if (!await access.CanAccessPatientAsync(uid, p.Id))
             throw new UnauthorizedAccessException("You do not have access to this dose.");
         var m = await db.Medicines.SingleOrDefaultAsync(x => x.Id == d.MedicineId && x.PatientId == p.Id) ?? throw new KeyNotFoundException("Medicine not found.");
         var owner = await db.Users.FindAsync(p.UserId);

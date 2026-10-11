@@ -28,8 +28,8 @@ public class HistoryController(AppDbContext db, IPatientAccessService access) : 
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> Get([FromQuery] string? patientIds, [FromQuery] Guid? medicineId, [FromQuery] string? from, [FromQuery] string? to, [FromQuery] string? period, [FromQuery] string? medicineName)
     {
-        var ids = await access.GetAccessibleOwnerIdsAsync(CurrentUserId);
-        var pids = await db.Patients.Where(p => ids.Contains(p.UserId)).Select(p => p.Id).ToListAsync();
+        var accessiblePatients = await access.GetAccessiblePatientIdsAsync(CurrentUserId);
+        var pids = accessiblePatients;
         if (!string.IsNullOrWhiteSpace(patientIds))
         {
             var wanted = patientIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => Guid.TryParse(x, out var id) ? id : Guid.Empty).Where(x => x != Guid.Empty).ToHashSet();
@@ -76,11 +76,12 @@ public class HistoryController(AppDbContext db, IPatientAccessService access) : 
     /// <param name="to">Latest date (inclusive, UTC).</param>
     /// <response code="200">Audit entries.</response>
     [HttpGet("changes")]
+    [RequiresFeature("change_history")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> Changes(string? patientIds, DateOnly? from, DateOnly? to)
     {
-        var owners = await access.GetAccessibleOwnerIdsAsync(CurrentUserId);
-        var accessible = await db.Patients.Where(p => owners.Contains(p.UserId)).Select(p => new { p.Id, p.Name }).ToListAsync();
+        var visible = await access.GetAccessiblePatientIdsAsync(CurrentUserId);
+        var accessible = await db.Patients.Where(p => visible.Contains(p.Id)).Select(p => new { p.Id, p.Name }).ToListAsync();
         var ids = accessible.Select(p => p.Id).ToList();
         if (!string.IsNullOrWhiteSpace(patientIds))
         {
