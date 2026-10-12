@@ -39,7 +39,7 @@ public record FamilyInviteResponse(bool Accept);
 /// <summary>Web Push subscription keys from the browser.</summary>
 public record PushSubscriptionRequest(string Endpoint, string P256dh, string Auth);
 /// <summary>Reminder timing settings.</summary>
-public record NotificationSettingsRequest(string TimeZoneId, int LeadMinutes, int RepeatMinutes, bool FinalNotificationEnabled);
+public record NotificationSettingsRequest(string TimeZoneId, int LeadMinutes, int RepeatMinutes, bool FinalNotificationEnabled, string? AlertMode = null);
 /// <summary>A dose history row.</summary>
 public record HistoryResponse(Guid Id, string PatientId, string PatientName, string MedicineId, string MedicineName, string Time, string Date, string Status, DateTimeOffset? TakenAt, string? SkipReason, Guid? ActionedByUserId, string? ActionedByName);
 /// <summary>Pause range; omit <c>EndDate</c> to pause until resumed.</summary>

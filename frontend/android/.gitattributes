@@ -1,0 +1,3 @@
+# Windows scripts: stored with LF in git, checked out with CRLF (keeps patches lossless).
+*.bat text eol=crlf
+gradlew text eol=lf

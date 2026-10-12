@@ -1,0 +1,218 @@
+/* Alarm: full-screen ringing card and alarm settings. */
+
+.alarm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: max(16px, var(--safe-top)) 16px max(16px, var(--safe-bottom));
+  background:
+    radial-gradient(600px 400px at 50% 0%, rgba(242, 169, 59, 0.35), transparent 70%),
+    radial-gradient(600px 400px at 50% 100%, rgba(91, 107, 224, 0.35), transparent 70%),
+    rgba(15, 42, 51, 0.92);
+  backdrop-filter: blur(6px);
+  animation: fade-in 200ms var(--ease-out);
+}
+.alarm-card {
+  position: relative;
+  width: min(440px, 100%);
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  padding: var(--space-8) var(--space-6) var(--space-6);
+  border-radius: 32px;
+  background: #fff;
+  text-align: center;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+  animation: alarm-shake 0.9s ease-in-out infinite;
+  isolation: isolate;
+}
+.alarm-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  padding: 3px;
+  border-radius: inherit;
+  background: var(
+      --ribbon-flow,
+      linear-gradient(90deg, #f2a93b, #2fa37a, #e8735a, #5b6be0, #f2a93b)
+    )
+    0 0 / 300% 100%;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: ribbon-flow 2.5s linear infinite;
+}
+@keyframes alarm-shake {
+  0%,
+  60%,
+  100% {
+    transform: rotate(0);
+  }
+  65% {
+    transform: rotate(-1.2deg);
+  }
+  75% {
+    transform: rotate(1.2deg);
+  }
+  85% {
+    transform: rotate(-0.8deg);
+  }
+}
+.alarm-rings {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  display: grid;
+  place-items: center;
+  margin-top: -76px;
+  border-radius: 50%;
+  background: #0f2a33;
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(15, 42, 51, 0.4);
+}
+.alarm-rings svg {
+  animation: bell-ring 0.8s ease-in-out infinite;
+}
+.alarm-rings span {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid var(--logo-morning);
+  animation: ring-out 1.8s ease-out infinite;
+}
+.alarm-rings span:nth-child(2) {
+  animation-delay: 0.6s;
+  border-color: var(--logo-evening);
+}
+.alarm-rings span:nth-child(3) {
+  animation-delay: 1.2s;
+  border-color: var(--logo-night);
+}
+@keyframes ring-out {
+  from {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+}
+.alarm-card > .eyebrow {
+  margin-top: var(--space-3);
+}
+.alarm-card h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: clamp(1.4rem, 1.1rem + 1.4vw, 1.9rem);
+}
+.alarm-sub {
+  color: var(--ink-2);
+}
+.alarm-actions {
+  display: grid;
+  gap: var(--space-2);
+  width: 100%;
+  margin-top: var(--space-2);
+}
+.alarm-take {
+  min-height: 60px;
+  font-size: 1.1rem;
+  background: var(--success);
+  color: #fff;
+  border-radius: 20px;
+}
+.alarm-take:hover {
+  filter: brightness(1.05);
+}
+.alarm-secondary {
+  min-height: 50px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+.alarm-ghost {
+  min-height: 44px;
+  color: var(--muted);
+  background: none;
+}
+.alarm-sound {
+  background: #fdf3e1;
+  color: #8a5a0b;
+}
+
+/* ---------- Settings ---------- */
+.alarm-settings {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  box-shadow: none;
+}
+.mode-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.mode-card {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  padding: var(--space-4);
+  border-radius: 18px;
+  border: 2px solid var(--border);
+  background: #fff;
+  text-align: left;
+  transition:
+    border-color var(--dur),
+    transform var(--dur) var(--ease-out),
+    background var(--dur);
+}
+.mode-card svg {
+  color: var(--primary);
+}
+.mode-card small {
+  color: var(--muted);
+}
+.mode-card:hover {
+  transform: translateY(-2px);
+}
+.mode-card.selected {
+  border-color: var(--primary);
+  background: var(--primary-tint);
+}
+.mode-card.selected svg {
+  animation: bell-ring 1.2s ease-in-out;
+}
+.alarm-device {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: 18px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  animation: rise 300ms var(--ease-out);
+}
+.alarm-device .field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.alarm-device > .btn {
+  justify-self: start;
+}
+@media (max-width: 639px) {
+  .mode-cards {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .alarm-card {
+    animation: none;
+  }
+}

@@ -4,6 +4,7 @@ import { api, enablePush, notificationPermission, type NotificationSettingsData 
 import { err } from "../../lib/errors";
 import { timeZones } from "../../constants/options";
 import { Field } from "../../components/Field";
+import { AlarmSettings } from "./AlarmSettings";
 import { useCare } from "../../hooks/CareAppContext";
 
 const DEFAULTS: NotificationSettingsData = {
@@ -280,6 +281,7 @@ export function NotificationSettings() {
         );
       const updated = await api.saveNotificationSettings(s);
       setS((v) => ({ ...v, ...updated }));
+      window.dispatchEvent(new Event("tended:settings-changed"));
       setSaved(true);
       window.setTimeout(() => setSaved(false), 1800);
       return "Notification settings saved.";
@@ -380,6 +382,10 @@ export function NotificationSettings() {
           Send a final alert at the scheduled time
         </label>
       </div>
+      <AlarmSettings
+        mode={s.alertMode || "notification"}
+        onModeChange={(m) => setS({ ...s, alertMode: m })}
+      />
       <ReminderTimeline
         lead={s.leadMinutes}
         repeat={s.repeatMinutes}

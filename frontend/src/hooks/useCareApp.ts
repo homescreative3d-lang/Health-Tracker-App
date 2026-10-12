@@ -814,6 +814,7 @@ export function useCareApp() {
     openNotification,
     deleteAccount,
     fail,
+    refreshDoses,
   };
 }
 

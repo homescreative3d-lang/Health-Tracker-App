@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Tended</string>
+    <string name="title_activity_main">Tended</string>
+    <string name="package_name">app.tended.care</string>
+    <string name="custom_url_scheme">app.tended.care</string>
+</resources>

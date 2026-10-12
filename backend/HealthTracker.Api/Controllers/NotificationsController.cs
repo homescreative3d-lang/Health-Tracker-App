@@ -27,13 +27,13 @@ public class NotificationsController(AppDbContext db, IPushNotificationService p
     {
         var user = await db.Users.FindAsync(UserId);
         var devices = await db.PushSubscriptions.CountAsync(s => s.UserId == UserId);
-        return Ok(new { timeZoneId = user?.TimeZoneId ?? "Asia/Kolkata", leadMinutes = user?.NotificationLeadMinutes ?? 15, repeatMinutes = user?.NotificationRepeatMinutes ?? 5, finalNotificationEnabled = user?.FinalNotificationEnabled ?? true, vapidPublicKey = keys.IsReady ? keys.PublicKey : null, pushConfigured = keys.IsReady, keySource = keys.Source, subscribedDevices = devices });
+        return Ok(new { timeZoneId = user?.TimeZoneId ?? "Asia/Kolkata", leadMinutes = user?.NotificationLeadMinutes ?? 15, repeatMinutes = user?.NotificationRepeatMinutes ?? 5, finalNotificationEnabled = user?.FinalNotificationEnabled ?? true, alertMode = user?.AlertMode ?? "notification", vapidPublicKey = keys.IsReady ? keys.PublicKey : null, pushConfigured = keys.IsReady, keySource = keys.Source, subscribedDevices = devices });
     }
 
     /// <summary>
     /// Saves reminder timing settings.
     /// </summary>
-    /// <param name="request">Time zone id; first reminder 0–120 minutes before; repeat every 1–60 minutes.</param>
+    /// <param name="request">Time zone id; first reminder 0–120 minutes before; repeat every 1–60 minutes (not longer than the lead); <c>alertMode</c>: notification, alarm or both.</param>
     /// <response code="200">Saved settings.</response>
     /// <response code="400">Values out of range or unknown time zone.</response>
     [HttpPut("settings")]
@@ -71,8 +71,14 @@ public class NotificationsController(AppDbContext db, IPushNotificationService p
         user.NotificationLeadMinutes = request.LeadMinutes;
         user.NotificationRepeatMinutes = request.RepeatMinutes;
         user.FinalNotificationEnabled = request.FinalNotificationEnabled;
+        if (request.AlertMode is not null)
+        {
+            if (request.AlertMode is not ("notification" or "alarm" or "both"))
+                return BadRequest(new { message = "Choose notification, alarm or both." });
+            user.AlertMode = request.AlertMode;
+        }
         await db.SaveChangesAsync();
-        return Ok(new { timeZoneId = user.TimeZoneId, leadMinutes = user.NotificationLeadMinutes, repeatMinutes = user.NotificationRepeatMinutes, finalNotificationEnabled = user.FinalNotificationEnabled, vapidPublicKey = keys.IsReady ? keys.PublicKey : null, pushConfigured = keys.IsReady });
+        return Ok(new { timeZoneId = user.TimeZoneId, leadMinutes = user.NotificationLeadMinutes, repeatMinutes = user.NotificationRepeatMinutes, finalNotificationEnabled = user.FinalNotificationEnabled, alertMode = user.AlertMode, vapidPublicKey = keys.IsReady ? keys.PublicKey : null, pushConfigured = keys.IsReady });
     }
 
     /// <summary>

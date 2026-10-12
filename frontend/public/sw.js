@@ -40,17 +40,43 @@ self.addEventListener("push", (event) => {
         { action: "skip", title: "Skip" },
       ]
     : [];
+  const alarm = data.alertMode === "alarm" || data.alertMode === "both";
   event.waitUntil(
-    self.registration.showNotification(data.title || "Tended", {
-      body: data.body || "You have a new update.",
-      icon: "/icon-192.png",
-      badge: "/notification-badge.png",
-      tag: data.doseId || data.type || "tended",
-      renotify: true,
-      requireInteraction: data.type === "dose_final" || data.type === "family_invite",
-      actions,
-      data: { ...data, url: data.url && data.url !== "/" ? data.url : ROUTES[data.type] || "/" },
-    }),
+    Promise.all([
+      self.registration.showNotification(
+        alarm ? `⏰ ${data.title || "Tended"}` : data.title || "Tended",
+        {
+          body: data.body || "You have a new update.",
+          icon: "/icon-192.png",
+          badge: "/notification-badge.png",
+          tag: data.doseId || data.type || "tended",
+          renotify: true,
+          // Alarm mode: strong, repeated vibration (Android) and stays until the user acts.
+          vibrate: alarm ? [800, 300, 800, 300, 800, 300, 1200] : [200, 100, 200],
+          requireInteraction: alarm || data.type === "dose_final" || data.type === "family_invite",
+          silent: false,
+          actions,
+          data: {
+            ...data,
+            url: data.url && data.url !== "/" ? data.url : ROUTES[data.type] || "/",
+          },
+        },
+      ),
+      // If Tended is open, ask it to ring its in-app alarm (custom sound, loops until handled).
+      alarm
+        ? clients
+            .matchAll({ type: "window", includeUncontrolled: true })
+            .then((list) =>
+              list.forEach((c) =>
+                c.postMessage({
+                  type: "tended-alarm",
+                  doseId: data.doseId,
+                  alertMode: data.alertMode,
+                }),
+              ),
+            )
+        : Promise.resolve(),
+    ]),
   );
 });
 

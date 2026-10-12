@@ -79,7 +79,11 @@ public class PushNotificationService(AppDbContext db, ILogger<PushNotificationSe
 
         var client = new WebPushClient();
         var vapid = new VapidDetails(keys.Subject, keys.PublicKey, keys.PrivateKey);
-        var payload = JsonSerializer.Serialize(new { title, body, type, doseId, url = "/", form = medicineForm });
+        // Alert mode lets the service worker vibrate strongly and keep alarm-style alerts on screen,
+        // and lets an open app ring its in-app alarm.
+        var mode = await db.Users.Where(u => u.Id == uid).Select(u => u.AlertMode).FirstOrDefaultAsync(ct) ?? "notification";
+        var isDose = type is "dose_reminder" or "dose_final" or "dose_missed";
+        var payload = JsonSerializer.Serialize(new { title, body, type, doseId, url = "/", form = medicineForm, alertMode = isDose ? mode : "notification" });
         int delivered = 0, removed = 0;
         string? reason = null, detail = null;
         foreach (var s in subs)

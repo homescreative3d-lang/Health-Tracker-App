@@ -186,6 +186,15 @@ The default is 5 scans per user per rolling 24 hours. Both settings live in the 
 
 Viewing a future day no longer writes dose rows; future doses are calculated on the fly. A future dose is stored only when someone acts on it (for example, rescheduling). History shows only what has already happened. Untouched future rows created by older versions are removed automatically at startup.
 
+## Alarms
+
+Profile → Notifications lets each user choose how reminders arrive: **Notification**, **Alarm** or **Both**. The choice is stored as `Users.AlertMode`.
+
+- **When it rings:** alarms use the same cadence as notifications (first reminder, repeats, on-time alert).
+- **While the app is open:** a full-screen alarm loops the chosen sound and vibrates until someone taps Taken, Skip, Snooze or Stop. Sound choices are four built-in tones or the user's own file, which is stored on that device only.
+- **When the app is closed:** alarm-mode push notifications vibrate strongly and stay on screen until tapped.
+- **Locked phone:** ringing a full alarm needs the Android app; see [docs/ANDROID.md](docs/ANDROID.md).
+
 ## Notification scheduler switch
 
 The `NotificationRuntimeConfig` table has one controlling row:

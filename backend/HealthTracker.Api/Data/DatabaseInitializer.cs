@@ -130,6 +130,7 @@ public static class DatabaseInitializer
                         ALTER TABLE "Medicines" ADD COLUMN IF NOT EXISTS "PrescribedBy" text NOT NULL DEFAULT '';
                         ALTER TABLE "Medicines" ADD COLUMN IF NOT EXISTS "LastRefillAt" timestamp with time zone NULL;
                         ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "AiScanDailyLimit" integer NULL;
+                        ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "AlertMode" text NOT NULL DEFAULT 'notification';
                         CREATE TABLE IF NOT EXISTS "RefillLogs" (
                             "Id" uuid NOT NULL CONSTRAINT "PK_RefillLogs" PRIMARY KEY,
                             "MedicineId" uuid NOT NULL,

@@ -266,6 +266,8 @@ export type NotificationSettingsData = {
   repeatMinutes: number;
   finalNotificationEnabled: boolean;
   vapidPublicKey?: string | null;
+  /** How dose reminders arrive: notification, alarm or both. */
+  alertMode?: "notification" | "alarm" | "both";
   /** Server has both VAPID keys. */
   pushConfigured?: boolean;
   /** Devices this account has subscribed to push. */

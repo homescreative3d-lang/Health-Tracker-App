@@ -5,6 +5,8 @@ import { SplashScreen } from "./components/SplashScreen";
 import { LandingScreen } from "./screens/landing/LandingScreen";
 import { Toast } from "./components/Toast";
 import { ConfirmHost } from "./components/ConfirmHost";
+import { AlarmOverlay } from "./components/AlarmOverlay";
+import { useAlarms } from "./hooks/useAlarms";
 import { LoginScreen } from "./screens/auth/LoginScreen";
 import { ForgotScreen } from "./screens/auth/ForgotScreen";
 import { ResetScreen } from "./screens/auth/ResetScreen";
@@ -16,6 +18,7 @@ import { MedicineWizard } from "./screens/modals/MedicineWizard";
 import { NotificationPopover } from "./screens/notifications/NotificationPopover";
 import { NotificationDetailModal } from "./screens/notifications/NotificationDetailModal";
 import { blank } from "./constants/options";
+import { api } from "./api";
 
 /**
  * Root component: creates the app controller, provides it via context and routes
@@ -24,6 +27,7 @@ import { blank } from "./constants/options";
  */
 export default function App() {
   const app = useCareApp();
+  const alarms = useAlarms(app.user, app.patients, (p) => app.canActOnDoses(p));
 
   if (app.loading) return <SplashScreen />;
 
@@ -129,6 +133,23 @@ export default function App() {
         )}
         <Toast toast={app.toast} onDismiss={app.dismissToast} />
         <ConfirmHost />
+        {alarms.active && (
+          <AlarmOverlay
+            alarm={alarms.active}
+            onSnooze={alarms.snooze}
+            onDismiss={alarms.dismiss}
+            onAct={async (action) => {
+              try {
+                if (action === "taken") await api.take(alarms.active!.dose.id);
+                else await api.skip(alarms.active!.dose.id, "Skipped from alarm");
+                alarms.dismiss();
+                await app.refreshDoses();
+              } catch (e) {
+                app.fail(e);
+              }
+            }}
+          />
+        )}
       </div>
     </CareAppContext.Provider>
   );

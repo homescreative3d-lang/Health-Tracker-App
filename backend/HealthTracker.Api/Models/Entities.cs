@@ -13,6 +13,8 @@ public class AppUser
     /// <summary>Interval between repeated reminders before the dose time.</summary>
     public int NotificationRepeatMinutes { get; set; } = 5;
     public bool FinalNotificationEnabled { get; set; } = true;
+    /// <summary>How dose reminders reach the user: <c>notification</c>, <c>alarm</c> (ringing + vibration) or <c>both</c>.</summary>
+    public string AlertMode { get; set; } = "notification";
     /// <summary>Object-storage key of the photo (not a URL; signed URLs are generated per response).</summary>
     public string? ProfileImageUrl { get; set; }
     /// <summary>Phone in E.164 format with country code, e.g. +919845012345 (optional).</summary>
