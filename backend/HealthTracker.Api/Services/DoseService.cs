@@ -61,11 +61,13 @@ public interface IDoseService
 /// <param name="access">Patient access rules.</param>
 /// <param name="notifier">Care-team notifications (optional so unit tests can omit it).</param>
 /// <param name="audit">Audit trail (optional so unit tests can omit it).</param>
-public class DoseService(AppDbContext db, IPatientAccessService access, ICareTeamNotifier? notifier = null, IAuditTrail? audit = null) : IDoseService
+/// <param name="windowSettings">Action window length (optional; defaults to 12 hours).</param>
+public class DoseService(AppDbContext db, IPatientAccessService access, ICareTeamNotifier? notifier = null, IAuditTrail? audit = null, DoseWindowSettings? windowSettings = null) : IDoseService
 {
     /// <inheritdoc />
     public async Task<List<DoseResponse>> Get(Guid uid, DateOnly date, Guid? patientId)
     {
+        currentWindow = await Window();
         var p = await access.GetAccessiblePatientAsync(uid, patientId);
         var owner = await db.Users.FindAsync(p.UserId);
         var tz = Zone(owner?.TimeZoneId);
@@ -170,8 +172,9 @@ public class DoseService(AppDbContext db, IPatientAccessService access, ICareTea
         var scheduled = ScheduledAt(x.Dose, Zone(x.OwnerTimeZone));
         if (now < scheduled)
             throw new InvalidOperationException("This dose cannot be taken before its scheduled time.");
-        if (now > scheduled.AddHours(1))
-            throw new InvalidOperationException("This dose is locked. It can only be marked taken within 1 hour of the scheduled time.");
+        var window = await Window();
+        if (now > scheduled + window)
+            throw new InvalidOperationException($"This dose can no longer be marked: doses can be recorded up to {Hours(window)} after their scheduled time.");
         var (perDose, unit) = DoseQuantity.Parse(x.Medicine.DoseAmount, x.Medicine.Form);
         if (x.Medicine.StockQuantity < perDose)
             throw new InvalidOperationException($"Not enough {x.Medicine.Name} left ({DoseQuantity.Format(x.Medicine.StockQuantity, unit)}). Record a refill first.");
@@ -195,8 +198,9 @@ public class DoseService(AppDbContext db, IPatientAccessService access, ICareTea
         var scheduled = ScheduledAt(x.Dose, Zone(x.OwnerTimeZone));
         if (now < scheduled)
             throw new InvalidOperationException("This dose cannot be skipped before its scheduled time.");
-        if (now > scheduled.AddHours(1))
-            throw new InvalidOperationException("This dose is locked after 1 hour.");
+        var window = await Window();
+        if (now > scheduled + window)
+            throw new InvalidOperationException($"This dose can no longer be changed: doses can be recorded up to {Hours(window)} after their scheduled time.");
         x.Dose.Status = "skipped";
         x.Dose.SkipReason = string.IsNullOrWhiteSpace(reason) ? "Skipped by user" : reason.Trim();
         x.Dose.ActionedByUserId = uid;
@@ -266,8 +270,9 @@ public class DoseService(AppDbContext db, IPatientAccessService access, ICareTea
         var now = DateTimeOffset.UtcNow;
         var scheduled = ScheduledAt(x.Dose, Zone(x.OwnerTimeZone));
         // Reschedules can be undone any time the moved dose is still open; take/skip only within the window.
-        if (x.Dose.Status != "rescheduled" && now > scheduled.AddHours(1))
-            throw new InvalidOperationException("This dose is locked after 1 hour.");
+        var window = await Window();
+        if (x.Dose.Status != "rescheduled" && now > scheduled + window)
+            throw new InvalidOperationException($"This dose can no longer be changed: doses can be recorded up to {Hours(window)} after their scheduled time.");
         var previous = x.Dose.Status;
         // Undoing a reschedule removes the moved dose (only while it hasn't been actioned).
         if (x.Dose.Status == "rescheduled")
@@ -328,14 +333,23 @@ public class DoseService(AppDbContext db, IPatientAccessService access, ICareTea
     private static string Slot(DateOnly date, string time) =>
         $"{date:ddd d MMM}, {(TimeOnly.TryParseExact(time, "HH:mm", out var t) ? t.ToString("h:mm tt") : time)}";
 
+    /// <summary>Window used by <see cref="ApplyCurrentState"/> (loaded at the start of <see cref="Get"/>).</summary>
+    private TimeSpan currentWindow = DoseSchedule.ActionWindow;
+
+    /// <summary>How long after its time a dose may still be marked (database setting, default 12 hours).</summary>
+    private async Task<TimeSpan> Window() => windowSettings is null ? DoseWindowSettings.Default : await windowSettings.GetAsync();
+
+    /// <summary>"12 hours" / "1 hour" for messages.</summary>
+    private static string Hours(TimeSpan w) => w.TotalHours == 1 ? "1 hour" : $"{w.TotalHours:0.#} hours";
+
     /// <summary>Queues an audit entry for a dose action (no-op when auditing isn't wired, e.g. in tests).</summary>
     private Task Audit(Guid uid, DoseEvent d, Medicine m, string action, string summary, string? reason = null, object? details = null) =>
         audit?.RecordAsync(uid, "dose", d.Id, action, summary, d.PatientId, m.Id, reason, details) ?? Task.CompletedTask;
 
-    /// <summary>Marks a pending dose as missed once its scheduled time has passed.</summary>
+    /// <summary>Marks a pending dose as missed once its action window has closed (still recordable before that).</summary>
     void ApplyCurrentState(DoseEvent d, TimeZoneInfo tz)
     {
-        if (d.Status == "pending" && DateTimeOffset.UtcNow > ScheduledAt(d, tz))
+        if (d.Status == "pending" && DateTimeOffset.UtcNow > ScheduledAt(d, tz) + currentWindow)
         {
             d.Status = "missed";
             d.MissedAt ??= DateTimeOffset.UtcNow;

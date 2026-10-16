@@ -195,6 +195,14 @@ Profile → Notifications lets each user choose how reminders arrive: **Notifica
 - **When the app is closed:** alarm-mode push notifications vibrate strongly and stay on screen until tapped.
 - **Locked phone:** ringing a full alarm needs the Android app; see [docs/ANDROID.md](docs/ANDROID.md).
 
+## Dose recording window
+
+A dose can be marked taken or skipped (or undone) from its scheduled time until **12 hours** after it.
+
+- **After 1 hour:** if it hasn't been recorded, it shows as **Late** and a "not taken yet" alert is sent. It can still be recorded.
+- **After 12 hours:** it becomes **Missed**.
+- **Changing the window** (1–72 hours, no redeploy needed): `UPDATE "ServerSettings" SET "Value" = '24' WHERE "Key" = 'doses.actionWindowHours';`
+
 ## Notification scheduler switch
 
 The `NotificationRuntimeConfig` table has one controlling row:

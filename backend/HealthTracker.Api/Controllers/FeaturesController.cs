@@ -15,7 +15,7 @@ namespace HealthTracker.Api.Controllers;
 /// </summary>
 [Authorize]
 [Route("api")]
-public class FeaturesController(AppDbContext db, IFeatureFlags features, IConfiguration config) : ApiControllerBase
+public class FeaturesController(AppDbContext db, IFeatureFlags features, IConfiguration config, DoseWindowSettings doseWindow) : ApiControllerBase
 {
     /// <summary>True when the caller's email is listed in <c>Admin:Emails</c>.</summary>
     private async Task<bool> IsSystemAdmin()
@@ -31,11 +31,11 @@ public class FeaturesController(AppDbContext db, IFeatureFlags features, IConfig
     /// <summary>
     /// Effective feature values for the signed-in user (global value, overridden per user).
     /// </summary>
-    /// <response code="200"><c>{ features: { key: bool }, isSystemAdmin }</c></response>
+    /// <response code="200"><c>{ features: { key: bool }, isSystemAdmin, doseActionWindowHours }</c></response>
     [HttpGet("features")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> Mine() =>
-        Ok(new { features = await features.EffectiveAsync(CurrentUserId), isSystemAdmin = await IsSystemAdmin() });
+        Ok(new { features = await features.EffectiveAsync(CurrentUserId), isSystemAdmin = await IsSystemAdmin(), doseActionWindowHours = (await doseWindow.GetAsync()).TotalHours });
 
     /// <summary>
     /// Lists every flag with its description, global value and per-user overrides (system admins only).

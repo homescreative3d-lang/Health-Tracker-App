@@ -69,7 +69,7 @@ export function Today({
   const total = all.length;
   const taken = all.filter((d) => d.status === "taken").length;
   const skipped = all.filter((d) => d.status === "skipped").length;
-  // A dose only counts as missed once its 1-hour window has closed (the API flags it "missed"
+  // A dose only counts as missed once its action window (default 12 hours) has closed (the API flags it "missed"
   // as soon as the time passes, while it is still takeable and shown as "Due now").
   const missed = all.filter(
     (d) =>

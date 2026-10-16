@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import type { Dose } from "../api";
 import { dateLabel, fmtTime } from "../lib/dates";
-import { doseWindow, type DoseWindow } from "../lib/doseWindow";
+import { doseWindow, doseWindowHours, windowClosesAt, type DoseWindow } from "../lib/doseWindow";
 import { useNow } from "../hooks/useNow";
 import { MedicineArt } from "./art/MedicineArt";
 
@@ -47,6 +47,7 @@ function statusOf(d: Dose, w: DoseWindow) {
     };
   if (w === "locked") return { label: "Missed", className: "status-danger", tone: "missed" };
   if (w === "upcoming") return { label: "Upcoming", className: "status-info", tone: "" };
+  if (w === "late") return { label: "Late", className: "status-late", tone: "due" };
   // The API flags overdue doses "missed" as soon as the time passes, but they stay
   // actionable for an hour, so the UI presents them as due.
   return { label: "Due now", className: "status-pending", tone: "due" };
@@ -65,7 +66,8 @@ function activityClass(prev: string, next: string): string | null {
 /**
  * One dose in the schedule.
  *
- * - Mirrors the API's 1-hour action window (upcoming → due now → locked).
+ * - Mirrors the API's action window (default 12 hours): upcoming → due now → late (still
+ *   recordable) → missed.
  * - Highlights the dose whose time is now with a glowing border; re-checks every 30 seconds.
  * - Status reads from the patient's side ("Taken"); the caregiver who recorded it is shown
  *   separately ("Recorded by Priya") only when it wasn't the patient themself.
@@ -85,6 +87,9 @@ export function DoseRow({ d, date, onDose, onReschedule, canAct = true }: DoseRo
   const acted = d.status === "taken" || d.status === "skipped";
   const moved = d.status === "rescheduled";
   const dueNow = actionWindow === "open" && !acted && !moved && canAct;
+  // Late doses can still be recorded until the window closes.
+  const recordable =
+    (actionWindow === "open" || actionWindow === "late") && !acted && !moved && canAct;
   const canReschedule = !acted && !moved && !!onReschedule;
   const recordedBy =
     (acted || moved) && d.actionedByName && d.actionedByName.trim() !== (d.patientName || "").trim()
@@ -184,7 +189,7 @@ export function DoseRow({ d, date, onDose, onReschedule, canAct = true }: DoseRo
                 Reschedule
               </button>
             )}
-            {dueNow && (
+            {recordable && (
               <>
                 <button className="btn soft sm" disabled={!!busy} onClick={() => run("skip")}>
                   <X size={15} aria-hidden="true" />
@@ -200,16 +205,17 @@ export function DoseRow({ d, date, onDose, onReschedule, canAct = true }: DoseRo
                 </button>
               </>
             )}
-            {canAct && ((actionWindow === "open" && acted) || moved) && (
-              <button
-                className="btn ghost sm undo-btn"
-                disabled={!!busy}
-                onClick={() => run("undo")}
-              >
-                <RotateCcw size={15} aria-hidden="true" />
-                {busy === "undo" ? "Undoing…" : "Undo"}
-              </button>
-            )}
+            {canAct &&
+              (((actionWindow === "open" || actionWindow === "late") && acted) || moved) && (
+                <button
+                  className="btn ghost sm undo-btn"
+                  disabled={!!busy}
+                  onClick={() => run("undo")}
+                >
+                  <RotateCcw size={15} aria-hidden="true" />
+                  {busy === "undo" ? "Undoing…" : "Undo"}
+                </button>
+              )}
           </div>
         </div>
         {history.length > 0 && (
@@ -242,6 +248,13 @@ export function DoseRow({ d, date, onDose, onReschedule, canAct = true }: DoseRo
             )}
           </div>
         )}
+        {actionWindow === "late" && !acted && !moved && (
+          <span className="dose-hint late-hint">
+            <Clock3 size={14} aria-hidden="true" />
+            Can still be recorded until{" "}
+            {windowClosesAt(date, d).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+          </span>
+        )}
         {actionWindow === "upcoming" && !acted && !moved && (
           <span className="dose-hint">
             <Clock3 size={14} aria-hidden="true" />
@@ -251,7 +264,8 @@ export function DoseRow({ d, date, onDose, onReschedule, canAct = true }: DoseRo
         {actionWindow === "locked" && !acted && !moved && (
           <span className="dose-hint">
             <Lock size={14} aria-hidden="true" />
-            Locked after 1 hour.{canReschedule ? " You can still reschedule it." : ""}
+            Not recorded within {doseWindowHours()} hours.
+            {canReschedule ? " You can still reschedule it." : ""}
           </span>
         )}
       </div>

@@ -32,7 +32,12 @@ public class DoseRuleTests
             Condition = "Hypertension",
             TimesJson = $"[\"{time}\"]",
             StartDate = date,
-            SupplyCount = supply
+            SupplyCount = supply,
+            // Stock is a quantity since stock tracking moved to units; Take checks it.
+            DoseAmount = "1 tablet",
+            Form = "Pill",
+            StockQuantity = supply,
+            StockUnit = "tablet"
         };
         var d = new DoseEvent
         {
@@ -58,23 +63,34 @@ public class DoseRuleTests
     }
 
     [Fact]
-    public async Task TakeWithinOneHourDecrementsSupply()
+    public async Task TakeDecrementsSupply()
     {
-        var now = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"));
-        var date = DateOnly.FromDateTime(now.DateTime);
-        var time = TimeOnly.FromTimeSpan(now.TimeOfDay.Subtract(TimeSpan.FromMinutes(20))).ToString("HH:mm");
+        var (date, time) = Ago(TimeSpan.FromMinutes(20));
         var x = Setup(date, time);
         var d = await x.Svc.Take(x.User, x.DoseId);
         Assert.Equal("taken", d.Status);
         Assert.Equal(4, await x.Db.Medicines.Select(m => m.SupplyCount).SingleAsync());
     }
 
-    [Fact]
-    public async Task LocksAfterOneHour()
+    /// <summary>A slot <paramref name="ago"/> in the past (crosses midnight safely).</summary>
+    private static (DateOnly Date, string Time) Ago(TimeSpan ago)
     {
-        var now = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"));
-        var date = DateOnly.FromDateTime(now.DateTime);
-        var time = TimeOnly.FromTimeSpan(now.TimeOfDay.Subtract(TimeSpan.FromMinutes(70))).ToString("HH:mm");
+        var t = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata")) - ago;
+        return (DateOnly.FromDateTime(t.DateTime), t.ToString("HH:mm"));
+    }
+
+    [Fact]
+    public async Task LateDoseCanStillBeTakenWithinWindow()
+    {
+        var (date, time) = Ago(TimeSpan.FromMinutes(70)); // used to be locked after 1 hour
+        var x = Setup(date, time);
+        Assert.Equal("taken", (await x.Svc.Take(x.User, x.DoseId)).Status);
+    }
+
+    [Fact]
+    public async Task LocksAfterTwelveHourWindow()
+    {
+        var (date, time) = Ago(TimeSpan.FromHours(13));
         var x = Setup(date, time);
         await Assert.ThrowsAsync<InvalidOperationException>(() => x.Svc.Take(x.User, x.DoseId));
     }

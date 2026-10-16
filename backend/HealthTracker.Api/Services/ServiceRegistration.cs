@@ -38,6 +38,7 @@ public static class ServiceRegistration
         services.AddSingleton<FileLinks>();
         services.AddSingleton<INeonObjectStorage, NeonObjectStorage>();
         services.AddSingleton<VapidKeyStore>();
+        services.AddSingleton<DoseWindowSettings>();
         services.AddHttpClient<IPrescriptionExtractor, GeminiPrescriptionExtractor>(c => c.Timeout = TimeSpan.FromSeconds(60));
         services.AddHostedService<NotificationScheduler>();
         return services;

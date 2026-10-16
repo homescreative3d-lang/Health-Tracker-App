@@ -42,8 +42,8 @@
       "title": "Taking doses on the Today screen",
       "steps": [
         "Doses are grouped into Morning, Afternoon, Evening and Night, like a pill organizer.",
-        "A dose that is due right now has a glowing border. Press Take or Skip; each dose can be marked from its time until one hour after.",
-        "Made a mistake? Press Undo while the dose is still open.",
+        "A dose that is due right now has a glowing border. Press Take or Skip; each dose can be marked from its time until 12 hours after. After an hour it shows as Late and you get a reminder, but it can still be recorded.",
+        "Made a mistake? Press Undo any time within those 12 hours.",
         "Taken, skipped and missed doses are counted separately in the progress ring and bar. Each dose shows who recorded it."
       ]
     },

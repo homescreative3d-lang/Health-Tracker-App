@@ -152,6 +152,7 @@ public static class DatabaseInitializer
                             "Succeeded" boolean NOT NULL);
                         CREATE INDEX IF NOT EXISTS "IX_AiScanLogs_UserId_At" ON "AiScanLogs" ("UserId", "At");
                         INSERT INTO "ServerSettings" ("Key", "Value", "UpdatedAt") VALUES ('ai.scanDailyLimit', '5', now()) ON CONFLICT ("Key") DO NOTHING;
+                        INSERT INTO "ServerSettings" ("Key", "Value", "UpdatedAt") VALUES ('doses.actionWindowHours', '12', now()) ON CONFLICT ("Key") DO NOTHING;
                         -- Future dose rows created only because someone viewed a future day: never actioned, safe to drop
                         -- (future doses are now computed on the fly). Moved doses and anything actioned are kept.
                         DELETE FROM "DoseEvents" d

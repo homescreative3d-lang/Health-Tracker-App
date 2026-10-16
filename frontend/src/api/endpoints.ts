@@ -176,7 +176,7 @@ export const api = {
   /** Returns (and lazily materializes) the doses scheduled on a date. */
   getDoses: (date: string, patientId?: string) =>
     request<Dose[]>(`/doses?date=${date}` + (patientId ? `&patientId=${patientId}` : "")),
-  /** Marks a dose taken (allowed from scheduled time until +1 hour). */
+  /** Marks a dose taken (allowed from its scheduled time until the action window closes, 12 hours by default). */
   take: (id: string) => request<Dose>(`/doses/${id}/taken`, send("POST")),
   /** Marks a dose skipped with a reason (same window as take). */
   skip: (id: string, reason: string) =>

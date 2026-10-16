@@ -17,7 +17,7 @@ const DEFAULTS: NotificationSettingsData = {
 /**
  * Live preview of when reminders fire for a sample 8:00 PM dose, mirroring the server
  * scheduler: first reminder `lead` minutes before, repeats every `repeat` minutes until the
- * dose time, an optional final alert on time, and a missed-dose alert one hour after.
+ * dose time, an optional final alert on time, and a "not taken yet" alert one hour after (the dose can still be recorded for 12 hours).
  */
 function ReminderTimeline({
   lead,
@@ -52,7 +52,7 @@ function ReminderTimeline({
         <span
           className="rt-window"
           style={{ left: `${pos(0)}%`, width: `${pos(60) - pos(0)}%` }}
-          title="Take/Skip window"
+          title="Due now"
         />
         {reminders.map((m, i) => (
           <span
@@ -70,7 +70,7 @@ function ReminderTimeline({
         <span
           className="rt-mark missed"
           style={{ left: `${pos(60)}%` }}
-          title="Missed-dose alert"
+          title="Not taken yet alert"
         />
       </div>
       <div className="rt-labels">
@@ -81,8 +81,8 @@ function ReminderTimeline({
       <ul className="rt-legend">
         <li className="reminder">Reminder</li>
         <li className="dose">{final ? "On-time alert" : "Dose time"}</li>
-        <li className="window">Take / Skip window</li>
-        <li className="missed">Missed alert</li>
+        <li className="window">Due now (still recordable for 12 h)</li>
+        <li className="missed">Not-taken alert (+1 h)</li>
       </ul>
     </div>
   );

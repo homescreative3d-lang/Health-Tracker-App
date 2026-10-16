@@ -288,3 +288,12 @@
   flex-direction: column;
   align-items: stretch;
 }
+
+/* Late: past the first hour, still recordable until the action window closes. */
+.status-late {
+  background: #fde8dc;
+  color: #a0471f;
+}
+.late-hint {
+  color: #a0471f;
+}

@@ -71,6 +71,7 @@ public class NotificationScheduler(IServiceScopeFactory scopes, ILogger<Notifica
         var push = services.GetRequiredService<IPushNotificationService>();
         var now = DateTimeOffset.UtcNow;
         var users = await db.Users.AsNoTracking().Where(u => !u.IsDeleted).ToListAsync(cancellationToken);
+        var window = await services.GetRequiredService<DoseWindowSettings>().GetAsync(cancellationToken);
         foreach (var user in users)
         {
             var timeZone = DoseSchedule.ResolveTimeZone(user.TimeZoneId);
@@ -119,7 +120,7 @@ public class NotificationScheduler(IServiceScopeFactory scopes, ILogger<Notifica
                             continue;
                         }
 
-                        await ProcessReminders(db, push, user, patient, medicine, dose, scheduledUtc, timeOfDay, now, "", cancellationToken);
+                        await ProcessReminders(db, push, user, patient, medicine, dose, scheduledUtc, timeOfDay, now, "", cancellationToken, window);
                     }
                 }
 
@@ -133,7 +134,7 @@ public class NotificationScheduler(IServiceScopeFactory scopes, ILogger<Notifica
                     if (medicine is null || !TimeOnly.TryParse(moved.Time, out var movedTime))
                         continue;
                     var movedUtc = DoseSchedule.ScheduledAt(localDate, moved.Time, timeZone).ToUniversalTime();
-                    await ProcessReminders(db, push, user, patient, medicine, moved, movedUtc, movedTime, now, " (rescheduled)", cancellationToken);
+                    await ProcessReminders(db, push, user, patient, medicine, moved, movedUtc, movedTime, now, " (rescheduled)", cancellationToken, window);
                 }
             }
         }
@@ -144,7 +145,7 @@ public class NotificationScheduler(IServiceScopeFactory scopes, ILogger<Notifica
     /// and marks it missed once its time passes. Shared by scheduled and rescheduled doses;
     /// <c>label</c> is appended to message text (e.g. " (rescheduled)").
     /// </summary>
-    private static async Task ProcessReminders(AppDbContext db, IPushNotificationService push, AppUser user, Patient patient, Medicine medicine, DoseEvent dose, DateTimeOffset scheduledUtc, TimeOnly timeOfDay, DateTimeOffset now, string label, CancellationToken cancellationToken)
+    private static async Task ProcessReminders(AppDbContext db, IPushNotificationService push, AppUser user, Patient patient, Medicine medicine, DoseEvent dose, DateTimeOffset scheduledUtc, TimeOnly timeOfDay, DateTimeOffset now, string label, CancellationToken cancellationToken, TimeSpan window)
     {
         var minutesUntilDose = (scheduledUtc - now).TotalMinutes;
         if (minutesUntilDose > 0 && user.NotificationLeadMinutes > 0 && minutesUntilDose <= user.NotificationLeadMinutes)
@@ -164,16 +165,22 @@ public class NotificationScheduler(IServiceScopeFactory scopes, ILogger<Notifica
             await Deliver(db, user.Id, patient, medicine, dose, "Medicine due now", $"{medicine.Name} ({medicine.Strength}) for {patient.Name} is due now{label}.", "dose_final", scheduledUtc, push, cancellationToken);
         }
 
-        if (minutesUntilDose <= 0 && dose.Status == "pending")
+        // Not recorded an hour after its time: one "not taken yet" alert. It can still be recorded
+        // until the action window closes (default 12 hours); only then is it marked missed.
+        if (minutesUntilDose <= -DoseSchedule.LateAfter.TotalMinutes && dose.Status is "pending" or "missed"
+            && await Reserve(db, user.Id, dose.Id, "missed", scheduledUtc, cancellationToken))
+        {
+            var deadline = timeOfDay.Add(window);
+            await Deliver(db, user.Id, patient, medicine, dose, "Dose not taken yet",
+                $"{medicine.Name} ({medicine.Strength}) for {patient.Name} was due at {timeOfDay}{label} and hasn't been marked. It can still be recorded until {deadline:h:mm tt}.",
+                "dose_missed", scheduledUtc, push, cancellationToken);
+        }
+
+        if (minutesUntilDose <= -window.TotalMinutes && dose.Status == "pending")
         {
             dose.Status = "missed";
             dose.MissedAt = now;
             await db.SaveChangesAsync(cancellationToken);
-        }
-
-        if (minutesUntilDose <= -1.0 && dose.Status == "missed" && await Reserve(db, user.Id, dose.Id, "missed", scheduledUtc, cancellationToken))
-        {
-            await Deliver(db, user.Id, patient, medicine, dose, "Dose missed", $"{medicine.Name} ({medicine.Strength}) for {patient.Name} was not marked taken at {timeOfDay}{label}.", "dose_missed", scheduledUtc, push, cancellationToken);
         }
     }
 

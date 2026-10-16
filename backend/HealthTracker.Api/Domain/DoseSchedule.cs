@@ -16,8 +16,14 @@ public static class DoseSchedule
     /// <summary>Default time zone used when a user's zone is missing or invalid.</summary>
     public const string DefaultTimeZoneId = "Asia/Kolkata";
 
-    /// <summary>Minutes after the scheduled time during which a dose may be taken, skipped or undone.</summary>
-    public const int ActionWindowMinutes = 60;
+    /// <summary>
+    /// Default time after the scheduled time during which a dose may be taken, skipped or undone
+    /// (the live value comes from ServerSettings <c>doses.actionWindowHours</c>).
+    /// </summary>
+    public static readonly TimeSpan ActionWindow = TimeSpan.FromHours(12);
+
+    /// <summary>After this long without a record a dose is flagged late and a "not taken yet" alert is sent.</summary>
+    public static readonly TimeSpan LateAfter = TimeSpan.FromHours(1);
 
     /// <summary>
     /// Decides whether a medicine has doses on a date, honoring start date, pause range,

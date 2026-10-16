@@ -15,7 +15,7 @@ type AlarmOverlayProps = {
 
 /**
  * Full-screen alarm: rings (chosen tone, looped) and vibrates until the user acts.
- * Take is offered once the dose is due (the 1-hour window); before that it's a heads-up.
+ * Take is offered once the dose is due (from its scheduled time until the action window closes); before that it's a heads-up.
  */
 export function AlarmOverlay({ alarm, onAct, onSnooze, onDismiss }: AlarmOverlayProps) {
   const [needsTap, setNeedsTap] = useState(false);

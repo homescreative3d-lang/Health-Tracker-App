@@ -18,6 +18,7 @@ import {
 } from "../api";
 import { parseNotificationData, routeFor } from "../lib/notifications";
 import { confirmAction } from "../components/ConfirmHost";
+import { setDoseWindowHours } from "../lib/doseWindow";
 import { DAY_PARTS, dateLabel, fmtTime, part, today } from "../lib/dates";
 import { err } from "../lib/errors";
 import { HUB_TABS, type HubTab } from "../components/navigation/navItems";
@@ -167,6 +168,7 @@ export function useCareApp() {
         .getFeatures()
         .then((f) => {
           setFeatures(f.features);
+          setDoseWindowHours((f as { doseActionWindowHours?: number }).doseActionWindowHours);
           setIsSystemAdmin(f.isSystemAdmin);
         })
         .catch(() => {});

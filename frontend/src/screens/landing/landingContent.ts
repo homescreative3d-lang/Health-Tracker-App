@@ -55,7 +55,7 @@ export const heroSlides: HeroSlide[] = [
 export const facts = [
   { value: "4", label: "daypart compartments" },
   { value: "0–120", label: "minutes of reminder lead time" },
-  { value: "1 hour", label: "window to mark each dose" },
+  { value: "12 hours", label: "to record each dose" },
   { value: "Every", label: "change audited: who, when, why" },
 ];
 
@@ -215,7 +215,7 @@ export const faqs = [
   },
   {
     q: "What happens if a dose is missed?",
-    a: "Each dose can be marked taken or skipped from its scheduled time until one hour after. After that it's recorded as missed, you get a missed-dose alert, and it appears in history.",
+    a: "Each dose can be marked taken or skipped from its scheduled time until 12 hours after. If it hasn't been recorded after an hour it shows as Late and caregivers get a reminder; after 12 hours it's recorded as missed.",
   },
   {
     q: "Who can see my information?",
